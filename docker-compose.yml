@@ -8,7 +8,7 @@ services:
   # ── Nginx — proxy reverso e arquivos estáticos ──────────────────
   nginx:
     image: nginx:1.25-alpine
-    container_name: pagseguro-nginx
+    container_name: express-nginx
     restart: unless-stopped
     ports:
       - "80:80"
@@ -28,7 +28,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    container_name: pagseguro-app
+    container_name: express-app
     restart: unless-stopped
     volumes:
       - .:/var/www/html
@@ -48,7 +48,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    container_name: pagseguro-queue
+    container_name: express-queue
     restart: unless-stopped
     command: php artisan queue:work --queue=automacao,default --tries=3 --sleep=3 --timeout=900
     volumes:
@@ -71,7 +71,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    container_name: pagseguro-scheduler
+    container_name: express-scheduler
     restart: unless-stopped
     command: sh -c "while true; do php artisan schedule:run --no-interaction; sleep 60; done"
     volumes:
@@ -92,7 +92,7 @@ services:
     build:
       context: .
       dockerfile: docker/automacao/Dockerfile
-    container_name: pagseguro-automacao
+    container_name: express-automacao
     restart: unless-stopped
     env_file: automacao/.env
     volumes:
@@ -107,14 +107,14 @@ services:
   # ── MySQL 8 ──────────────────────────────────────────────────────
   mysql:
     image: mysql:8.4
-    container_name: pagseguro-mysql
+    container_name: express-mysql
     restart: unless-stopped
     volumes:
       - mysql-data:/var/lib/mysql
       - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
     environment:
-      MYSQL_DATABASE: ${DB_DATABASE:-pagseguro}
-      MYSQL_USER: ${DB_USERNAME:-pagseguro}
+      MYSQL_DATABASE: ${DB_DATABASE:-express}
+      MYSQL_USER: ${DB_USERNAME:-express}
       MYSQL_PASSWORD: ${DB_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootsecret}
     healthcheck:
@@ -128,7 +128,7 @@ services:
   # ── Redis ────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: pagseguro-redis
+    container_name: express-redis
     restart: unless-stopped
     command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD:-}"
     volumes:

@@ -13,7 +13,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: pagseguro-app
+    container_name: express-app
     restart: unless-stopped
     ports:
       - "8080:8000"
@@ -31,9 +31,9 @@ services:
       DB_CONNECTION: mysql
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_DATABASE: pagseguro
-      DB_USERNAME: pagseguro
-      DB_PASSWORD: pagseguro
+      DB_DATABASE: express
+      DB_USERNAME: express
+      DB_PASSWORD: express
       CACHE_STORE: redis
       QUEUE_CONNECTION: redis
       REDIS_CLIENT: predis
@@ -53,7 +53,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: pagseguro-queue
+    container_name: express-queue
     restart: unless-stopped
     command: php artisan queue:work --tries=3 --sleep=3
     volumes:
@@ -67,9 +67,9 @@ services:
       DB_CONNECTION: mysql
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_DATABASE: pagseguro
-      DB_USERNAME: pagseguro
-      DB_PASSWORD: pagseguro
+      DB_DATABASE: express
+      DB_USERNAME: express
+      DB_PASSWORD: express
       CACHE_STORE: redis
       QUEUE_CONNECTION: redis
       REDIS_CLIENT: predis
@@ -83,14 +83,14 @@ services:
 
   mysql:
     image: mysql:8.4
-    container_name: pagseguro-mysql
+    container_name: express-mysql
     restart: unless-stopped
     ports:
       - "3307:3306"
     environment:
-      MYSQL_DATABASE: pagseguro
-      MYSQL_USER: pagseguro
-      MYSQL_PASSWORD: pagseguro
+      MYSQL_DATABASE: express
+      MYSQL_USER: express
+      MYSQL_PASSWORD: express
       MYSQL_ROOT_PASSWORD: root
     volumes:
       - mysql-data:/var/lib/mysql
@@ -102,7 +102,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: pagseguro-redis
+    container_name: express-redis
     restart: unless-stopped
     ports:
       - "6380:6379"

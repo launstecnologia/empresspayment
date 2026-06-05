@@ -11,7 +11,7 @@
 set -euo pipefail
 
 COMPOSE="docker compose"
-APP_CONTAINER="pagseguro-app"
+APP_CONTAINER="express-app"
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

@@ -15,24 +15,23 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Cria os diretórios obrigatórios ANTES do composer install
+# Cria diretórios obrigatórios antes do composer
 RUN mkdir -p storage/framework/cache storage/framework/sessions \
              storage/framework/views storage/logs bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache
+    && chmod -R 777 storage bootstrap/cache
 
 COPY composer.json composer.lock* ./
 
-# Primeira instalação sem scripts (mais rápida, usa cache de camadas)
+# --no-scripts evita que o artisan tente conectar ao MySQL durante o build
 RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-scripts
 
 COPY . .
 
-# Segunda passagem: garante que tudo está atualizado e roda os scripts
+# Recria diretórios e permissões após copiar o código
 RUN mkdir -p storage/framework/cache storage/framework/sessions \
              storage/framework/views storage/logs bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache \
-    && chown -R www-data:www-data storage bootstrap/cache \
-    && composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+    && chmod -R 777 storage bootstrap/cache \
+    && chown -R www-data:www-data /var/www/html
 
 COPY docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini

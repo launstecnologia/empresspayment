@@ -1,0 +1,42 @@
+# ── Laravel ───────────────────────────────────────────────────────
+/vendor/
+/node_modules/
+/public/hot
+/public/storage
+/storage/*.key
+/storage/app/
+/storage/framework/cache/
+/storage/framework/sessions/
+/storage/framework/testing/
+/storage/framework/views/
+/storage/logs/
+/bootstrap/cache/
+.env
+.env.backup
+.env.*.local
+*.phar
+
+# ── Automação Python ──────────────────────────────────────────────
+automacao/.env
+automacao/__pycache__/
+automacao/*.pyc
+automacao/venv/
+automacao/screenshots/
+automacao/*.db
+automacao/*.png
+
+# ── Docker / Deploy ───────────────────────────────────────────────
+docker/nginx/certs/
+*.log
+*.sql
+*.sql.gz
+
+# ── Sistema ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+npm-debug.log
+yarn-error.log

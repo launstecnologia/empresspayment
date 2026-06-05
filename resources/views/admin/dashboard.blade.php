@@ -1,0 +1,222 @@
+@extends('layouts.app')
+
+@section('title', 'Dashboard')
+
+@section('content')
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Estabelecimentos</p>
+        <div class="mt-2 flex items-center justify-between">
+            <span class="text-3xl font-bold text-gray-800 dark:text-gray-100">{{ $totalEstabelecimentos }}</span>
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400">▣</div>
+        </div>
+    </div>
+    <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Faturamento do mês</p>
+        <div class="mt-2 flex items-center justify-between">
+            <span class="text-3xl font-bold text-green-600 dark:text-green-400">R$ {{ number_format($faturamentoMes, 2, ',', '.') }}</span>
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-950 dark:text-green-400">✓</div>
+        </div>
+    </div>
+    <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Comissões do mês</p>
+        <div class="mt-2 flex items-center justify-between">
+            <span class="text-3xl font-bold text-yellow-600 dark:text-yellow-400">R$ {{ number_format($royaltiesMes, 2, ',', '.') }}</span>
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-50 text-yellow-600 dark:bg-yellow-950 dark:text-yellow-400">◷</div>
+        </div>
+    </div>
+    <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Satisfação</p>
+        <div class="mt-2 flex items-center justify-between">
+            <span class="text-3xl font-bold text-gray-800 dark:text-gray-100">0/5</span>
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-950 dark:text-sky-400">★</div>
+        </div>
+    </div>
+</div>
+
+@php
+    $periodoLink = fn (int $dias) => request()->fullUrlWithQuery(['periodo' => $dias]);
+    $periodoClass = fn (int $dias) => $periodo === $dias
+        ? 'rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm'
+        : 'rounded-md px-3 py-1.5 text-sm text-gray-500 transition-colors hover:bg-white dark:text-gray-400 dark:hover:bg-gray-700';
+@endphp
+
+<div class="mt-6 flex items-center justify-between rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+    <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-200">Período de Análise</h2>
+    <div class="flex items-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+        <a href="{{ $periodoLink(7) }}" class="{{ $periodoClass(7) }}">7 dias</a>
+        <a href="{{ $periodoLink(30) }}" class="{{ $periodoClass(30) }}">30 dias</a>
+        <a href="{{ $periodoLink(90) }}" class="{{ $periodoClass(90) }}">90 dias</a>
+    </div>
+</div>
+
+<div class="dashboard-apuracao mt-6 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-sky-50 p-5 shadow-sm dark:border-gray-700 dark:from-gray-900 dark:via-gray-900 dark:to-gray-950">
+    <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h2 class="text-lg font-bold text-gray-900 dark:text-gray-100">Apuração das Transações</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Detalhamento por plano com base no EDI (últimos {{ $periodo }} dias).</p>
+        </div>
+        <span class="inline-flex w-fit items-center gap-2 rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+            <i class="fa-solid fa-layer-group"></i>
+            Planos ativos
+        </span>
+    </div>
+
+    <div class="space-y-4">
+        <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            @forelse ($planosResumo as $planoResumo)
+                @php
+                    $totalPartes = max($planoResumo['debito'] + $planoResumo['credito'] + $planoResumo['parcelado'] + $planoResumo['pix'], 0.01);
+                    $debitoPct = round(($planoResumo['debito'] / $totalPartes) * 100, 2);
+                    $creditoPct = round(($planoResumo['credito'] / $totalPartes) * 100, 2);
+                    $parceladoPct = round(($planoResumo['parcelado'] / $totalPartes) * 100, 2);
+                    $pixPct = round(($planoResumo['pix'] / $totalPartes) * 100, 2);
+                    $debitoEnd = $debitoPct;
+                    $creditoEnd = $debitoEnd + $creditoPct;
+                    $parceladoEnd = $creditoEnd + $parceladoPct;
+                    $itensPlano = [
+                        ['label' => 'Débito', 'valor' => $planoResumo['debito'], 'percentual' => $debitoPct, 'cor' => 'bg-amber-400'],
+                        ['label' => 'Crédito à vista', 'valor' => $planoResumo['credito'], 'percentual' => $creditoPct, 'cor' => 'bg-emerald-500'],
+                        ['label' => 'Parcelado', 'valor' => $planoResumo['parcelado'], 'percentual' => $parceladoPct, 'cor' => 'bg-blue-500'],
+                        ['label' => 'PIX', 'valor' => $planoResumo['pix'], 'percentual' => $pixPct, 'cor' => 'bg-rose-500'],
+                    ];
+                @endphp
+
+                <div class="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm shadow-blue-100/60 dark:border-gray-700 dark:bg-gray-900 dark:shadow-none">
+                    <div class="flex items-start justify-between gap-3">
+                        <span class="rounded-full bg-blue-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                            {{ $planoResumo['nome'] }}
+                        </span>
+                        <div class="text-right">
+                            <p class="text-[11px] uppercase tracking-wide text-gray-400">Faturamento</p>
+                            <p class="text-lg font-bold text-gray-900 dark:text-gray-100">R$ {{ number_format($planoResumo['faturamento'], 2, ',', '.') }}</p>
+                        </div>
+                    </div>
+
+                    <div class="my-6 flex justify-center">
+                        <div class="relative h-36 w-36 rounded-full shadow-inner" style="background: conic-gradient(#f59e0b 0 {{ $debitoEnd }}%, #10b981 {{ $debitoEnd }}% {{ $creditoEnd }}%, #3b82f6 {{ $creditoEnd }}% {{ $parceladoEnd }}%, #f43f5e {{ $parceladoEnd }}% 100%);">
+                            <div class="absolute inset-9 rounded-full border border-blue-50 bg-white dark:border-gray-600 dark:bg-gray-900"></div>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <div class="text-center">
+                                    <p class="text-[10px] uppercase tracking-wide text-gray-400">Comissão</p>
+                                    <p class="text-sm font-bold text-blue-700 dark:text-blue-400">R$ {{ number_format($planoResumo['comissao'], 2, ',', '.') }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        @foreach ($itensPlano as $item)
+                            <div class="grid grid-cols-[1fr_auto_auto] items-center gap-3 text-sm">
+                                <span class="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                                    <span class="h-2.5 w-2.5 rounded-full {{ $item['cor'] }}"></span>
+                                    {{ $item['label'] }}
+                                </span>
+                                <span class="font-semibold text-gray-900 dark:text-gray-100">R$ {{ number_format($item['valor'], 2, ',', '.') }}</span>
+                                <span class="w-12 text-right text-xs text-gray-400">{{ number_format($item['percentual'], 2, ',', '.') }}%</span>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @empty
+                <div class="col-span-full rounded-2xl border border-dashed border-blue-200 bg-white px-6 py-12 text-center dark:border-gray-600 dark:bg-gray-900">
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-300">Nenhuma transação EDI no período selecionado.</p>
+                    <p class="mt-1 text-xs text-gray-400">Os totais são calculados no banco por plano, sem carregar transação a transação.</p>
+                </div>
+            @endforelse
+        </div>
+
+        <div class="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm shadow-blue-100/60 dark:border-gray-700 dark:bg-gray-900 dark:shadow-none">
+            <div class="mb-4 flex items-center gap-2">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
+                    <i class="fa-solid fa-file-invoice-dollar"></i>
+                </span>
+                <div>
+                    <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">Resumo Financeiro</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Consolidado dos planos no período</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-6">
+                @foreach ([
+                    ['label' => 'Faturamento', 'valor' => $resumoPlanos['faturamento_total'], 'cor' => 'text-gray-900 dark:text-gray-100'],
+                    ['label' => 'Comissão', 'valor' => $resumoPlanos['comissao_total'], 'cor' => 'text-blue-700 dark:text-blue-400'],
+                    ['label' => 'PIX', 'valor' => $resumoPlanos['pix_total'], 'cor' => 'text-rose-600 dark:text-rose-400'],
+                    ['label' => 'Débito', 'valor' => $resumoPlanos['debito_total'], 'cor' => 'text-amber-600 dark:text-amber-400'],
+                    ['label' => 'Crédito à vista', 'valor' => $resumoPlanos['credito_total'], 'cor' => 'text-emerald-600 dark:text-emerald-400'],
+                    ['label' => 'Parcelado', 'valor' => $resumoPlanos['parcelado_total'] ?? 0, 'cor' => 'text-blue-600 dark:text-blue-400'],
+                ] as $card)
+                    <div class="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 dark:border-gray-600 dark:bg-gray-800">
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{{ $card['label'] }}</p>
+                        <p class="mt-1 text-base font-bold leading-tight {{ $card['cor'] }} sm:text-lg">
+                            R$ {{ number_format($card['valor'], 2, ',', '.') }}
+                        </p>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+    <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <div class="mb-4 flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200">Transações por Status</h3>
+                <p class="text-xs text-gray-400">Últimos {{ $periodo }} dias · {{ $transacoesStatus['total'] }} transação(ões)</p>
+            </div>
+            <a href="{{ route('relatorios.faturamento') }}" class="text-xs text-blue-500 hover:underline dark:text-blue-400">↗ Faturamento</a>
+        </div>
+        @if ($transacoesStatus['total'] > 0)
+            <div class="flex min-h-72 items-center justify-center">
+                <div class="relative h-52 w-52 rounded-full shadow-inner" style="background: {{ $transacoesStatus['gradiente'] }};">
+                    <div class="absolute inset-14 rounded-full bg-white dark:bg-gray-800"></div>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-gray-800 dark:text-gray-100">{{ $transacoesStatus['total'] }}</p>
+                            <p class="text-[10px] uppercase tracking-wide text-gray-400">transações</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 flex flex-wrap justify-center gap-3">
+                @foreach ($transacoesStatus['itens'] as $item)
+                    <span class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+                        <span class="inline-block h-3 w-3 rounded-full" style="background-color: {{ $item['cor'] }}"></span>
+                        {{ $item['label'] }} ({{ $item['quantidade'] }})
+                    </span>
+                @endforeach
+            </div>
+        @else
+            <p class="py-16 text-center text-sm text-gray-500 dark:text-gray-400">Nenhuma transação no período.</p>
+        @endif
+    </div>
+
+    <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <div class="mb-4 flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200">Faturamento por Bandeira</h3>
+                <p class="text-xs text-gray-400">Últimos {{ $periodo }} dias · valores do EDI</p>
+            </div>
+            <a href="{{ route('relatorios.faturamento') }}" class="text-xs text-blue-500 hover:underline dark:text-blue-400">↗ Faturamento</a>
+        </div>
+        <div class="space-y-3 pt-2">
+            @forelse ($faturamentoBandeiras as $bandeira)
+                <div class="grid grid-cols-[120px_1fr_auto] items-center gap-3">
+                    <span class="flex items-center gap-2 truncate text-xs font-semibold text-gray-600 dark:text-gray-400">
+                        <x-instituicao-icone :codigo="$bandeira['codigo']" size="sm" />
+                        <span class="truncate">{{ $bandeira['label'] }}</span>
+                    </span>
+                    <div class="h-4 overflow-hidden rounded bg-gray-100 dark:bg-gray-700">
+                        <div class="h-full rounded bg-blue-500 transition-all" style="width: {{ $bandeira['barra_pct'] }}%"></div>
+                    </div>
+                    <span class="text-right text-xs font-semibold text-gray-700 dark:text-gray-200">R$ {{ number_format($bandeira['valor'], 2, ',', '.') }}</span>
+                </div>
+            @empty
+                <p class="py-16 text-center text-sm text-gray-500 dark:text-gray-400">Nenhum faturamento por bandeira no período.</p>
+            @endforelse
+        </div>
+    </div>
+</div>
+
+@endsection

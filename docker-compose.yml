@@ -1,0 +1,153 @@
+# docker-compose.yml — PRODUÇÃO
+# Uso: docker compose up -d --build
+#
+# Para desenvolvimento local use: docker compose -f docker-compose.dev.yml up
+
+services:
+
+  # ── Nginx — proxy reverso e arquivos estáticos ──────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: pagseguro-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - .:/var/www/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - nginx-certs:/etc/nginx/certs:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      - app
+    networks:
+      - app-network
+
+  # ── Laravel (PHP-FPM) ────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: pagseguro-app
+    restart: unless-stopped
+    volumes:
+      - .:/var/www/html
+      - vendor:/var/www/html/vendor
+      - storage:/var/www/html/storage
+    env_file: .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - app-network
+
+  # ── Queue Worker — filas default + automacao ─────────────────────
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: pagseguro-queue
+    restart: unless-stopped
+    command: php artisan queue:work --queue=automacao,default --tries=3 --sleep=3 --timeout=900
+    volumes:
+      - .:/var/www/html
+      - vendor:/var/www/html/vendor
+      - storage:/var/www/html/storage
+    env_file: .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      automacao:
+        condition: service_started
+    networks:
+      - app-network
+
+  # ── Scheduler — php artisan schedule:run ────────────────────────
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: pagseguro-scheduler
+    restart: unless-stopped
+    command: sh -c "while true; do php artisan schedule:run --no-interaction; sleep 60; done"
+    volumes:
+      - .:/var/www/html
+      - vendor:/var/www/html/vendor
+      - storage:/var/www/html/storage
+    env_file: .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - app-network
+
+  # ── Automação Python (FastAPI + Selenium) ────────────────────────
+  automacao:
+    build:
+      context: .
+      dockerfile: docker/automacao/Dockerfile
+    container_name: pagseguro-automacao
+    restart: unless-stopped
+    env_file: automacao/.env
+    volumes:
+      - automacao-screenshots:/tmp/automacao_screenshots
+      - automacao-db:/tmp/automacao_db
+    # Visível apenas internamente como http://automacao:8001
+    expose:
+      - "8001"
+    networks:
+      - app-network
+
+  # ── MySQL 8 ──────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.4
+    container_name: pagseguro-mysql
+    restart: unless-stopped
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-pagseguro}
+      MYSQL_USER: ${DB_USERNAME:-pagseguro}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootsecret}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rootsecret}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - app-network
+
+  # ── Redis ────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: pagseguro-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD:-}"
+    volumes:
+      - redis-data:/data
+    networks:
+      - app-network
+
+# ── Volumes persistentes ─────────────────────────────────────────
+volumes:
+  vendor:
+  storage:
+  mysql-data:
+  redis-data:
+  nginx-certs:
+  nginx-logs:
+  automacao-screenshots:
+  automacao-db:
+
+# ── Rede interna ─────────────────────────────────────────────────
+networks:
+  app-network:
+    driver: bridge

@@ -1,0 +1,132 @@
+<?php
+
+namespace App\Http\Controllers\Chamado;
+
+use App\Http\Controllers\Controller;
+use App\Models\Chamado;
+use App\Models\ChamadoAnexo;
+use App\Services\ChamadoNotificacaoService;
+use App\Services\ChamadoService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+
+class ChamadoController extends Controller
+{
+    public function index(Request $request)
+    {
+        $usuario = $request->user();
+
+        if ($usuario?->tipo === 'admin') {
+            return redirect()->route('admin.chamados.index');
+        }
+
+        $chamados = Chamado::with('mensagens')
+            ->where('aberto_por_tipo', 'usuario')
+            ->where('aberto_por_id', $usuario->id)
+            ->when($request->status, fn ($query, $status) => $query->where('status', $status))
+            ->when($request->categoria, fn ($query, $categoria) => $query->where('categoria', $categoria))
+            ->latest('updated_at')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('chamados.index', compact('chamados'));
+    }
+
+    public function create()
+    {
+        abort_if(request()->user()?->tipo === 'admin', 404);
+
+        return view('chamados.form');
+    }
+
+    public function store(Request $request, ChamadoService $service)
+    {
+        abort_if($request->user()?->tipo === 'admin', 404);
+
+        $dados = $request->validate([
+            'titulo' => ['required', 'string', 'min:10', 'max:200'],
+            'categoria' => ['required', Rule::in(ChamadoService::CATEGORIAS)],
+            'prioridade' => ['required', Rule::in(ChamadoService::PRIORIDADES)],
+            'mensagem' => ['required', 'string', 'min:20'],
+            'anexos' => ['nullable', 'array', 'max:5'],
+            'anexos.*' => ['file', 'max:10240', 'mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt,zip'],
+        ]);
+
+        $chamado = $service->abrir($request->user(), $dados, $request->file('anexos', []));
+
+        app(ChamadoNotificacaoService::class)->chamadoAberto($chamado, $dados['mensagem']);
+
+        return redirect()->route('chamados.show', $chamado->numero)->with('status', 'Chamado aberto com sucesso.');
+    }
+
+    public function show(string $numero, Request $request, ChamadoService $service)
+    {
+        $chamado = Chamado::with(['mensagens.anexos', 'historicos'])
+            ->where('numero', $numero)
+            ->firstOrFail();
+
+        abort_unless($service->podeAcessar($chamado, $request->user()), 403);
+
+        return view('chamados.show', compact('chamado'));
+    }
+
+    public function responder(string $numero, Request $request, ChamadoService $service)
+    {
+        $chamado = Chamado::where('numero', $numero)->firstOrFail();
+
+        abort_unless($service->podeAcessar($chamado, $request->user()), 403);
+        abort_if($chamado->status === 'fechado', 422, 'Chamado fechado não aceita respostas.');
+
+        $dados = $request->validate([
+            'mensagem' => ['required', 'string', 'min:5'],
+            'anexos' => ['nullable', 'array', 'max:5'],
+            'anexos.*' => ['file', 'max:10240', 'mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt,zip'],
+        ]);
+
+        $service->responder($chamado, $request->user(), $dados['mensagem'], $request->file('anexos', []));
+
+        app(ChamadoNotificacaoService::class)->respostaCliente($chamado, $dados['mensagem']);
+
+        return redirect()->route('chamados.show', $chamado->numero)->with('status', 'Mensagem enviada.');
+    }
+
+    public function reabrir(string $numero, Request $request, ChamadoService $service)
+    {
+        $chamado = Chamado::where('numero', $numero)->firstOrFail();
+
+        abort_unless($service->podeAcessar($chamado, $request->user()), 403);
+        abort_unless($chamado->status === 'resolvido' && $chamado->updated_at->gte(now()->subDays(7)), 422);
+
+        $service->alterarStatus($chamado, $request->user(), 'aberto');
+
+        app(ChamadoNotificacaoService::class)->statusAlterado($chamado->fresh());
+
+        return redirect()->route('chamados.show', $chamado->numero)->with('status', 'Chamado reaberto.');
+    }
+
+    public function avaliar(string $numero, Request $request, ChamadoService $service)
+    {
+        $chamado = Chamado::where('numero', $numero)->firstOrFail();
+
+        abort_unless($service->podeAcessar($chamado, $request->user()), 403);
+        abort_unless($chamado->status === 'fechado', 422);
+
+        $dados = $request->validate([
+            'avaliacao' => ['required', 'integer', 'min:1', 'max:5'],
+            'avaliacao_comentario' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $chamado->update($dados);
+
+        return redirect()->route('chamados.show', $chamado->numero)->with('status', 'Avaliação registrada.');
+    }
+
+    public function download(ChamadoAnexo $anexo, Request $request, ChamadoService $service)
+    {
+        abort_unless($service->podeAcessar($anexo->chamado, $request->user()), 403);
+        abort_unless(Storage::exists($anexo->caminho), 404);
+
+        return Storage::download($anexo->caminho, $anexo->nome_original);
+    }
+}

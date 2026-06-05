@@ -1,0 +1,21 @@
+{
+    "name": "Express Payments",
+    "short_name": "Express",
+    "description": "Plataforma de gestão de pagamentos, faturamento e comissões.",
+    "icons": [
+        {
+            "src": "/favicon-32.png",
+            "sizes": "32x32",
+            "type": "image/png"
+        },
+        {
+            "src": "/apple-touch-icon.png",
+            "sizes": "180x180",
+            "type": "image/png"
+        }
+    ],
+    "theme_color": "#2563eb",
+    "background_color": "#ffffff",
+    "display": "standalone",
+    "lang": "pt-BR"
+}

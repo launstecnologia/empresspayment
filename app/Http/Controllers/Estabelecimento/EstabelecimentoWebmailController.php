@@ -39,7 +39,7 @@ class EstabelecimentoWebmailController extends Controller
 
     /**
      * Abre uma página intermediária que faz login automático (SSO) no Roundcube.
-     * A senha nunca trafega pela URL — é enviada via POST da página intermediária.
+     * O servidor busca o token CSRF do Roundcube antes de passar ao browser.
      */
     public function sso(Estabelecimento $estabelecimento)
     {
@@ -47,11 +47,30 @@ class EstabelecimentoWebmailController extends Controller
         abort_unless(filled($estabelecimento->webmail_senha), 404, 'Senha do e-mail não disponível.');
 
         $webmailUrl = rtrim((string) config('directadmin.webmail_url'), '/');
+        $loginUrl   = $webmailUrl . '/';
+
+        // Busca a página de login do Roundcube para extrair o token CSRF
+        $rcToken = null;
+        try {
+            $response = \Illuminate\Support\Facades\Http::withoutVerifying()
+                ->timeout(8)
+                ->get($loginUrl);
+
+            if ($response->ok()) {
+                // Roundcube embeds: <input type="hidden" name="_token" value="...">
+                if (preg_match('/name="_token"\s+value="([^"]+)"/', $response->body(), $m)) {
+                    $rcToken = $m[1];
+                }
+            }
+        } catch (\Throwable) {
+            // Se não conseguir buscar o token, tenta sem ele (versões antigas do RC)
+        }
 
         return view('estabelecimento.webmail-sso', [
             'webmailUrl' => $webmailUrl,
             'email'      => $estabelecimento->webmail_email,
             'senha'      => $estabelecimento->webmail_senha,
+            'rcToken'    => $rcToken,
         ]);
     }
 

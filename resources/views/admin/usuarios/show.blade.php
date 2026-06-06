@@ -77,9 +77,8 @@
             <p><span class="font-semibold text-gray-700">{{ $usuario->pessoa_tipo === 'fisica' ? 'Nome' : 'Razão social' }}:</span> {{ ($usuario->pessoa_tipo === 'fisica' ? $usuario->nome_completo : $usuario->razao_social) ?: '-' }}</p>
             @if ($usuario->percentual_retencao_pai !== null && in_array($usuario->tipo, ['marketplace', 'revenda'], true))
                 <p>
-                    <span class="font-semibold text-gray-700">Royalties (Admin):</span>
-                    {{ number_format((float) $usuario->percentual_retencao_pai, 2, ',', '.') }}%
-                    <span class="text-gray-500">retido sobre a comissão {{ $usuario->tipo === 'marketplace' ? 'do marketplace' : 'da revenda' }}</span>
+                    <span class="font-semibold text-gray-700">Royalties:</span>
+                    {{ number_format((float) $usuario->percentual_retencao_pai, 0, ',', '.') }}%
                 </p>
             @endif
             <p><span class="font-semibold text-gray-700">E-mail:</span> {{ $usuario->email }}</p>

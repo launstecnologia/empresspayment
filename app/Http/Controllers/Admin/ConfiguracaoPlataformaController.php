@@ -182,14 +182,16 @@ class ConfiguracaoPlataformaController extends Controller
                 }
             );
 
-            return redirect()
-                ->route('admin.configuracoes.edit', ['#email'])
-                ->with('status', "E-mail de teste enviado para {$dados['destinatario']} com sucesso.");
+            return response()->json([
+                'ok'       => true,
+                'mensagem' => "E-mail de teste enviado para {$dados['destinatario']} com sucesso.",
+            ]);
 
         } catch (\Throwable $e) {
-            return redirect()
-                ->route('admin.configuracoes.edit', ['#email'])
-                ->withErrors(['email_teste' => 'Falha ao enviar: ' . $e->getMessage()]);
+            return response()->json([
+                'ok'  => false,
+                'erro' => $e->getMessage(),
+            ], 422);
         }
     }
 

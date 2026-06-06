@@ -67,24 +67,70 @@
     {{-- Enviar e-mail de teste --}}
     <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
         <p class="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Testar configuração SMTP</p>
-        @error('email_teste')
-            <p class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{{ $message }}</p>
-        @enderror
-        <form method="POST" action="{{ route('admin.configuracoes.email.testar') }}" class="flex flex-wrap items-end gap-3">
-            @csrf
+
+        <div id="email-teste-msg" class="mb-3 hidden rounded-lg px-3 py-2 text-xs"></div>
+
+        <div class="flex flex-wrap items-end gap-3">
             <label class="flex-1 space-y-1 min-w-48">
                 <span class="text-xs font-medium text-gray-600 dark:text-gray-400">Destinatário do teste</span>
-                <input type="email" name="destinatario"
-                       value="{{ old('destinatario', auth()->user()->email) }}"
+                <input type="email" id="email-teste-destinatario"
+                       value="{{ auth()->user()->email }}"
                        placeholder="seu@email.com"
                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
             </label>
-            <button type="submit"
+            <button type="button" id="btn-email-teste"
                     class="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:bg-gray-800 dark:text-blue-400 dark:hover:bg-gray-700">
                 <i class="fa-solid fa-paper-plane text-xs"></i> Enviar E-mail Teste
             </button>
-        </form>
+        </div>
         <p class="mt-2 text-xs text-gray-400">Salve as configurações antes de testar. O e-mail usa o SMTP atualmente salvo no banco.</p>
     </div>
 
 </div>
+
+<script>
+document.getElementById('btn-email-teste')?.addEventListener('click', async function () {
+    const btn = this;
+    const msgEl = document.getElementById('email-teste-msg');
+    const destinatario = document.getElementById('email-teste-destinatario')?.value?.trim();
+
+    if (!destinatario) {
+        msgEl.textContent = 'Informe um e-mail destinatário.';
+        msgEl.className = 'mb-3 rounded-lg px-3 py-2 text-xs bg-red-50 text-red-700';
+        msgEl.classList.remove('hidden');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> Enviando...';
+    msgEl.classList.add('hidden');
+
+    try {
+        const token = document.querySelector('input[name="_token"]')?.value
+            || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+        const resp = await fetch('{{ route("admin.configuracoes.email.testar") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token },
+            body: JSON.stringify({ destinatario }),
+        });
+
+        const data = await resp.json();
+
+        if (data.ok) {
+            msgEl.textContent = data.mensagem;
+            msgEl.className = 'mb-3 rounded-lg px-3 py-2 text-xs bg-green-50 text-green-700';
+        } else {
+            msgEl.textContent = 'Falha: ' + data.erro;
+            msgEl.className = 'mb-3 rounded-lg px-3 py-2 text-xs bg-red-50 text-red-700';
+        }
+    } catch (e) {
+        msgEl.textContent = 'Erro inesperado: ' + e.message;
+        msgEl.className = 'mb-3 rounded-lg px-3 py-2 text-xs bg-red-50 text-red-700';
+    }
+
+    msgEl.classList.remove('hidden');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-paper-plane text-xs"></i> Enviar E-mail Teste';
+});
+</script>

@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\TrocaSenhaObrigatoriaController;
 use App\Http\Controllers\Admin\ChamadoController as AdminChamadoController;
 use App\Http\Controllers\Admin\AdminKycController;
 use App\Http\Controllers\Admin\ConfiguracaoPlataformaController;
+use App\Http\Controllers\Admin\EstabelecimentoAutomacaoController;
 use App\Http\Controllers\Admin\EstabelecimentoPagBankController;
 use App\Http\Controllers\Admin\EmailTemplateController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
@@ -139,6 +140,8 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
         });
         Route::patch('estabelecimentos/{estabelecimento}/pagbank/edi', [EstabelecimentoPagBankController::class, 'atualizarEdi'])
             ->name('admin.estabelecimentos.pagbank.edi');
+        Route::post('estabelecimentos/{estabelecimento}/automacao/iniciar', [EstabelecimentoAutomacaoController::class, 'iniciar'])
+            ->name('admin.estabelecimentos.automacao.iniciar');
         Route::get('admin/email-templates', [EmailTemplateController::class, 'index'])->name('admin.email-templates.index');
         Route::get('admin/email-templates/{emailTemplate}/edit', [EmailTemplateController::class, 'edit'])->name('admin.email-templates.edit');
         Route::put('admin/email-templates/{emailTemplate}', [EmailTemplateController::class, 'update'])->name('admin.email-templates.update');

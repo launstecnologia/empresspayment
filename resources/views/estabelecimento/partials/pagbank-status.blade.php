@@ -4,12 +4,14 @@
 
     $fvStatus = $estabelecimento->fv_status;
     $fvCores = match($fvStatus) {
-        'concluido'   => ['bg-emerald-100 text-emerald-800', 'fa-circle-check'],
-        'processando' => ['bg-blue-100 text-blue-800',    'fa-spinner fa-spin'],
-        'erro'        => ['bg-red-100 text-red-800',      'fa-circle-exclamation'],
-        'pendente'    => ['bg-amber-100 text-amber-800',  'fa-clock'],
-        default       => ['bg-gray-100 text-gray-600',    'fa-circle-minus'],
+        'concluido'    => ['bg-emerald-100 text-emerald-800', 'fa-circle-check'],
+        'em_andamento' => ['bg-blue-100 text-blue-800',    'fa-spinner fa-spin'],
+        'pendente'     => ['bg-amber-100 text-amber-800',  'fa-clock'],
+        'erro','erro_email','timeout' => ['bg-red-100 text-red-800', 'fa-circle-exclamation'],
+        default        => ['bg-gray-100 text-gray-600',    'fa-circle-minus'],
     };
+
+    $podeIniciar = $ehAdmin && ! in_array($fvStatus, ['em_andamento', 'concluido']);
 @endphp
 
 {{-- ── Automação Força de Vendas ── --}}
@@ -21,7 +23,15 @@
             @if ($fvStatus)
                 <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold {{ $fvCores[0] }}">
                     <i class="fa-solid {{ $fvCores[1] }}"></i>
-                    {{ ucfirst($fvStatus) }}
+                    {{ match($fvStatus) {
+                        'concluido'    => 'Concluído',
+                        'em_andamento' => 'Em andamento',
+                        'pendente'     => 'Aguardando fila',
+                        'erro'         => 'Erro',
+                        'erro_email'   => 'Erro no e-mail',
+                        'timeout'      => 'Timeout',
+                        default        => ucfirst($fvStatus),
+                    } }}
                 </span>
             @else
                 <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500">
@@ -49,11 +59,24 @@
                 <i class="fa-solid fa-triangle-exclamation mr-1"></i>{{ $estabelecimento->fv_erro }}
             </div>
         @endif
-
-        @if (blank($fvStatus) || $fvStatus === 'erro')
-            <p class="text-xs text-gray-400">A automação é disparada automaticamente após aprovação do KYC.</p>
-        @endif
     </div>
+
+    @if ($podeIniciar)
+        <form method="POST" action="{{ route('admin.estabelecimentos.automacao.iniciar', $estabelecimento) }}" class="mt-3"
+              onsubmit="return confirm('Iniciar a automação Força de Vendas para este estabelecimento?')">
+            @csrf
+            <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-800">
+                <i class="fa-solid fa-robot"></i>
+                {{ $fvStatus === 'erro' || $fvStatus === 'timeout' ? 'Retentar Automação' : 'Iniciar Automação' }}
+            </button>
+        </form>
+    @endif
+
+    @if ($fvStatus === 'em_andamento')
+        <p class="mt-2 text-xs text-blue-600 animate-pulse">
+            <i class="fa-solid fa-spinner fa-spin mr-1"></i> Processando… atualize a página para verificar.
+        </p>
+    @endif
 </div>
 
 {{-- ── EDI PagBank ── --}}

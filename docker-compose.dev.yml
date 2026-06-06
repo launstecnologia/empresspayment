@@ -41,8 +41,17 @@ services:
       SESSION_DRIVER: database
       MAIL_MAILER: log
       PAGBANK_EDI_URL: https://edi.api.pagbank.com.br
-      # Automação desabilitada no dev (sem Chrome local)
-      AUTOMACAO_API_URL: ""
+      # DirectAdmin — servidor de e-mail (acessível externamente)
+      DIRECTADMIN_URL: https://72.62.181.162:2222
+      DIRECTADMIN_USER: admin
+      DIRECTADMIN_PASS: 117910Campi@26
+      DIRECTADMIN_DOMINIO: express.app.br
+      DIRECTADMIN_WEBMAIL_URL: https://mail.express.app.br/roundcube
+      DIRECTADMIN_AUTO_EMAIL: "false"
+      # Automação — aponta para o container rodando no VPS
+      # Coloque a mesma AUTOMACAO_API_KEY que está em automacao/.env no VPS
+      AUTOMACAO_API_URL: "http://express.app.br:8001"
+      AUTOMACAO_API_KEY: "automacaoapikey2026!"
     depends_on:
       mysql:
         condition: service_healthy

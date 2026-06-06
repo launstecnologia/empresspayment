@@ -1,0 +1,52 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Jobs\AutomacaoPagBankJob;
+use App\Models\Estabelecimento;
+use App\Support\PlatformSettings;
+use Illuminate\Http\Request;
+
+class EstabelecimentoAutomacaoController extends Controller
+{
+    public function iniciar(Request $request, Estabelecimento $estabelecimento)
+    {
+        abort_unless($request->user()?->tipo === 'admin', 403);
+
+        $statusBloqueante = ['em_andamento', 'concluido'];
+        if (in_array($estabelecimento->fv_status, $statusBloqueante, true)) {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->with('aviso', 'A automação já está '.$estabelecimento->fv_status.'. Para reexecutar, redefina o status manualmente.');
+        }
+
+        if (! PlatformSettings::automacaoConfigurado()) {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->withErrors(['automacao' => 'A automação não está configurada. Verifique AUTOMACAO_API_URL e AUTOMACAO_API_KEY.']);
+        }
+
+        $senha6 = $this->gerarSenha6();
+
+        $estabelecimento->update(['fv_status' => 'pendente', 'fv_erro' => null]);
+
+        AutomacaoPagBankJob::dispatch($estabelecimento->id, $senha6)
+            ->onQueue('automacao');
+
+        return redirect()
+            ->route('estabelecimentos.show', $estabelecimento)
+            ->with('status', 'Automação enfileirada. Acompanhe o status nesta página.');
+    }
+
+    private function gerarSenha6(): string
+    {
+        do {
+            $senha = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            $ehSequencia = preg_match('/^(\d)\1{5}$/', $senha)
+                || in_array($senha, ['123456', '654321', '012345', '567890'], true);
+        } while ($ehSequencia);
+
+        return $senha;
+    }
+}

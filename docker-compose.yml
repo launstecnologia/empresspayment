@@ -16,8 +16,9 @@ services:
     volumes:
       - .:/var/www/html:ro
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - nginx-certs:/etc/nginx/certs:ro
+      - ./docker/nginx/certs:/etc/nginx/certs:ro
       - nginx-logs:/var/log/nginx
+      - certbot-www:/var/www/certbot:ro
     depends_on:
       - app
     networks:
@@ -142,8 +143,8 @@ volumes:
   storage:
   mysql-data:
   redis-data:
-  nginx-certs:
   nginx-logs:
+  certbot-www:
   automacao-screenshots:
   automacao-db:
 

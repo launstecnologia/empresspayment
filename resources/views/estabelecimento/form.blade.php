@@ -91,6 +91,16 @@
                     @endif
                 </select>
             </label>
+            <label class="{{ $labelClass }} md:col-span-12">
+                <span class="{{ $labelTextClass }}">Faturamento Mensal</span>
+                <select name="faturamento_mensal" class="{{ $selectClass }}">
+                    <option value="">Selecione...</option>
+                    @foreach (['De R$ 1 mil até R$ 5 mil', 'De R$ 5 mil até R$ 10 mil', 'Acima de R$ 10 mil'] as $faixa)
+                        <option value="{{ $faixa }}" @selected(old('faturamento_mensal', $estabelecimento->faturamento_mensal) === $faixa)>{{ $faixa }}</option>
+                    @endforeach
+                </select>
+                <span class="mt-1 text-xs text-gray-400">Usado no cadastro do portal PagBank Força de Vendas.</span>
+            </label>
         </div>
 
         <h2 class="{{ $sectionTitleClass }}">Representante Legal</h2>
@@ -140,6 +150,16 @@
                         <option value="{{ $segmentoSelecionado }}" selected>{{ $segmentoSelecionado }}</option>
                     @endif
                 </select>
+            </label>
+            <label class="{{ $labelClass }} md:col-span-12">
+                <span class="{{ $labelTextClass }}">Faturamento Mensal</span>
+                <select name="faturamento_mensal" class="{{ $selectClass }}">
+                    <option value="">Selecione...</option>
+                    @foreach (['De R$ 1 mil até R$ 5 mil', 'De R$ 5 mil até R$ 10 mil', 'Acima de R$ 10 mil'] as $faixa)
+                        <option value="{{ $faixa }}" @selected(old('faturamento_mensal', $estabelecimento->faturamento_mensal) === $faixa)>{{ $faixa }}</option>
+                    @endforeach
+                </select>
+                <span class="mt-1 text-xs text-gray-400">Usado no cadastro do portal PagBank Força de Vendas.</span>
             </label>
         </div>
     </div>

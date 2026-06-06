@@ -119,7 +119,7 @@ class AutomacaoPagBankService
             'estado'          => $estab->uf ?? '',
             'segmento'        => $this->mapearSegmento($estab),
             'tipo_link'       => 'Link Mobile',
-            'promocao'        => '',
+            'promocao'        => $estab->plano?->codigo_fv ?? '',
         ];
 
         if ($estab->pessoa_tipo === 'juridica') {
@@ -175,28 +175,14 @@ class AutomacaoPagBankService
 
     private function mapearFaturamento(Estabelecimento $estab): string
     {
-        // Usa o faturamento do plano se disponível, senão um valor padrão
-        return 'De R$ 1 mil até R$ 5 mil';
+        // Usa o faturamento cadastrado no estabelecimento, com fallback padrão
+        return $estab->faturamento_mensal ?: 'De R$ 1 mil até R$ 5 mil';
     }
 
     private function mapearSegmento(Estabelecimento $estab): string
     {
-        $segmento = $estab->segmento ?? '';
-
-        // Mapeamento dos segmentos internos para os rótulos exatos do portal PagBank FV
-        $mapa = [
-            'varejo'              => 'Varejo e Comércio',
-            'alimentacao'         => 'Alimentação e Bebidas',
-            'servicos'            => 'Serviços Gerais',
-            'saude'               => 'Saúde e Bem-estar',
-            'educacao'            => 'Educação',
-            'transporte'          => 'Transporte e Mobilidade',
-            'tecnologia'          => 'Tecnologia',
-            'moda'                => 'Moda e Vestuário',
-            'turismo'             => 'Turismo e Hotelaria',
-            'construcao'          => 'Construção e Reforma',
-        ];
-
-        return $mapa[$segmento] ?? 'Outras atividades empresariais';
+        // Os segmentos agora são cadastrados com os nomes exatos do portal PagBank FV
+        // Retorna direto o campo segmento, com fallback para "Outras atividades empresariais"
+        return filled($estab->segmento) ? $estab->segmento : 'Outras atividades empresariais';
     }
 }

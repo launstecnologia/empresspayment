@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Plano extends Model
 {
-    protected $fillable = ['nome', 'descricao', 'ativo'];
+    protected $fillable = ['nome', 'codigo_fv', 'descricao', 'ativo'];
 
     protected function casts(): array
     {

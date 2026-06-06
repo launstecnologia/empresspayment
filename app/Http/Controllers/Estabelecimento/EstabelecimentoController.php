@@ -233,6 +233,7 @@ class EstabelecimentoController extends Controller
             'data_nascimento' => ['nullable', 'date'],
             'nome_fantasia' => ['nullable', 'string', 'max:200'],
             'segmento' => ['nullable', 'string', 'max:200'],
+            'faturamento_mensal' => ['nullable', 'string', 'in:De R$ 1 mil até R$ 5 mil,De R$ 5 mil até R$ 10 mil,Acima de R$ 10 mil'],
             'rep_nome' => ['nullable', 'string', 'max:200'],
             'rep_cpf' => ['nullable', 'string', 'max:14'],
             'rep_data_nascimento' => ['nullable', 'date'],

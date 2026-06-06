@@ -12,6 +12,13 @@
         <input name="nome" value="{{ old('nome', $plano->nome) }}" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
     </label>
     <label class="block space-y-1">
+        <span class="text-sm font-medium text-gray-600">Código Força de Vendas (Promoção)</span>
+        <input name="codigo_fv" value="{{ old('codigo_fv', $plano->codigo_fv) }}"
+               placeholder="ex: nnexpresspay7399d028retorno"
+               class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 font-mono text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <span class="text-xs text-gray-400">Código de promoção usado no portal PagBank Força de Vendas ao cadastrar o estabelecimento.</span>
+    </label>
+    <label class="block space-y-1">
         <span class="text-sm font-medium text-gray-600">Descrição</span>
         <textarea name="descricao" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">{{ old('descricao', $plano->descricao) }}</textarea>
     </label>

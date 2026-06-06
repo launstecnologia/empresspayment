@@ -18,6 +18,7 @@ class Estabelecimento extends Model
         'data_nascimento',
         'nome_fantasia',
         'segmento',
+        'faturamento_mensal',
         'rep_nome',
         'rep_cpf',
         'rep_data_nascimento',

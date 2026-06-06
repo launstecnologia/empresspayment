@@ -22,9 +22,10 @@ class PlanoController extends Controller
     public function store(Request $request)
     {
         Plano::create($request->validate([
-            'nome' => ['required', 'string', 'max:100'],
-            'descricao' => ['nullable', 'string'],
-            'ativo' => ['boolean'],
+            'nome'       => ['required', 'string', 'max:100'],
+            'codigo_fv'  => ['nullable', 'string', 'max:100'],
+            'descricao'  => ['nullable', 'string'],
+            'ativo'      => ['boolean'],
         ]));
 
         return redirect()->route('planos.index')->with('status', 'Plano criado.');
@@ -38,9 +39,10 @@ class PlanoController extends Controller
     public function update(Request $request, Plano $plano)
     {
         $plano->update($request->validate([
-            'nome' => ['required', 'string', 'max:100'],
-            'descricao' => ['nullable', 'string'],
-            'ativo' => ['boolean'],
+            'nome'       => ['required', 'string', 'max:100'],
+            'codigo_fv'  => ['nullable', 'string', 'max:100'],
+            'descricao'  => ['nullable', 'string'],
+            'ativo'      => ['boolean'],
         ]));
 
         return redirect()->route('planos.index')->with('status', 'Plano atualizado.');

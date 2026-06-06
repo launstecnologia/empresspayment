@@ -5,70 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Estabelecimento;
 use App\Services\LogService;
-use App\Services\PagBankCadastroDispatcher;
-use App\Services\PagBankFeesService;
-use App\Support\PagBankEstabelecimentoStatus;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class EstabelecimentoPagBankController extends Controller
 {
-    public function reenviarCadastro(
-        Request $request,
-        Estabelecimento $estabelecimento,
-        PagBankCadastroDispatcher $dispatcher,
-    ) {
-        $this->authorizeAdmin($request);
-
-        if ($estabelecimento->pagbank_account_id) {
-            return redirect()
-                ->route('estabelecimentos.show', $estabelecimento)
-                ->with('status', 'Este estabelecimento já possui conta PagBank.');
-        }
-
-        $estabelecimento->load('kycAnalise');
-
-        if (! PagBankEstabelecimentoStatus::podeEnfileirarCadastro($estabelecimento)) {
-            return redirect()
-                ->route('estabelecimentos.show', $estabelecimento)
-                ->with('status', 'KYC precisa estar aprovado para enviar cadastro ao PagBank.');
-        }
-
-        $dispatcher->enfileirar($estabelecimento, 0);
-
-        return redirect()
-            ->route('estabelecimentos.show', $estabelecimento)
-            ->with('status', 'Cadastro PagBank enfileirado. Acompanhe o status nesta página.');
-    }
-
-    public function reaplicarFees(Request $request, Estabelecimento $estabelecimento, PagBankFeesService $fees)
-    {
-        $this->authorizeAdmin($request);
-
-        if (! $estabelecimento->pagbank_account_id) {
-            return redirect()
-                ->route('estabelecimentos.show', $estabelecimento)
-                ->with('status', 'Estabelecimento sem conta PagBank. Faça o cadastro primeiro.');
-        }
-
-        if (! $estabelecimento->plano_id) {
-            return redirect()
-                ->route('estabelecimentos.show', $estabelecimento)
-                ->with('status', 'Estabelecimento sem plano vinculado.');
-        }
-
-        $sucesso = $fees->aplicar($estabelecimento);
-
-        return redirect()
-            ->route('estabelecimentos.show', $estabelecimento)
-            ->with('status', $sucesso
-                ? 'Tabela de taxas reaplicada com sucesso no PagBank.'
-                : 'Erro ao aplicar taxas no PagBank. Verifique os logs.');
-    }
-
     public function atualizarEdi(Request $request, Estabelecimento $estabelecimento, LogService $log)
     {
-        $this->authorizeAdmin($request);
+        abort_unless($request->user()?->tipo === 'admin', 403);
 
         $dados = $request->validate([
             'token_pagseguro' => ['nullable', 'string', 'max:255'],
@@ -119,10 +63,5 @@ class EstabelecimentoPagBankController extends Controller
         return redirect()
             ->route('estabelecimentos.show', $estabelecimento)
             ->with('status', $mensagem);
-    }
-
-    private function authorizeAdmin(Request $request): void
-    {
-        abort_unless($request->user() && $request->user()->tipo === 'admin', 403);
     }
 }

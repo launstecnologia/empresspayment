@@ -142,7 +142,7 @@ class EstabelecimentoController extends Controller
             $estabelecimento->forceFill(['documento_token_publico' => (string) Str::uuid()])->save();
         }
 
-        $estabelecimento->load(['master', 'marketplace', 'revenda', 'plano', 'documentos', 'emails', 'kycAnalise', 'pagbankLogs' => fn ($q) => $q->latest()->limit(20)]);
+        $estabelecimento->load(['master', 'marketplace', 'revenda', 'plano', 'documentos', 'emails', 'kycAnalise']);
 
         $logs = Log::where('entidade', 'Estabelecimento')
             ->where('entidade_id', $estabelecimento->id)

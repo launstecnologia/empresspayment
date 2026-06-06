@@ -324,41 +324,8 @@
     @endphp
     <div class="border-b border-gray-200 bg-gray-50 px-4 py-4">
         <h3 class="text-sm font-bold text-gray-800">Logs do Estabelecimento</h3>
-        <p class="mt-0.5 text-xs text-gray-500">Ações internas do sistema. Chamadas à API PagBank ficam no card PagBank (aba Resumo).</p>
+        <p class="mt-0.5 text-xs text-gray-500">Ações internas do sistema.</p>
     </div>
-
-    @if ($estabelecimento->pagbankLogs->isNotEmpty())
-        <div class="border-b border-gray-100 bg-indigo-50/40 p-4">
-            <h4 class="text-xs font-bold uppercase tracking-wide text-indigo-800">API PagBank</h4>
-            <table class="mt-3 w-full border border-indigo-100 text-sm">
-                <thead>
-                    <tr class="bg-indigo-100/60">
-                        <th class="border border-indigo-100 px-2 py-2 text-left text-xs font-bold">Data</th>
-                        <th class="border border-indigo-100 px-2 py-2 text-left text-xs font-bold">Tipo</th>
-                        <th class="border border-indigo-100 px-2 py-2 text-left text-xs font-bold">HTTP</th>
-                        <th class="border border-indigo-100 px-2 py-2 text-left text-xs font-bold">Resultado</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($estabelecimento->pagbankLogs as $logPagbank)
-                        <tr>
-                            <td class="border border-indigo-100 px-2 py-2 text-xs whitespace-nowrap">{{ $logPagbank->created_at?->format('d/m/Y H:i:s') }}</td>
-                            <td class="border border-indigo-100 px-2 py-2 text-xs">{{ $logPagbank->tipo }}</td>
-                            <td class="border border-indigo-100 px-2 py-2 text-xs">{{ $logPagbank->response_status ?: '—' }}</td>
-                            <td class="border border-indigo-100 px-2 py-2 text-xs">
-                                <span class="{{ $logPagbank->sucesso ? 'text-emerald-700 font-semibold' : 'text-red-700 font-semibold' }}">
-                                    {{ $logPagbank->sucesso ? 'Sucesso' : 'Erro' }}
-                                </span>
-                                @if ($logPagbank->erro)
-                                    <p class="mt-1 text-red-600">{{ $logPagbank->erro }}</p>
-                                @endif
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    @endif
 
     <div class="p-4">
         <table class="w-full border border-gray-200 text-sm">

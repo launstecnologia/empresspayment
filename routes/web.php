@@ -137,10 +137,6 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
             Route::post('/{kyc}/aprovar', [AdminKycController::class, 'aprovar'])->name('aprovar');
             Route::post('/{kyc}/reprovar', [AdminKycController::class, 'reprovar'])->name('reprovar');
         });
-        Route::post('estabelecimentos/{estabelecimento}/pagbank/reenviar', [EstabelecimentoPagBankController::class, 'reenviarCadastro'])
-            ->name('admin.estabelecimentos.pagbank.reenviar');
-        Route::post('estabelecimentos/{estabelecimento}/pagbank/fees', [EstabelecimentoPagBankController::class, 'reaplicarFees'])
-            ->name('admin.estabelecimentos.pagbank.fees');
         Route::patch('estabelecimentos/{estabelecimento}/pagbank/edi', [EstabelecimentoPagBankController::class, 'atualizarEdi'])
             ->name('admin.estabelecimentos.pagbank.edi');
         Route::get('admin/email-templates', [EmailTemplateController::class, 'index'])->name('admin.email-templates.index');

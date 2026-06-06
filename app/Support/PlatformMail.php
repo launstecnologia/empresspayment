@@ -48,6 +48,13 @@ class PlatformMail
                 'mail.from.name' => $fromName,
             ]);
         }
+
+        // Força o Mail Manager a recriar o transport com as novas configurações
+        try {
+            app('mail.manager')->purge('smtp');
+        } catch (\Throwable) {
+            // ignora se o mailer ainda não foi instanciado
+        }
     }
 
     /**

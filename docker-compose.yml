@@ -99,9 +99,8 @@ services:
     volumes:
       - automacao-screenshots:/tmp/automacao_screenshots
       - automacao-db:/tmp/automacao_db
-    # Visível apenas internamente como http://automacao:8001
-    expose:
-      - "8001"
+    ports:
+      - "8001:8001"
     networks:
       - app-network
 

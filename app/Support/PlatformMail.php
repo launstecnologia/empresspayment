@@ -9,7 +9,11 @@ class PlatformMail
 {
     public static function apply(): void
     {
-        if (! Schema::hasTable('platform_settings')) {
+        try {
+            if (! Schema::hasTable('platform_settings')) {
+                return;
+            }
+        } catch (\Throwable) {
             return;
         }
 

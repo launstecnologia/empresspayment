@@ -17,7 +17,7 @@ COPY . .
 
 RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache \
-    && composer install --no-interaction --prefer-dist --optimize-autoloader
+    && composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts
 
 EXPOSE 8000
 

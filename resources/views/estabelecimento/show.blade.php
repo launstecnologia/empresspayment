@@ -150,6 +150,46 @@
                 <p class="mt-3 text-sm text-gray-800"><span class="font-semibold text-gray-600">Plano:</span> {{ $estabelecimento->plano?->nome ?: '-' }}</p>
             </div>
             @include('estabelecimento.partials.pagbank-status')
+
+            {{-- ── E-mail Plataforma ── --}}
+            @if ($estabelecimento->webmail_email)
+                <div class="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+                    <p class="text-xs font-bold uppercase tracking-wide text-blue-600">E-mail Plataforma</p>
+                    <p class="mt-2 break-all text-sm font-semibold text-gray-800">{{ $estabelecimento->webmail_email }}</p>
+                    @if ($estabelecimento->email)
+                        <p class="mt-0.5 text-xs text-gray-500">
+                            <i class="fa-solid fa-share text-blue-400"></i>
+                            Redireciona para <span class="font-medium">{{ $estabelecimento->email }}</span>
+                        </p>
+                    @endif
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <form action="{{ route('estabelecimentos.webmail.sso', $estabelecimento) }}" method="POST" target="_blank">
+                            @csrf
+                            <button type="submit" class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700">
+                                <i class="fa-solid fa-envelope-open-text"></i> Acessar Webmail
+                            </button>
+                        </form>
+                        <button type="button" data-modal-open="webmail-senha" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50">
+                            <i class="fa-solid fa-key"></i> Trocar Senha
+                        </button>
+                    </div>
+                    @error('senha_webmail')
+                        <p class="mt-2 text-xs font-medium text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+            @elseif ($estabelecimento->email)
+                <div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <p class="text-xs font-bold uppercase tracking-wide text-amber-700">E-mail Plataforma</p>
+                    @if (session('aviso'))
+                        <p class="mt-2 text-xs text-amber-800">{{ session('aviso') }}</p>
+                    @else
+                        <p class="mt-2 text-xs text-amber-800">Nenhum e-mail da plataforma criado para este estabelecimento.</p>
+                    @endif
+                    <button type="button" data-modal-open="webmail-criar" class="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700">
+                        <i class="fa-solid fa-plus"></i> Criar E-mail Plataforma
+                    </button>
+                </div>
+            @endif
         </div>
     </div>
 </section>
@@ -360,6 +400,91 @@
 @endsection
 
 @push('modals')
+    {{-- ── Modal: Criar E-mail Plataforma ── --}}
+    @if ($estabelecimento->email && blank($estabelecimento->webmail_email))
+    @php $usernameSugerido = preg_replace('/[^a-z0-9._-]/i', '', strtolower(str($estabelecimento->email)->before('@')->value())); @endphp
+    <div data-modal="webmail-criar" class="modal-overlay fixed inset-0 z-[100] items-center justify-center bg-black/40 px-4">
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div class="mb-5 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-800">Criar E-mail Plataforma</h3>
+                    <p class="mt-0.5 text-xs text-gray-500">Será criado <strong>username@{{ config('directadmin.dominio') }}</strong></p>
+                </div>
+                <button type="button" data-modal-close="webmail-criar" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+            </div>
+            <form method="POST" action="{{ route('estabelecimentos.webmail.criar', $estabelecimento) }}">
+                @csrf
+                <label class="block space-y-1">
+                    <span class="text-sm font-bold text-gray-700">Nome do e-mail</span>
+                    <div class="flex items-center overflow-hidden rounded-lg border border-gray-300 bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
+                        <input
+                            type="text"
+                            name="username"
+                            value="{{ old('username', $usernameSugerido) }}"
+                            placeholder="nome.sobrenome"
+                            class="flex-1 border-0 bg-transparent px-3 py-2.5 text-sm text-gray-800 outline-none"
+                            pattern="[a-zA-Z0-9._-]+"
+                            title="Apenas letras, números, ponto, hífen ou sublinhado"
+                            required
+                        >
+                        <span class="select-none bg-gray-50 px-3 py-2.5 text-sm text-gray-500 border-l border-gray-200">@{{ config('directadmin.dominio') }}</span>
+                    </div>
+                    @error('username')
+                        <p class="text-xs font-medium text-red-600">{{ $message }}</p>
+                    @enderror
+                </label>
+                <p class="mt-2 text-xs text-gray-400">
+                    O e-mail criado redirecionará automaticamente para <strong>{{ $estabelecimento->email }}</strong>.
+                </p>
+                <div class="mt-5 flex justify-end gap-3">
+                    <button type="button" data-modal-close="webmail-criar" class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100">Cancelar</button>
+                    <button type="submit" class="rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white hover:bg-blue-700">
+                        <i class="fa-solid fa-plus mr-1"></i> Criar E-mail
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endif
+
+    {{-- ── Modal: Trocar Senha do E-mail Plataforma ── --}}
+    @if ($estabelecimento->webmail_email)
+    <div data-modal="webmail-senha" class="modal-overlay fixed inset-0 z-[100] items-center justify-center bg-black/40 px-4">
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div class="mb-5 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-800">Trocar Senha do E-mail</h3>
+                    <p class="mt-0.5 text-xs text-gray-500">{{ $estabelecimento->webmail_email }}</p>
+                </div>
+                <button type="button" data-modal-close="webmail-senha" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+            </div>
+            <form method="POST" action="{{ route('estabelecimentos.webmail.senha', $estabelecimento) }}">
+                @csrf
+                @method('PATCH')
+                <div class="space-y-3">
+                    <label class="block space-y-1">
+                        <span class="text-sm font-bold text-gray-700">Nova senha</span>
+                        <input type="password" name="senha" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100" placeholder="Mínimo 8 caracteres" required minlength="8" autocomplete="new-password">
+                    </label>
+                    <label class="block space-y-1">
+                        <span class="text-sm font-bold text-gray-700">Confirmar senha</span>
+                        <input type="password" name="senha_confirmation" class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100" placeholder="Repita a nova senha" required autocomplete="new-password">
+                    </label>
+                    @error('senha_webmail')
+                        <p class="text-xs font-medium text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+                <div class="mt-5 flex justify-end gap-3">
+                    <button type="button" data-modal-close="webmail-senha" class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100">Cancelar</button>
+                    <button type="submit" class="rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white hover:bg-blue-700">
+                        <i class="fa-solid fa-key mr-1"></i> Alterar Senha
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endif
+
     <div data-modal="status" class="modal-overlay fixed inset-0 z-[100] items-center justify-center bg-black/40 px-4">
         <div class="w-full max-w-xl rounded bg-white p-6 shadow-xl">
             <div class="mb-6 flex items-center justify-between">
@@ -433,6 +558,14 @@
         } else {
             showTab('resumo');
         }
+
+        // Reabrir modal de webmail se houver erros de validação
+        @if ($errors->has('username'))
+            document.querySelector('[data-modal="webmail-criar"]')?.classList.add('is-open');
+        @endif
+        @if ($errors->has('senha_webmail') || $errors->has('senha'))
+            document.querySelector('[data-modal="webmail-senha"]')?.classList.add('is-open');
+        @endif
 
         document.querySelectorAll('[data-modal-open]').forEach((button) => {
             button.addEventListener('click', () => {

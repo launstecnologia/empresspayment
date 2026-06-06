@@ -17,6 +17,7 @@ use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Chamado\ChamadoController;
 use App\Http\Controllers\Estabelecimento\EstabelecimentoCaixaEmailController;
 use App\Http\Controllers\Estabelecimento\EstabelecimentoController;
+use App\Http\Controllers\Estabelecimento\EstabelecimentoWebmailController;
 use App\Http\Controllers\Kyc\KycController;
 use App\Http\Controllers\Estabelecimento\EstabelecimentoDocumentoController;
 use App\Http\Controllers\Estabelecimento\EstabelecimentoEmailController;
@@ -97,6 +98,9 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
         Route::get('emails/{conta}/caixa', [EstabelecimentoCaixaEmailController::class, 'index'])->name('emails.caixa');
         Route::get('emails/{conta}/caixa/{mensagem}', [EstabelecimentoCaixaEmailController::class, 'show'])->name('emails.caixa.show');
         Route::post('emails/{conta}/caixa/enviar', [EstabelecimentoCaixaEmailController::class, 'enviar'])->name('emails.caixa.enviar');
+        Route::post('webmail/criar', [EstabelecimentoWebmailController::class, 'criar'])->name('webmail.criar');
+        Route::post('webmail/sso', [EstabelecimentoWebmailController::class, 'sso'])->name('webmail.sso');
+        Route::patch('webmail/senha', [EstabelecimentoWebmailController::class, 'trocarSenha'])->name('webmail.senha');
     });
     Route::get('estabelecimentos/{estabelecimento}/kyc', [KycController::class, 'show'])->name('estabelecimentos.kyc.show');
     Route::post('estabelecimentos/{estabelecimento}/kyc/documento', [KycController::class, 'enviarDocumento'])->name('estabelecimentos.kyc.documento');

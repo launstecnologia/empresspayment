@@ -9,6 +9,7 @@ use App\Models\Plano;
 use App\Models\Segmento;
 use App\Models\Usuario;
 use App\Support\UsuarioComercial;
+use App\Services\EmailPlataformaService;
 use App\Services\HierarquiaService;
 use App\Services\LogService;
 use App\Services\NotificacaoEmailService;
@@ -64,7 +65,7 @@ class EstabelecimentoController extends Controller
         ]);
     }
 
-    public function store(Request $request, RoyaltyCalculadorService $royalties, HierarquiaService $hierarquia)
+    public function store(Request $request, RoyaltyCalculadorService $royalties, HierarquiaService $hierarquia, EmailPlataformaService $emailPlataforma)
     {
         $this->autorizarMutacaoEstabelecimento();
 
@@ -89,7 +90,26 @@ class EstabelecimentoController extends Controller
             );
         }
 
-        return redirect()->route('estabelecimentos.index')->with('status', 'Estabelecimento cadastrado.');
+        $avisoEmail = null;
+
+        if (config('directadmin.criar_email_ao_habilitar') && filled($estabelecimento->email)) {
+            try {
+                $usernameOcupado = $emailPlataforma->provisionarAutomatico($estabelecimento);
+                if ($usernameOcupado !== null) {
+                    $avisoEmail = "O username \"{$usernameOcupado}\" já existe no servidor de e-mail. Acesse o cadastro para definir manualmente.";
+                }
+            } catch (\Throwable) {
+                $avisoEmail = 'Não foi possível criar o e-mail da plataforma automaticamente. Acesse o cadastro para tentar novamente.';
+            }
+        }
+
+        $redirect = redirect()->route('estabelecimentos.show', $estabelecimento)->with('status', 'Estabelecimento cadastrado.');
+
+        if ($avisoEmail) {
+            $redirect = $redirect->with('aviso', $avisoEmail);
+        }
+
+        return $redirect;
     }
 
     public function edit(Estabelecimento $estabelecimento)

@@ -81,7 +81,7 @@
             </label>
             <label class="{{ $labelClass }} md:col-span-12">
                 <span class="{{ $labelTextClass }}">Segmento</span>
-                <select data-autofill="segmento" name="segmento" class="{{ $selectClass }}">
+                <select name="segmento" class="{{ $selectClass }}">
                     <option value="">Selecione</option>
                     @foreach ($segmentos as $segmento)
                         <option value="{{ $segmento->nome }}" @selected($segmentoSelecionado === $segmento->nome)>{{ $segmento->nome }}</option>
@@ -404,7 +404,6 @@
 
                 setValue('razao_social', data.razao_social, overwrite);
                 setValue('nome_fantasia', data.nome_fantasia || data.razao_social, overwrite);
-                setValue('segmento', data.cnae_fiscal_descricao, overwrite);
                 setValue('data_abertura', normalizeDate(data.data_inicio_atividade), overwrite);
                 setValue('email', data.email, overwrite);
                 setValue('telefone', formatPhone(data.ddd_telefone_1, data.telefone_1), overwrite);

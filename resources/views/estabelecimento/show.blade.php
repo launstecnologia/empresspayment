@@ -60,10 +60,16 @@
                 <span class="rounded-full bg-blue-600 px-2 py-0.5 text-xs text-white"><i class="fa-solid fa-check text-[9px]"></i></span>
             @endif
         </a>
-        <a href="{{ route('estabelecimentos.kyc.show', $estabelecimento) }}" class="{{ $navTabClass }} border-gray-200 bg-white text-gray-700 hover:border-indigo-300 hover:text-indigo-700">
+        <a href="#kyc" data-tab-link="kyc" class="{{ $navTabClass }} border-gray-200 bg-white text-gray-700 hover:border-indigo-300 hover:text-indigo-700">
             <i class="fa-solid fa-shield-halved"></i> KYC
             @if ($estabelecimento->kycAnalise)
-                <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">{{ str_replace('_', ' ', $estabelecimento->kycAnalise->status) }}</span>
+                @php $kycStatusColor = match($estabelecimento->kycAnalise->status) {
+                    'aprovado' => 'bg-emerald-100 text-emerald-700',
+                    'reprovado' => 'bg-red-100 text-red-700',
+                    'em_analise','revisao_manual' => 'bg-amber-100 text-amber-700',
+                    default => 'bg-indigo-100 text-indigo-700',
+                }; @endphp
+                <span class="rounded-full px-2 py-0.5 text-xs font-semibold {{ $kycStatusColor }}">{{ str_replace('_', ' ', $estabelecimento->kycAnalise->status) }}</span>
             @endif
         </a>
         <a href="#documentos" data-tab-link="documentos" class="{{ $navTabClass }} border-gray-200 bg-white text-gray-700 hover:border-teal-300 hover:text-teal-700">
@@ -382,6 +388,192 @@
         @else
             <p class="text-sm text-gray-400">Cadastre um e-mail de contato no estabelecimento para criar uma caixa na plataforma.</p>
         @endif
+    </div>
+</section>
+
+{{-- ── Aba: KYC ── --}}
+@php
+    $kycEhAdmin = auth()->user()?->tipo === 'admin';
+    $kycStatusClass = match ($kyc->status) {
+        'aprovado'                      => 'bg-emerald-100 text-emerald-700 border-emerald-200',
+        'reprovado'                     => 'bg-red-100 text-red-700 border-red-200',
+        'em_analise', 'revisao_manual'  => 'bg-amber-100 text-amber-700 border-amber-200',
+        default                         => 'bg-gray-100 text-gray-600 border-gray-200',
+    };
+    $kycQtdPendentes = $kyc->documentos->where('openai_status', 'pendente')->whereNull('openai_analisado_em')->count();
+@endphp
+<section id="kyc" data-tab-panel="kyc" class="mt-8 hidden overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+
+    {{-- Cabeçalho com status e botões de ação --}}
+    <div class="border-b border-gray-100 bg-gray-50/80 px-6 py-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h3 class="text-base font-bold text-gray-800">KYC — Validação de Identidade</h3>
+                <p class="mt-0.5 text-xs text-gray-500">Análise de documentos e validação cadastral do estabelecimento.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold {{ $kycStatusClass }}">
+                    {{ str_replace('_', ' ', ucfirst($kyc->status)) }}
+                </span>
+                <a href="{{ route('estabelecimentos.show', $estabelecimento) }}#documentos"
+                   data-tab-link-target="documentos"
+                   class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700">
+                    <i class="fa-solid fa-file-arrow-up"></i> Anexar Documentos
+                </a>
+                @if ($kycEhAdmin && $kycQtdPendentes > 0)
+                    <form method="POST" action="{{ route('admin.kyc.processar-pendentes', $kyc) }}">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700">
+                            <i class="fa-solid fa-play"></i> Processar {{ $kycQtdPendentes }} pendente(s)
+                        </button>
+                    </form>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    <div class="space-y-6 p-6">
+
+        {{-- Avisos de configuração --}}
+        @if (! $kycAtivo)
+            <p class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">Módulo KYC desativado pelo administrador.</p>
+        @elseif (! $openaiConfigurado)
+            <p class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">OpenAI não configurada — documentos irão para revisão manual do Admin.</p>
+        @endif
+
+        {{-- Receita Federal --}}
+        @if ($kyc->receita_consultado)
+            <div class="grid gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm md:grid-cols-3">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Situação Receita</p>
+                    <p class="mt-1 font-semibold text-gray-800">{{ $kyc->receita_situacao ?: '—' }}</p>
+                </div>
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Nome na Receita</p>
+                    <p class="mt-1 font-semibold text-gray-800">{{ $kyc->receita_nome ?: '—' }}</p>
+                </div>
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Consultado em</p>
+                    <p class="mt-1 text-gray-700">{{ $kyc->receita_consultado_em?->format('d/m/Y H:i') ?: '—' }}</p>
+                </div>
+            </div>
+        @endif
+
+        {{-- Documentos --}}
+        <div class="overflow-hidden rounded-xl border border-gray-100">
+            <div class="grid gap-4 p-4 md:grid-cols-2">
+                @foreach ($kycItens as $item)
+                    @php
+                        $kycDoc  = $item['kycDoc'];
+                        $estabDoc = $item['estabDoc'];
+                        $statusDoc = $kycDoc?->statusEfetivo() ?? ($estabDoc ? 'aguardando_analise' : 'pendente');
+                        $statusDocClass = match ($statusDoc) {
+                            'aprovado'           => 'text-emerald-600',
+                            'reprovado'          => 'text-red-600',
+                            'processando'        => 'text-blue-600',
+                            'revisao_manual','aguardando_analise' => 'text-amber-600',
+                            default              => 'text-gray-400',
+                        };
+                    @endphp
+                    <div class="rounded-xl border {{ $estabDoc ? 'border-emerald-100 bg-emerald-50/30' : 'border-gray-100 bg-gray-50' }} p-4">
+                        <div class="flex items-start justify-between gap-2">
+                            <p class="font-semibold text-gray-800">{{ $item['label'] }}</p>
+                            <span class="text-xs font-bold {{ $statusDocClass }}">{{ str_replace('_', ' ', ucfirst($statusDoc)) }}</span>
+                        </div>
+                        @if ($estabDoc)
+                            <p class="mt-1 truncate text-xs text-gray-500">{{ $estabDoc->arquivo_nome ?: basename($estabDoc->arquivo_path) }}</p>
+                            @if ($kycDoc?->openai_motivo_reprovacao)
+                                <p class="mt-2 text-xs text-red-600">{{ $kycDoc->openai_motivo_reprovacao }}</p>
+                            @endif
+                            @if ($kycDoc && $kycDoc->cruzamento_status === 'divergencia')
+                                <p class="mt-1 text-xs text-amber-700">Cruzamento: divergência nos dados</p>
+                            @endif
+
+                            {{-- Admin: detalhes OpenAI e ações por documento --}}
+                            @if ($kycEhAdmin && $kycDoc)
+                                @if ($kycDoc->openai_dados_extraidos)
+                                    <details class="mt-2">
+                                        <summary class="cursor-pointer text-xs font-semibold text-gray-400 hover:text-gray-700">Dados extraídos (OpenAI)</summary>
+                                        <pre class="mt-1 overflow-x-auto rounded bg-gray-50 p-2 text-xs">{{ json_encode($kycDoc->openai_dados_extraidos, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                    </details>
+                                @endif
+                                @if ($kycDoc->cruzamento_divergencias)
+                                    <pre class="mt-2 overflow-x-auto rounded bg-red-50 p-2 text-xs text-red-800">{{ json_encode($kycDoc->cruzamento_divergencias, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                @endif
+                                <div class="mt-3 flex flex-wrap gap-2">
+                                    <form method="POST" action="{{ route('admin.kyc.documentos.override', $kycDoc) }}">
+                                        @csrf
+                                        <input type="hidden" name="decisao" value="aprovado">
+                                        <button type="submit" class="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">Aprovar</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('admin.kyc.documentos.override', $kycDoc) }}">
+                                        @csrf
+                                        <input type="hidden" name="decisao" value="reprovado">
+                                        <button type="submit" class="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700">Reprovar</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('admin.kyc.documentos.reanalise', $kycDoc) }}">
+                                        @csrf
+                                        <button type="submit" class="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700">Reanalisar</button>
+                                    </form>
+                                </div>
+                            @endif
+                        @else
+                            <p class="mt-1 text-xs text-gray-400">Nenhum arquivo enviado</p>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
+        {{-- Admin: Aprovação / Reprovação final --}}
+        @if ($kycEhAdmin && in_array($kyc->status, ['em_analise', 'revisao_manual'], true))
+            <div class="rounded-xl border border-amber-100 bg-amber-50/50 p-5">
+                <h4 class="mb-4 text-sm font-bold text-amber-800">Decisão Final do Admin</h4>
+                <div class="flex flex-wrap gap-4">
+                    <form method="POST" action="{{ route('admin.kyc.reprovar', $kyc) }}" class="flex-1 space-y-3">
+                        @csrf
+                        <textarea name="motivo" rows="3"
+                            placeholder="Motivo da reprovação (obrigatório)..."
+                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"></textarea>
+                        <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700">
+                            <i class="fa-solid fa-xmark"></i> Reprovar KYC
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ route('admin.kyc.aprovar', $kyc) }}" class="flex items-end">
+                        @csrf
+                        <input type="hidden" name="motivo" value="Aprovado pelo administrador">
+                        <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700">
+                            <i class="fa-solid fa-check"></i> Aprovar KYC
+                        </button>
+                    </form>
+                </div>
+            </div>
+        @endif
+
+        {{-- Decisão já tomada --}}
+        @if ($kyc->admin_decisao)
+            <div class="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                <span class="font-semibold">Decisão:</span> {{ $kyc->admin_decisao }}
+                @if ($kyc->admin_decidido_em) em {{ $kyc->admin_decidido_em->format('d/m/Y H:i') }} @endif
+                @if ($kyc->admin_motivo)<br><span class="text-gray-500">{{ $kyc->admin_motivo }}</span>@endif
+            </div>
+        @endif
+
+        {{-- Histórico --}}
+        @if ($kyc->historico->isNotEmpty())
+            <div>
+                <p class="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">Histórico</p>
+                <ul class="space-y-1 text-sm text-gray-600">
+                    @foreach ($kyc->historico->take(15) as $h)
+                        <li class="flex justify-between gap-4 border-b border-gray-50 py-1.5">
+                            <span>{{ str_replace('_', ' ', $h->evento) }} — {{ $h->descricao }}</span>
+                            <span class="shrink-0 text-xs text-gray-400">{{ $h->created_at?->format('d/m/Y H:i') }}</span>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
     </div>
 </section>
 
@@ -711,12 +903,20 @@
         });
 
         const hashTab = window.location.hash.replace('#', '');
-        const validTabs = ['resumo', 'email-plataforma', 'documentos', 'logs'];
+        const validTabs = ['resumo', 'automacao', 'kyc', 'email-plataforma', 'documentos', 'logs'];
         if (validTabs.includes(hashTab)) {
             showTab(hashTab);
         } else {
             showTab('resumo');
         }
+
+        // Botões internos que trocam de aba (ex: "Anexar Documentos" na aba KYC)
+        document.querySelectorAll('[data-tab-link-target]').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                showTab(btn.dataset.tabLinkTarget);
+            });
+        });
 
         // Reabrir modal de webmail se houver erros de validação
         @if ($errors->has('username'))

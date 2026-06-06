@@ -11,10 +11,15 @@ use App\Models\Usuario;
 use App\Support\UsuarioComercial;
 use App\Services\EmailPlataformaService;
 use App\Services\HierarquiaService;
+use App\Services\KycDocumentoSyncService;
+use App\Services\KycInicializacaoService;
 use App\Services\LogService;
 use App\Services\NotificacaoEmailService;
 use App\Services\RoyaltyCalculadorService;
+use App\Support\KycDocumentosObrigatorios;
+use App\Support\KycTipoDocumentoMapper;
 use App\Support\NotificacaoVars;
+use App\Support\PlatformSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -136,7 +141,7 @@ class EstabelecimentoController extends Controller
         return redirect()->route('estabelecimentos.index')->with('status', 'Estabelecimento atualizado.');
     }
 
-    public function show(Estabelecimento $estabelecimento)
+    public function show(Estabelecimento $estabelecimento, KycInicializacaoService $kycInicializacao, KycDocumentoSyncService $kycSync)
     {
         if (blank($estabelecimento->documento_token_publico)) {
             $estabelecimento->forceFill(['documento_token_publico' => (string) Str::uuid()])->save();
@@ -144,13 +149,35 @@ class EstabelecimentoController extends Controller
 
         $estabelecimento->load(['master', 'marketplace', 'revenda', 'plano', 'documentos', 'emails', 'kycAnalise']);
 
+        // KYC — inicializa e sincroniza para a aba inline
+        $kyc = $kycInicializacao->iniciar($estabelecimento);
+        $kycSync->sincronizarTodosDoEstabelecimento($estabelecimento);
+        $kyc->load(['documentos', 'historico']);
+
+        $kycItens = collect(KycTipoDocumentoMapper::tiposEstabelecimento($estabelecimento->pessoa_tipo))
+            ->map(function (string $label) use ($estabelecimento, $kyc) {
+                $tipoKyc  = KycTipoDocumentoMapper::tipoKyc($label);
+                $estabDoc = $estabelecimento->documentos->keyBy('tipo_documento')->get($label);
+                $kycDoc   = $tipoKyc ? $kyc->documentos->keyBy('tipo')->get($tipoKyc) : null;
+
+                return compact('label', 'tipoKyc', 'estabDoc', 'kycDoc');
+            });
+
         $logs = Log::where('entidade', 'Estabelecimento')
             ->where('entidade_id', $estabelecimento->id)
             ->latest()
             ->take(10)
             ->get();
 
-        return view('estabelecimento.show', compact('estabelecimento', 'logs'));
+        return view('estabelecimento.show', compact(
+            'estabelecimento',
+            'logs',
+            'kyc',
+            'kycItens',
+        ) + [
+            'kycAtivo'           => PlatformSettings::kycAtivo(),
+            'openaiConfigurado'  => PlatformSettings::openaiConfigurado(),
+        ]);
     }
 
     public function updateStatus(Request $request, Estabelecimento $estabelecimento, LogService $log)

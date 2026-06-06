@@ -8,13 +8,14 @@ class PlanoTaxa extends Model
 {
     protected $table = 'plano_taxas';
 
-    protected $fillable = ['plano_id', 'instituicao', 'tipo_transacao', 'meio_pagamento_cod', 'arranjo_ur', 'parcelas', 'taxa_percentual', 'ativo'];
+    protected $fillable = ['plano_id', 'instituicao', 'tipo_transacao', 'meio_pagamento_cod', 'arranjo_ur', 'parcelas', 'taxa_percentual', 'comissao_percentual', 'ativo'];
 
     protected function casts(): array
     {
         return [
-            'taxa_percentual' => 'decimal:2',
-            'ativo' => 'boolean',
+            'taxa_percentual'     => 'decimal:2',
+            'comissao_percentual' => 'decimal:2',
+            'ativo'               => 'boolean',
         ];
     }
 

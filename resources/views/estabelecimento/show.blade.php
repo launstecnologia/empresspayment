@@ -408,7 +408,8 @@
             <div class="mb-5 flex items-center justify-between">
                 <div>
                     <h3 class="text-lg font-bold text-gray-800">Criar E-mail Plataforma</h3>
-                    <p class="mt-0.5 text-xs text-gray-500">Será criado <strong>username@{{ config('directadmin.dominio') }}</strong></p>
+                    @php $dominioPlataforma = config('directadmin.dominio'); @endphp
+                    <p class="mt-0.5 text-xs text-gray-500">Será criado <strong>username&#64;{{ $dominioPlataforma }}</strong></p>
                 </div>
                 <button type="button" data-modal-close="webmail-criar" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
             </div>
@@ -427,7 +428,7 @@
                             title="Apenas letras, números, ponto, hífen ou sublinhado"
                             required
                         >
-                        <span class="select-none bg-gray-50 px-3 py-2.5 text-sm text-gray-500 border-l border-gray-200">@{{ config('directadmin.dominio') }}</span>
+                        <span class="select-none bg-gray-50 px-3 py-2.5 text-sm text-gray-500 border-l border-gray-200">&#64;{{ $dominioPlataforma }}</span>
                     </div>
                     @error('username')
                         <p class="text-xs font-medium text-red-600">{{ $message }}</p>

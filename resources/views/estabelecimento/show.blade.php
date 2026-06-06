@@ -44,10 +44,10 @@
         <a href="#resumo" data-tab-link="resumo" class="{{ $navTabClass }} border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:text-blue-700">
             <i class="fa-solid fa-store"></i> Resumo
         </a>
-        <a href="{{ route('estabelecimentos.email.painel', $estabelecimento) }}" class="{{ $navTabClass }} border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:text-blue-700">
-            <i class="fa-solid fa-envelope"></i> E-mails
-            @if ($estabelecimento->emails->isNotEmpty())
-                <span class="rounded-full bg-blue-600 px-2 py-0.5 text-xs text-white">{{ $estabelecimento->emails->count() }}</span>
+        <a href="#email-plataforma" data-tab-link="email-plataforma" class="{{ $navTabClass }} border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:text-blue-700">
+            <i class="fa-solid fa-envelope"></i> E-mail
+            @if ($estabelecimento->webmail_email)
+                <span class="rounded-full bg-blue-600 px-2 py-0.5 text-xs text-white"><i class="fa-solid fa-check text-[9px]"></i></span>
             @endif
         </a>
         <a href="{{ route('estabelecimentos.kyc.show', $estabelecimento) }}" class="{{ $navTabClass }} border-gray-200 bg-white text-gray-700 hover:border-indigo-300 hover:text-indigo-700">
@@ -150,26 +150,46 @@
                 <p class="mt-3 text-sm text-gray-800"><span class="font-semibold text-gray-600">Plano:</span> {{ $estabelecimento->plano?->nome ?: '-' }}</p>
             </div>
             @include('estabelecimento.partials.pagbank-status')
+        </div>
+    </div>
+</section>
 
-            {{-- ── E-mail Plataforma ── --}}
-            @if ($estabelecimento->webmail_email)
-                <div class="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
-                    <p class="text-xs font-bold uppercase tracking-wide text-blue-600">E-mail Plataforma</p>
-                    <p class="mt-2 break-all text-sm font-semibold text-gray-800">{{ $estabelecimento->webmail_email }}</p>
-                    @if ($estabelecimento->email)
-                        <p class="mt-0.5 text-xs text-gray-500">
-                            <i class="fa-solid fa-share text-blue-400"></i>
-                            Redireciona para <span class="font-medium">{{ $estabelecimento->email }}</span>
-                        </p>
-                    @endif
-                    <div class="mt-3 flex flex-wrap gap-2">
+{{-- ── Aba: E-mail Plataforma ── --}}
+<section id="email-plataforma" data-tab-panel="email-plataforma" class="mt-8 hidden overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div class="border-b border-gray-100 bg-gray-50/80 px-6 py-4">
+        <h3 class="text-base font-bold text-gray-900"><i class="fa-solid fa-envelope mr-2 text-blue-500"></i>E-mail Plataforma</h3>
+        <p class="mt-0.5 text-xs text-gray-500">Caixa de e-mail do estabelecimento em <strong>{{ config('directadmin.dominio') }}</strong> com redirecionamento automático.</p>
+    </div>
+
+    <div class="p-6">
+        @if ($estabelecimento->webmail_email)
+            @php $dominioPlataforma = config('directadmin.dominio'); @endphp
+            <div class="max-w-lg space-y-5">
+                {{-- Info do e-mail --}}
+                <div class="rounded-xl border border-blue-100 bg-blue-50/60 p-5">
+                    <div class="flex items-start gap-4">
+                        <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+                            <i class="fa-solid fa-at text-xl"></i>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="break-all text-base font-bold text-gray-900">{{ $estabelecimento->webmail_email }}</p>
+                            @if ($estabelecimento->email)
+                                <p class="mt-1 flex items-center gap-1 text-xs text-gray-500">
+                                    <i class="fa-solid fa-share text-blue-400"></i>
+                                    Redireciona para <span class="font-semibold text-gray-700">{{ $estabelecimento->email }}</span>
+                                </p>
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="mt-4 flex flex-wrap gap-2">
                         <form action="{{ route('estabelecimentos.webmail.sso', $estabelecimento) }}" method="POST" target="_blank">
                             @csrf
-                            <button type="submit" class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700">
+                            <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700">
                                 <i class="fa-solid fa-envelope-open-text"></i> Acessar Webmail
                             </button>
                         </form>
-                        <button type="button" data-modal-open="webmail-senha" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50">
+                        <button type="button" data-modal-open="webmail-senha" class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50">
                             <i class="fa-solid fa-key"></i> Trocar Senha
                         </button>
                     </div>
@@ -177,20 +197,49 @@
                         <p class="mt-2 text-xs font-medium text-red-600">{{ $message }}</p>
                     @enderror
                 </div>
-            @elseif ($estabelecimento->email)
-                <div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                    <p class="text-xs font-bold uppercase tracking-wide text-amber-700">E-mail Plataforma</p>
+
+                {{-- Configurações IMAP/SMTP --}}
+                <div class="rounded-xl border border-gray-100 bg-gray-50 p-5">
+                    <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Configuração para cliente de e-mail</p>
+                    <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                        <div>
+                            <dt class="font-semibold text-gray-600">Servidor IMAP</dt>
+                            <dd class="font-mono text-xs text-gray-800">{{ config('directadmin.imap_host') ?: 'mail.'.config('directadmin.dominio') }}</dd>
+                            <dd class="text-xs text-gray-500">Porta {{ config('directadmin.imap_porta', 993) }} · SSL</dd>
+                        </div>
+                        <div>
+                            <dt class="font-semibold text-gray-600">Servidor SMTP</dt>
+                            <dd class="font-mono text-xs text-gray-800">{{ config('directadmin.smtp_host') ?: 'mail.'.config('directadmin.dominio') }}</dd>
+                            <dd class="text-xs text-gray-500">Porta {{ config('directadmin.smtp_porta', 587) }} · TLS</dd>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <dt class="font-semibold text-gray-600">Usuário</dt>
+                            <dd class="font-mono text-xs text-gray-800">{{ $estabelecimento->webmail_email }}</dd>
+                        </div>
+                    </dl>
+                </div>
+            </div>
+        @elseif ($estabelecimento->email)
+            @php $dominioPlataforma = config('directadmin.dominio'); @endphp
+            <div class="max-w-lg">
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                        <i class="fa-solid fa-envelope-circle-check text-2xl"></i>
+                    </div>
+                    <h4 class="mt-3 font-bold text-gray-800">Nenhum e-mail criado</h4>
                     @if (session('aviso'))
-                        <p class="mt-2 text-xs text-amber-800">{{ session('aviso') }}</p>
+                        <p class="mt-1 text-sm text-amber-800">{{ session('aviso') }}</p>
                     @else
-                        <p class="mt-2 text-xs text-amber-800">Nenhum e-mail da plataforma criado para este estabelecimento.</p>
+                        <p class="mt-1 text-sm text-gray-600">Crie um e-mail <strong>&#64;{{ $dominioPlataforma }}</strong> para este estabelecimento. O e-mail redirecionará automaticamente para <strong>{{ $estabelecimento->email }}</strong>.</p>
                     @endif
-                    <button type="button" data-modal-open="webmail-criar" class="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700">
+                    <button type="button" data-modal-open="webmail-criar" class="mt-4 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-amber-700">
                         <i class="fa-solid fa-plus"></i> Criar E-mail Plataforma
                     </button>
                 </div>
-            @endif
-        </div>
+            </div>
+        @else
+            <p class="text-sm text-gray-400">Cadastre um e-mail de contato no estabelecimento para criar uma caixa na plataforma.</p>
+        @endif
     </div>
 </section>
 
@@ -520,7 +569,7 @@
         });
 
         const hashTab = window.location.hash.replace('#', '');
-        const validTabs = ['resumo', 'documentos', 'logs'];
+        const validTabs = ['resumo', 'email-plataforma', 'documentos', 'logs'];
         if (validTabs.includes(hashTab)) {
             showTab(hashTab);
         } else {
@@ -530,9 +579,11 @@
         // Reabrir modal de webmail se houver erros de validação
         @if ($errors->has('username'))
             document.querySelector('[data-modal="webmail-criar"]')?.classList.add('is-open');
+            showTab('email-plataforma');
         @endif
         @if ($errors->has('senha_webmail') || $errors->has('senha'))
             document.querySelector('[data-modal="webmail-senha"]')?.classList.add('is-open');
+            showTab('email-plataforma');
         @endif
 
         document.querySelectorAll('[data-modal-open]').forEach((button) => {

@@ -44,6 +44,16 @@
         <a href="#resumo" data-tab-link="resumo" class="{{ $navTabClass }} border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:text-blue-700">
             <i class="fa-solid fa-store"></i> Resumo
         </a>
+        <a href="#automacao" data-tab-link="automacao" class="{{ $navTabClass }} border-gray-200 bg-white text-gray-700 hover:border-indigo-300 hover:text-indigo-700">
+            <i class="fa-solid fa-robot"></i> Automação
+            @if ($estabelecimento->fv_status === 'em_andamento')
+                <span class="inline-block h-2 w-2 animate-pulse rounded-full bg-blue-500"></span>
+            @elseif ($estabelecimento->fv_status === 'concluido')
+                <span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+            @elseif (in_array($estabelecimento->fv_status, ['erro','erro_email','timeout']))
+                <span class="inline-block h-2 w-2 rounded-full bg-red-500"></span>
+            @endif
+        </a>
         <a href="#email-plataforma" data-tab-link="email-plataforma" class="{{ $navTabClass }} border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:text-blue-700">
             <i class="fa-solid fa-envelope"></i> E-mail
             @if ($estabelecimento->webmail_email)
@@ -149,8 +159,140 @@
                 </div>
                 <p class="mt-3 text-sm text-gray-800"><span class="font-semibold text-gray-600">Plano:</span> {{ $estabelecimento->plano?->nome ?: '-' }}</p>
             </div>
-            @include('estabelecimento.partials.pagbank-status')
         </div>
+    </div>
+</section>
+
+{{-- ── Aba: Automação FV ── --}}
+@php
+    $fvStatus   = $estabelecimento->fv_status;
+    $fvEhAdmin  = auth()->user()?->tipo === 'admin';
+    $fvCores = match($fvStatus) {
+        'concluido'    => ['bg-emerald-100 text-emerald-800 border-emerald-200', 'fa-circle-check',       'Concluído'],
+        'em_andamento' => ['bg-blue-100 text-blue-800 border-blue-200',          'fa-spinner fa-spin',    'Em andamento'],
+        'pendente'     => ['bg-amber-100 text-amber-800 border-amber-200',       'fa-clock',              'Aguardando fila'],
+        'erro'         => ['bg-red-100 text-red-800 border-red-200',             'fa-circle-exclamation', 'Erro'],
+        'erro_email'   => ['bg-red-100 text-red-800 border-red-200',             'fa-circle-exclamation', 'Erro no e-mail'],
+        'timeout'      => ['bg-orange-100 text-orange-800 border-orange-200',    'fa-hourglass-end',      'Timeout'],
+        default        => ['bg-gray-100 text-gray-500 border-gray-200',          'fa-circle-minus',       'Não iniciada'],
+    };
+    $fvPodeIniciar = $fvEhAdmin && ! in_array($fvStatus, ['em_andamento', 'concluido']);
+@endphp
+<section id="automacao" data-tab-panel="automacao" class="mt-8 hidden overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div class="border-b border-gray-100 bg-gray-50/80 px-6 py-4">
+        <h3 class="text-base font-bold text-gray-800">Automação Força de Vendas</h3>
+        <p class="mt-0.5 text-xs text-gray-500">Cadastro automatizado via Selenium no portal PagBank Força de Vendas.</p>
+    </div>
+
+    <div class="space-y-6 p-6">
+
+        {{-- Status atual + botão ação --}}
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div class="flex items-center gap-3">
+                <span class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-bold {{ $fvCores[0] }}">
+                    <i class="fa-solid {{ $fvCores[1] }}"></i>
+                    {{ $fvCores[2] }}
+                </span>
+                @if ($fvStatus === 'em_andamento')
+                    <span class="text-xs text-blue-600 animate-pulse">Atualize a página para checar progresso</span>
+                @endif
+            </div>
+
+            @if ($fvPodeIniciar)
+                <form method="POST" action="{{ route('admin.estabelecimentos.automacao.iniciar', $estabelecimento) }}"
+                      onsubmit="return confirm('Iniciar a automação Força de Vendas para este estabelecimento?')">
+                    @csrf
+                    <button type="submit"
+                            class="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-bold text-white shadow hover:bg-indigo-800">
+                        <i class="fa-solid fa-robot"></i>
+                        {{ in_array($fvStatus, ['erro','erro_email','timeout']) ? 'Retentar Automação' : 'Iniciar Automação' }}
+                    </button>
+                </form>
+            @elseif ($fvStatus === 'concluido' && $fvEhAdmin)
+                <form method="POST" action="{{ route('admin.estabelecimentos.automacao.iniciar', $estabelecimento) }}"
+                      onsubmit="return confirm('A automação já foi concluída. Deseja realmente reexecutar?\n\nIsso irá marcar o status como pendente e despachar um novo job.')">
+                    @csrf
+                    <button type="submit"
+                            class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                        <i class="fa-solid fa-rotate-right"></i> Reexecutar
+                    </button>
+                </form>
+            @endif
+        </div>
+
+        {{-- Detalhes da execução --}}
+        <dl class="grid gap-4 sm:grid-cols-2">
+            <div class="rounded-lg border border-gray-100 bg-gray-50 p-4">
+                <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Iniciado em</dt>
+                <dd class="mt-1 text-sm font-medium text-gray-800">
+                    {{ $estabelecimento->fv_iniciado_em?->format('d/m/Y H:i:s') ?: '—' }}
+                </dd>
+            </div>
+            <div class="rounded-lg border border-gray-100 bg-gray-50 p-4">
+                <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Concluído em</dt>
+                <dd class="mt-1 text-sm font-medium text-gray-800">
+                    {{ $estabelecimento->fv_concluido_em?->format('d/m/Y H:i:s') ?: '—' }}
+                </dd>
+            </div>
+            <div class="rounded-lg border border-gray-100 bg-gray-50 p-4 sm:col-span-2">
+                <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">ID do Job (API Python)</dt>
+                <dd class="mt-1 break-all font-mono text-xs text-gray-700">
+                    {{ $estabelecimento->fv_job_id ?: '—' }}
+                </dd>
+            </div>
+        </dl>
+
+        {{-- Erro --}}
+        @if ($estabelecimento->fv_erro)
+            <div class="rounded-lg border border-red-200 bg-red-50 p-4">
+                <p class="mb-1 text-xs font-bold uppercase tracking-wide text-red-600">
+                    <i class="fa-solid fa-triangle-exclamation mr-1"></i> Retorno de Erro
+                </p>
+                <pre class="whitespace-pre-wrap break-all font-mono text-xs text-red-800">{{ $estabelecimento->fv_erro }}</pre>
+            </div>
+        @endif
+
+        {{-- Sucesso --}}
+        @if ($fvStatus === 'concluido')
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                <p class="text-sm font-bold text-emerald-800">
+                    <i class="fa-solid fa-circle-check mr-1"></i> Cadastro concluído com sucesso no portal PagBank Força de Vendas.
+                </p>
+                @if ($estabelecimento->fv_concluido_em)
+                    <p class="mt-1 text-xs text-emerald-700">Finalizado em {{ $estabelecimento->fv_concluido_em->format('d/m/Y \à\s H:i') }}.</p>
+                @endif
+            </div>
+        @endif
+
+        {{-- Histórico de logs do sistema --}}
+        @if ($logs->isNotEmpty())
+            <div>
+                <p class="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">Logs do sistema relacionados à automação</p>
+                <div class="overflow-x-auto rounded-lg border border-gray-100">
+                    <table class="w-full text-xs">
+                        <thead class="bg-gray-50 text-gray-500">
+                            <tr>
+                                <th class="px-3 py-2 text-left font-semibold">Data</th>
+                                <th class="px-3 py-2 text-left font-semibold">Tipo</th>
+                                <th class="px-3 py-2 text-left font-semibold">Mensagem</th>
+                                <th class="px-3 py-2 text-left font-semibold">Usuário</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            @foreach ($logs->filter(fn($l) => str_contains(strtolower($l->tipo ?? ''), 'automac') || str_contains(strtolower($l->tipo ?? ''), 'fv') || str_contains(strtolower($l->mensagem ?? ''), 'automac')) as $log)
+                                <tr class="hover:bg-gray-50">
+                                    <td class="whitespace-nowrap px-3 py-2 text-gray-500">{{ $log->created_at?->format('d/m/Y H:i') }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-700">{{ $log->tipo ?: '-' }}</td>
+                                    <td class="px-3 py-2 text-gray-700">{{ $log->mensagem ?: '-' }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-gray-500">{{ $log->usuario?->name ?: 'Sistema' }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
+
     </div>
 </section>
 

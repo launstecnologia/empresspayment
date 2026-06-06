@@ -14,11 +14,11 @@ class EstabelecimentoAutomacaoController extends Controller
     {
         abort_unless($request->user()?->tipo === 'admin', 403);
 
-        $statusBloqueante = ['em_andamento', 'concluido'];
+        $statusBloqueante = ['em_andamento'];
         if (in_array($estabelecimento->fv_status, $statusBloqueante, true)) {
             return redirect()
                 ->route('estabelecimentos.show', $estabelecimento)
-                ->with('aviso', 'A automação já está '.$estabelecimento->fv_status.'. Para reexecutar, redefina o status manualmente.');
+                ->with('aviso', 'A automação já está em andamento. Aguarde a conclusão antes de reexecutar.');
         }
 
         if (! PlatformSettings::automacaoConfigurado()) {

@@ -40,9 +40,9 @@ class AutomacaoPagBankJob implements ShouldQueue
             return;
         }
 
-        // Evita re-execução se já concluído
-        if ($estab->fv_status === 'concluido') {
-            Log::info('AutomacaoPagBankJob: automação já concluída', ['id' => $estab->id]);
+        // Evita re-execução se já em andamento (a re-execução manual via controller já valida antes)
+        if ($estab->fv_status === 'em_andamento') {
+            Log::info('AutomacaoPagBankJob: automação já em andamento', ['id' => $estab->id]);
 
             return;
         }

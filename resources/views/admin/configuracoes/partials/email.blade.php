@@ -64,4 +64,27 @@
         </div>
     </div>
 
+    {{-- Enviar e-mail de teste --}}
+    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+        <p class="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Testar configuração SMTP</p>
+        @error('email_teste')
+            <p class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{{ $message }}</p>
+        @enderror
+        <form method="POST" action="{{ route('admin.configuracoes.email.testar') }}" class="flex flex-wrap items-end gap-3">
+            @csrf
+            <label class="flex-1 space-y-1 min-w-48">
+                <span class="text-xs font-medium text-gray-600 dark:text-gray-400">Destinatário do teste</span>
+                <input type="email" name="destinatario"
+                       value="{{ old('destinatario', auth()->user()->email) }}"
+                       placeholder="seu@email.com"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+            </label>
+            <button type="submit"
+                    class="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:bg-gray-800 dark:text-blue-400 dark:hover:bg-gray-700">
+                <i class="fa-solid fa-paper-plane text-xs"></i> Enviar E-mail Teste
+            </button>
+        </form>
+        <p class="mt-2 text-xs text-gray-400">Salve as configurações antes de testar. O e-mail usa o SMTP atualmente salvo no banco.</p>
+    </div>
+
 </div>

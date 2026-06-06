@@ -127,6 +127,7 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
     Route::middleware('nivel:admin')->group(function () {
         Route::get('/admin/configuracoes', [ConfiguracaoPlataformaController::class, 'edit'])->name('admin.configuracoes.edit');
         Route::put('/admin/configuracoes', [ConfiguracaoPlataformaController::class, 'update'])->name('admin.configuracoes.update');
+        Route::post('/admin/configuracoes/email/testar', [ConfiguracaoPlataformaController::class, 'testarEmail'])->name('admin.configuracoes.email.testar');
         Route::post('/admin/configuracoes/pagbank/buscar-credenciais', [ConfiguracaoPlataformaController::class, 'buscarCredenciaisPagBank'])->name('admin.configuracoes.pagbank.buscar-credenciais');
         Route::prefix('admin/kyc')->name('admin.kyc.')->group(function () {
             Route::get('/', [AdminKycController::class, 'index'])->name('index');

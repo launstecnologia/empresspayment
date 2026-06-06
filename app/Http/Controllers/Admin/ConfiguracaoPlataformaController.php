@@ -161,6 +161,38 @@ class ConfiguracaoPlataformaController extends Controller
             ->with('status', 'Configurações da plataforma salvas com sucesso.');
     }
 
+    public function testarEmail(Request $request)
+    {
+        $this->authorizeAdmin($request);
+
+        $dados = $request->validate([
+            'destinatario' => ['required', 'email', 'max:150'],
+        ]);
+
+        try {
+            \App\Support\PlatformMail::apply();
+
+            \Illuminate\Support\Facades\Mail::raw(
+                "Este é um e-mail de teste enviado pela plataforma Express Payments.\n\n".
+                "Se você recebeu esta mensagem, o servidor SMTP está configurado corretamente.\n\n".
+                "Enviado em: " . now()->format('d/m/Y H:i:s'),
+                function ($message) use ($dados) {
+                    $message->to($dados['destinatario'])
+                        ->subject('Teste de E-mail — ' . \App\Support\PlatformSettings::appName());
+                }
+            );
+
+            return redirect()
+                ->route('admin.configuracoes.edit', ['#email'])
+                ->with('status', "E-mail de teste enviado para {$dados['destinatario']} com sucesso.");
+
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('admin.configuracoes.edit', ['#email'])
+                ->withErrors(['email_teste' => 'Falha ao enviar: ' . $e->getMessage()]);
+        }
+    }
+
     public function buscarCredenciaisPagBank(Request $request)
     {
         $this->authorizeAdmin($request);

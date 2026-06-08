@@ -186,7 +186,7 @@ class CadastradorFV:
         msgs = [e.text.strip() for e in erros if e.text.strip()]
         if msgs:
             log.warning(f'Erros de validacao ({len(msgs)}): {msgs}')
-        return erros
+        return msgs
 
     # ----------------------------------------------------------------
     # Etapas
@@ -313,7 +313,18 @@ class CadastradorFV:
             self._preencher(By.ID, 'info.websiteURL', self.dados['url_site'], 'url_site')
 
         time.sleep(0.5)
-        self._coletar_erros()
+        erros = self._coletar_erros()
+
+        # Se o nome fantasia não é aceito, tenta com a razão social
+        nome_nao_similar = any('similar' in (e or '').lower() for e in erros)
+        if nome_nao_similar:
+            log.warning('Nome fantasia rejeitado — tentando com razão social como nome fantasia')
+            campo_fantasia = self.driver.find_element(By.ID, 'info.trademark')
+            campo_fantasia.clear()
+            time.sleep(0.3)
+            campo_fantasia.send_keys(self.dados['razao_social'])
+            time.sleep(0.5)
+
         self._clicar(
             By.XPATH,
             "//*[@id='__next']/div/main/div/div/form/div[2]/div/button[2]",

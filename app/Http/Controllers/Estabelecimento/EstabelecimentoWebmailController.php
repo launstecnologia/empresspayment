@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Estabelecimento;
 use App\Services\DirectAdminService;
 use App\Services\EmailPlataformaService;
+use App\Support\PlatformSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -47,7 +48,7 @@ class EstabelecimentoWebmailController extends Controller
         abort_unless(filled($estabelecimento->webmail_email), 404, 'Nenhuma caixa de e-mail configurada.');
         abort_unless(filled($estabelecimento->webmail_senha), 404, 'Senha do e-mail não disponível.');
 
-        $webmailUrl = rtrim((string) config('directadmin.webmail_url'), '/');
+        $webmailUrl = rtrim((string) (PlatformSettings::automacaoWebmailUrl() ?? config('directadmin.webmail_url')), '/');
         $loginUrl   = $webmailUrl . '/';
 
         // Busca a página de login do Roundcube para extrair o token CSRF

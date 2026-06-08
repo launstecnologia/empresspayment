@@ -255,9 +255,35 @@ class PlatformSettings
 
     public static function automacaoWebmailUrl(): ?string
     {
-        $env = config('automacao.webmail_url');
+        $candidatos = [
+            config('automacao.webmail_url'),
+            config('directadmin.webmail_url'),
+        ];
 
-        return filled($env) ? (string) $env : null;
+        foreach ($candidatos as $url) {
+            if (self::urlWebmailUtilizavel($url)) {
+                return rtrim((string) $url, '/');
+            }
+        }
+
+        $dominio = config('directadmin.dominio');
+        if (filled($dominio) && ! str_contains(strtolower((string) $dominio), 'seudominio')) {
+            return 'http://mail.'.$dominio.'/roundcube';
+        }
+
+        return null;
+    }
+
+    private static function urlWebmailUtilizavel(mixed $url): bool
+    {
+        if (! filled($url)) {
+            return false;
+        }
+
+        $normalizada = strtolower(trim((string) $url));
+
+        return ! str_contains($normalizada, 'seudominio.com.br')
+            && ! str_contains($normalizada, 'seudominio');
     }
 
     public static function logoUrl(string $variant = 'default'): ?string

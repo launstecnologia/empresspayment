@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Scopes\HierarquiaScope;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Crypt;
 
 class Estabelecimento extends Model
 {
@@ -74,7 +76,7 @@ class Estabelecimento extends Model
             'pagbank_cadastrado_em' => 'datetime',
             'fv_iniciado_em' => 'datetime',
             'fv_concluido_em' => 'datetime',
-            'webmail_senha' => 'encrypted',
+            // webmail_senha usa accessor próprio para tratamento seguro de descriptografia
             'data_abertura' => 'date',
             'data_nascimento' => 'date',
             'rep_data_nascimento' => 'date',
@@ -84,6 +86,28 @@ class Estabelecimento extends Model
     protected static function booted(): void
     {
         static::addGlobalScope(new HierarquiaScope);
+    }
+
+    /**
+     * Accessor seguro para webmail_senha.
+     * Retorna null se o valor estiver vazio ou corrompido (e.g. salvo antes de encrypted cast).
+     */
+    public function getWebmailSenhaAttribute(): ?string
+    {
+        $raw = $this->attributes['webmail_senha'] ?? null;
+        if (blank($raw)) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($raw);
+        } catch (DecryptException) {
+            return null;
+        }
+    }
+
+    public function setWebmailSenhaAttribute(?string $value): void
+    {
+        $this->attributes['webmail_senha'] = filled($value) ? Crypt::encryptString($value) : null;
     }
 
     public function plano()

@@ -13,12 +13,12 @@
 
 <div x-data="{ filtrosAberto: false }" class="space-y-6">
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">
-            <div>
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-4 sm:px-5">
+            <div class="min-w-0">
                 <h3 class="text-sm font-semibold text-gray-700">Estabelecimentos encontrados</h3>
                 <p class="text-xs text-gray-400">{{ $estabelecimentos->total() }} resultado(s)</p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                 @if ($podeCadastrarEstabelecimento)
                     <a href="{{ route('estabelecimentos.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700">
                         <i class="fa-solid fa-plus text-xs"></i>
@@ -38,7 +38,8 @@
                 </button>
             </div>
         </div>
-        <table class="w-full text-sm">
+        <div class="overflow-x-auto">
+        <table class="w-full min-w-[720px] text-sm">
             <thead>
                 <tr class="border-b border-gray-100 bg-gray-50">
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Código</th>
@@ -91,6 +92,7 @@
                 @endforelse
             </tbody>
         </table>
+        </div>
     </div>
 
     <div>{{ $estabelecimentos->links() }}</div>

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Scopes\ExcluirInativoSistemaScope;
 use App\Scopes\HierarquiaScope;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Model;
@@ -86,6 +87,7 @@ class Estabelecimento extends Model
     protected static function booted(): void
     {
         static::addGlobalScope(new HierarquiaScope);
+        static::addGlobalScope(new ExcluirInativoSistemaScope);
     }
 
     /**

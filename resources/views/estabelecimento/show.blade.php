@@ -11,6 +11,7 @@
         'desabilitado' => 'bg-red-500 text-white',
         'em_analise', 'qualidade' => 'bg-amber-500 text-white',
         'em_cadastro' => 'bg-sky-500 text-white',
+        'inativo_sistema' => 'bg-gray-500 text-white',
         default => 'bg-blue-500 text-white',
     };
     $riscoClass = match ($estabelecimento->risco) {
@@ -86,6 +87,11 @@
         <button type="button" data-modal-open="status" class="{{ $navActionClass }} bg-sky-500 text-white hover:bg-sky-600">
             <i class="fa-solid fa-sliders"></i> Alterar status
         </button>
+        @if (auth()->user()?->tipo === 'admin' && $estabelecimento->status !== 'inativo_sistema')
+            <button type="button" data-modal-open="inativar-sistema" class="{{ $navActionClass }} border border-red-200 bg-white text-red-700 hover:bg-red-50">
+                <i class="fa-solid fa-trash-can"></i> Inativar cadastro
+            </button>
+        @endif
     </div>
 </div>
 
@@ -924,6 +930,58 @@
             </form>
         </div>
     </div>
+
+    @if (auth()->user()?->tipo === 'admin' && $estabelecimento->status !== 'inativo_sistema')
+    <div data-modal="inativar-sistema" class="modal-overlay fixed inset-0 z-[100] items-center justify-center bg-black/40 px-4">
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div class="mb-5 flex items-start justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-red-700">Inativar cadastro</h3>
+                    <p class="mt-1 text-xs text-gray-500">O registro não será excluído do banco de dados.</p>
+                </div>
+                <button type="button" data-modal-close="inativar-sistema" class="text-2xl leading-none text-gray-400 hover:text-gray-600">&times;</button>
+            </div>
+
+            <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                <p class="font-semibold">O que acontece:</p>
+                <ul class="mt-2 list-inside list-disc space-y-1">
+                    <li>O status será alterado para <strong>inativo_sistema</strong></li>
+                    <li>O cadastro deixa de aparecer nas listagens e buscas</li>
+                    <li>Os dados permanecem salvos para histórico e auditoria</li>
+                </ul>
+            </div>
+
+            <form method="POST" action="{{ route('estabelecimentos.inativar-sistema', $estabelecimento) }}" class="space-y-4">
+                @csrf
+                <label class="block space-y-1">
+                    <span class="text-sm font-bold text-gray-800">Sua senha de administrador</span>
+                    <input type="password" name="senha_admin" autocomplete="current-password" required
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm @error('senha_admin') border-red-500 @enderror">
+                    @error('senha_admin')
+                        <p class="text-xs font-medium text-red-600">{{ $message }}</p>
+                    @enderror
+                </label>
+                <label class="flex items-start gap-2 text-sm text-gray-700">
+                    <input type="checkbox" name="confirmacao" value="1" required class="mt-1 rounded border-gray-300">
+                    <span>Confirmo que desejo inativar <strong>{{ $nome }}</strong> no sistema.</span>
+                </label>
+                @error('confirmacao')
+                    <p class="text-xs font-medium text-red-600">{{ $message }}</p>
+                @enderror
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" data-modal-close="inativar-sistema"
+                            class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100">
+                        Cancelar
+                    </button>
+                    <button type="submit"
+                            class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-bold text-white hover:bg-red-700">
+                        <i class="fa-solid fa-trash-can"></i> Confirmar inativação
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endif
 @endpush
 
 @section('scripts')
@@ -983,6 +1041,9 @@
         @if ($errors->has('senha_webmail') || $errors->has('senha'))
             document.querySelector('[data-modal="webmail-senha"]')?.classList.add('is-open');
             showTab('email-plataforma');
+        @endif
+        @if ($errors->has('senha_admin') || $errors->has('confirmacao') || session('abrir_modal_inativar'))
+            document.querySelector('[data-modal="inativar-sistema"]')?.classList.add('is-open');
         @endif
 
         document.querySelectorAll('[data-modal-open]').forEach((button) => {

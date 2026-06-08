@@ -23,6 +23,7 @@ use App\Support\NotificacaoVars;
 use App\Support\PlatformSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -217,13 +218,50 @@ class EstabelecimentoController extends Controller
         return redirect()->route('estabelecimentos.show', $estabelecimento)->with('status', 'Status alterado com sucesso.');
     }
 
-    public function destroy(Estabelecimento $estabelecimento)
+    public function inativarSistema(Request $request, Estabelecimento $estabelecimento, LogService $log)
     {
-        $this->autorizarMutacaoEstabelecimento();
+        abort_unless($request->user()?->tipo === 'admin', 403);
 
-        $estabelecimento->delete();
+        if ($estabelecimento->status === 'inativo_sistema') {
+            return redirect()
+                ->route('estabelecimentos.index')
+                ->with('aviso', 'Este cadastro já está inativo no sistema.');
+        }
 
-        return redirect()->route('estabelecimentos.index')->with('status', 'Estabelecimento removido.');
+        $dados = $request->validate([
+            'senha_admin' => ['required', 'string'],
+            'confirmacao' => ['accepted'],
+        ], [
+            'senha_admin.required' => 'Informe sua senha de administrador.',
+            'confirmacao.accepted' => 'Confirme que deseja inativar este cadastro.',
+        ]);
+
+        if (! Hash::check($dados['senha_admin'], $request->user()->password)) {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->withErrors(['senha_admin' => 'Senha de administrador incorreta.'])
+                ->with('abrir_modal_inativar', true);
+        }
+
+        $statusAnterior = $estabelecimento->status;
+
+        $estabelecimento->update([
+            'status' => 'inativo_sistema',
+            'ativo'  => false,
+        ]);
+
+        $log->registrar(
+            'Estabelecimento',
+            $estabelecimento->id,
+            'inativar_sistema',
+            'Cadastro inativado no sistema (soft delete)',
+            ['status' => $statusAnterior, 'ativo' => true],
+            ['status' => 'inativo_sistema', 'ativo' => false],
+        );
+
+        return redirect()
+            ->route('estabelecimentos.index')
+            ->with('status', 'Cadastro inativado no sistema. O registro foi preservado e não aparece mais nas listagens.');
     }
 
     private function autorizarMutacaoEstabelecimento(): void

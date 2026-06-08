@@ -107,7 +107,9 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
     Route::get('estabelecimentos/{estabelecimento}/kyc', [KycController::class, 'show'])->name('estabelecimentos.kyc.show');
     Route::post('estabelecimentos/{estabelecimento}/kyc/documento', [KycController::class, 'enviarDocumento'])->name('estabelecimentos.kyc.documento');
     Route::delete('kyc/documentos/{documento}', [KycController::class, 'removerDocumento'])->name('kyc.documentos.destroy');
-    Route::resource('estabelecimentos', EstabelecimentoController::class);
+    Route::post('estabelecimentos/{estabelecimento}/inativar-sistema', [EstabelecimentoController::class, 'inativarSistema'])
+        ->name('estabelecimentos.inativar-sistema');
+    Route::resource('estabelecimentos', EstabelecimentoController::class)->except(['destroy']);
     Route::resource('planos', PlanoController::class);
     Route::prefix('planos/{plano}')->name('planos.')->group(function () {
         Route::post('grade-taxas', [PlanoController::class, 'salvarGrade'])->name('grade-taxas.salvar');

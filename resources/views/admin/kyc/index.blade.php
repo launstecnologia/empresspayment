@@ -53,7 +53,10 @@
             <tbody>
                 @forelse ($kycs as $item)
                     @php
-                        $estab = $item->estabelecimento;
+                        $estab = $item->estabelecimentoCompleto;
+                        $nomeEstab = $estab
+                            ? ($estab->nome_fantasia ?: $estab->razao_social ?: $estab->nome_completo ?: 'Estabelecimento #'.$item->estabelecimento_id)
+                            : 'Estabelecimento removido #'.$item->estabelecimento_id;
                         $statusClass = match ($item->status) {
                             'aprovado' => 'bg-green-100 text-green-700',
                             'reprovado' => 'bg-red-100 text-red-700',
@@ -64,10 +67,19 @@
                     <tr class="border-b border-gray-50 hover:bg-gray-50">
                         <td class="px-5 py-4 font-semibold text-gray-800">#{{ str_pad($item->id, 4, '0', STR_PAD_LEFT) }}</td>
                         <td class="px-5 py-4">
-                            <p class="font-semibold text-gray-800">{{ $estab->nome_fantasia ?: $estab->razao_social ?: $estab->nome_completo }}</p>
-                            <p class="text-xs text-gray-400">{{ $estab->marketplace?->nomeExibicao() ?: '—' }}</p>
+                            <p class="font-semibold text-gray-800">{{ $nomeEstab }}</p>
+                            <p class="text-xs text-gray-400">
+                                @if ($estab)
+                                    {{ $estab->marketplace?->nomeExibicao() ?: '—' }}
+                                    @if ($estab->status === 'inativo_sistema')
+                                        <span class="ml-1 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-600">Inativo</span>
+                                    @endif
+                                @else
+                                    —
+                                @endif
+                            </p>
                         </td>
-                        <td class="px-5 py-4 text-gray-600">{{ $estab->pessoa_tipo === 'fisica' ? 'PF' : 'PJ' }}</td>
+                        <td class="px-5 py-4 text-gray-600">{{ $estab?->pessoa_tipo === 'fisica' ? 'PF' : ($estab ? 'PJ' : '—') }}</td>
                         <td class="px-5 py-4">
                             <span class="rounded-full px-2.5 py-1 text-xs font-medium {{ $statusClass }}">{{ str_replace('_', ' ', ucfirst($item->status)) }}</span>
                         </td>

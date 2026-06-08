@@ -9,6 +9,8 @@ use App\Services\KycDocumentoSyncService;
 use App\Services\KycFinalizacaoService;
 use App\Services\KycHistoricoService;
 use App\Support\KycDocumentosObrigatorios;
+use App\Scopes\ExcluirInativoSistemaScope;
+use App\Scopes\HierarquiaScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -20,7 +22,7 @@ class AdminKycController extends Controller
         $this->authorizeAdmin($request);
 
         $query = KycAnalise::query()
-            ->with(['estabelecimento.marketplace'])
+            ->with(['estabelecimentoCompleto.marketplace'])
             ->latest('updated_at');
 
         if ($request->filled('status')) {
@@ -29,7 +31,7 @@ class AdminKycController extends Controller
 
         if ($request->filled('busca')) {
             $termo = '%'.$request->string('busca')->trim().'%';
-            $query->whereHas('estabelecimento', function (Builder $q) use ($termo) {
+            $query->whereHas('estabelecimentoCompleto', function (Builder $q) use ($termo) {
                 $q->where('nome_fantasia', 'like', $termo)
                     ->orWhere('razao_social', 'like', $termo)
                     ->orWhere('nome_completo', 'like', $termo)
@@ -55,8 +57,8 @@ class AdminKycController extends Controller
         $this->authorizeAdmin($request);
 
         $kyc->load([
-            'estabelecimento.marketplace',
-            'estabelecimento.pagbankLogs' => fn ($q) => $q->latest()->limit(3),
+            'estabelecimentoCompleto.marketplace',
+            'estabelecimentoCompleto.pagbankLogs' => fn ($q) => $q->latest()->limit(3),
             'documentos',
             'historico',
             'admin',
@@ -64,7 +66,7 @@ class AdminKycController extends Controller
 
         return view('admin.kyc.show', [
             'kyc' => $kyc,
-            'estabelecimento' => $kyc->estabelecimento,
+            'estabelecimento' => $kyc->estabelecimentoCompleto,
         ]);
     }
 

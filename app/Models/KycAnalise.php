@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Scopes\ExcluirInativoSistemaScope;
+use App\Scopes\HierarquiaScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -40,6 +42,16 @@ class KycAnalise extends Model
     public function estabelecimento(): BelongsTo
     {
         return $this->belongsTo(Estabelecimento::class);
+    }
+
+    /** Inclui estabelecimentos inativos/ocultos por scope — uso admin KYC. */
+    public function estabelecimentoCompleto(): BelongsTo
+    {
+        return $this->belongsTo(Estabelecimento::class, 'estabelecimento_id')
+            ->withoutGlobalScopes([
+                ExcluirInativoSistemaScope::class,
+                HierarquiaScope::class,
+            ]);
     }
 
     public function admin(): BelongsTo

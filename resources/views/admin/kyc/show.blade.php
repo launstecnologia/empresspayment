@@ -4,8 +4,10 @@
 
 @section('content')
 @php
-    $nomeEstab = $estabelecimento->nome_fantasia ?: $estabelecimento->razao_social ?: $estabelecimento->nome_completo;
-    $documento = $estabelecimento->cnpj ?: $estabelecimento->cpf ?: '—';
+    $nomeEstab = $estabelecimento
+        ? ($estabelecimento->nome_fantasia ?: $estabelecimento->razao_social ?: $estabelecimento->nome_completo ?: 'Estabelecimento #'.$kyc->estabelecimento_id)
+        : 'Estabelecimento removido #'.$kyc->estabelecimento_id;
+    $documento = $estabelecimento ? ($estabelecimento->cnpj ?: $estabelecimento->cpf ?: '—') : '—';
 @endphp
 
 <div class="mb-4 text-sm text-gray-500">
@@ -17,7 +19,16 @@
 <div class="space-y-6">
     <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <h2 class="text-lg font-bold text-gray-800">{{ $nomeEstab }}</h2>
-        <p class="text-sm text-gray-500">{{ $estabelecimento->pessoa_tipo === 'fisica' ? 'CPF' : 'CNPJ' }} {{ $documento }}</p>
+        <p class="text-sm text-gray-500">
+            @if ($estabelecimento)
+                {{ $estabelecimento->pessoa_tipo === 'fisica' ? 'CPF' : 'CNPJ' }} {{ $documento }}
+                @if ($estabelecimento->status === 'inativo_sistema')
+                    <span class="ml-2 rounded bg-gray-200 px-2 py-0.5 text-xs font-semibold text-gray-600">Cadastro inativo</span>
+                @endif
+            @else
+                Estabelecimento não encontrado no sistema
+            @endif
+        </p>
         <p class="mt-2">
             <span class="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">KYC: {{ str_replace('_', ' ', ucfirst($kyc->status)) }}</span>
         </p>

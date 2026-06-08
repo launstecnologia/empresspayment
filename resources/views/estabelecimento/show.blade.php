@@ -393,6 +393,15 @@
                         <button type="button" data-modal-open="webmail-senha" class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50">
                             <i class="fa-solid fa-key"></i> Trocar Senha
                         </button>
+                        @if (auth()->user()?->tipo === 'admin' && filled($estabelecimento->email))
+                            <form action="{{ route('estabelecimentos.webmail.reconfigurar-forwarder', $estabelecimento) }}" method="POST"
+                                  onsubmit="return confirm('Reconfigurar o redirecionamento de e-mail?\n\nO forwarder será deletado e recriado para manter cópia local no Roundcube.')">
+                                @csrf
+                                <button type="submit" class="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 shadow-sm hover:bg-amber-100">
+                                    <i class="fa-solid fa-arrows-rotate"></i> Reconfigurar Redirecionamento
+                                </button>
+                            </form>
+                        @endif
                     </div>
                     @error('senha_webmail')
                         <p class="mt-2 text-xs font-medium text-red-600">{{ $message }}</p>

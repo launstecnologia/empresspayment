@@ -102,6 +102,7 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
         Route::post('webmail/criar', [EstabelecimentoWebmailController::class, 'criar'])->name('webmail.criar');
         Route::post('webmail/sso', [EstabelecimentoWebmailController::class, 'sso'])->name('webmail.sso');
         Route::patch('webmail/senha', [EstabelecimentoWebmailController::class, 'trocarSenha'])->name('webmail.senha');
+        Route::post('webmail/reconfigurar-forwarder', [EstabelecimentoWebmailController::class, 'reconfigurarForwarder'])->name('webmail.reconfigurar-forwarder');
     });
     Route::get('estabelecimentos/{estabelecimento}/kyc', [KycController::class, 'show'])->name('estabelecimentos.kyc.show');
     Route::post('estabelecimentos/{estabelecimento}/kyc/documento', [KycController::class, 'enviarDocumento'])->name('estabelecimentos.kyc.documento');

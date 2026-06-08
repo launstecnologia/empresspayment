@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Estabelecimento;
 
 use App\Http\Controllers\Controller;
 use App\Models\Estabelecimento;
+use App\Services\DirectAdminService;
 use App\Services\EmailPlataformaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -72,6 +73,36 @@ class EstabelecimentoWebmailController extends Controller
             'senha'      => $estabelecimento->webmail_senha,
             'rcToken'    => $rcToken,
         ]);
+    }
+
+    /**
+     * Reconfigura o forwarder do e-mail da plataforma:
+     * deleta o forwarder antigo e recria com cópia local.
+     */
+    public function reconfigurarForwarder(Request $request, Estabelecimento $estabelecimento)
+    {
+        abort_unless($request->user()?->tipo === 'admin', 403);
+        abort_unless(filled($estabelecimento->webmail_email), 422, 'Nenhum e-mail da plataforma configurado.');
+        abort_unless(filled($estabelecimento->email), 422, 'E-mail original do estabelecimento não informado.');
+
+        $da       = app(DirectAdminService::class);
+        $username = Str::before($estabelecimento->webmail_email, '@');
+
+        // Deleta forwarder existente (ignora erro se não existir)
+        try {
+            $da->excluirForwarderPlataforma($username);
+        } catch (\Throwable) {}
+
+        // Recria com cópia local
+        $ok = $da->redirecionarEmailPlataforma($username, $estabelecimento->email);
+
+        if (! $ok) {
+            return redirect()->route('estabelecimentos.show', $estabelecimento)
+                ->withErrors(['webmail' => 'Não foi possível reconfigurar o forwarder no servidor.']);
+        }
+
+        return redirect()->route('estabelecimentos.show', $estabelecimento)
+            ->with('status', 'Forwarder reconfigurado com sucesso. Agora e-mails ficam com cópia no Roundcube e são encaminhados para ' . $estabelecimento->email);
     }
 
     /**

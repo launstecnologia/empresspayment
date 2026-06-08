@@ -134,6 +134,17 @@ class DirectAdminService
         return $response->successful();
     }
 
+    public function excluirForwarderPlataforma(string $user): bool
+    {
+        $response = $this->client()->post('/CMD_API_EMAIL_FORWARDERS', [
+            'action' => 'delete',
+            'domain' => config('directadmin.dominio'),
+            'select0' => $user,
+        ]);
+
+        return $response->successful();
+    }
+
     public function excluirEmailPlataforma(string $user): bool
     {
         $response = $this->client()->post('/CMD_API_EMAIL_POP', [

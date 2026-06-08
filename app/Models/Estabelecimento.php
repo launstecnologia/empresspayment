@@ -50,6 +50,7 @@ class Estabelecimento extends Model
         'fv_concluido_em',
         'webmail_email',
         'webmail_senha',
+        'webmail_forwarder_ativo',
         'plano_id',
         'subdominio',
         'documento_token_publico',
@@ -76,6 +77,7 @@ class Estabelecimento extends Model
             'pagbank_cadastrado_em' => 'datetime',
             'fv_iniciado_em' => 'datetime',
             'fv_concluido_em' => 'datetime',
+            'webmail_forwarder_ativo' => 'boolean',
             // webmail_senha usa accessor próprio para tratamento seguro de descriptografia
             'data_abertura' => 'date',
             'data_nascimento' => 'date',

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Estabelecimento;
 use App\Services\AutomacaoPagBankService;
+use App\Services\EmailPlataformaService;
 use App\Services\NotificacaoEmailService;
 use App\Support\NotificacaoVars;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -28,7 +29,7 @@ class AutomacaoPagBankJob implements ShouldQueue
         public readonly string $senha6,
     ) {}
 
-    public function handle(AutomacaoPagBankService $service, NotificacaoEmailService $notificacao): void
+    public function handle(AutomacaoPagBankService $service, NotificacaoEmailService $notificacao, EmailPlataformaService $emailService): void
     {
         $estab = Estabelecimento::withoutGlobalScopes()->find($this->estabelecimentoId);
 
@@ -87,18 +88,28 @@ class AutomacaoPagBankJob implements ShouldQueue
                 }
             }
 
-            // 3. Processa resultado
-            if ($statusFinal === 'concluido') {
-                $estab->update([
-                    'fv_status'      => 'concluido',
-                    'fv_senha_6'     => $this->senha6,
-                    'fv_concluido_em' => now(),
-                    'fv_erro'        => null,
-                    // Atualiza o status do estabelecimento se ainda for em_cadastro
-                    'status'         => $estab->status === 'em_cadastro' ? 'habilitado' : $estab->status,
-                ]);
+        // 3. Processa resultado
+        if ($statusFinal === 'concluido') {
+            $estab->update([
+                'fv_status'      => 'concluido',
+                'fv_senha_6'     => $this->senha6,
+                'fv_concluido_em' => now(),
+                'fv_erro'        => null,
+                // Atualiza o status do estabelecimento se ainda for em_cadastro
+                'status'         => $estab->status === 'em_cadastro' ? 'habilitado' : $estab->status,
+            ]);
 
-                Log::info('AutomacaoPagBankJob: automação concluída com sucesso', [
+            // Ativa o forwarder agora que a automação já leu o e-mail de validação
+            try {
+                $emailService->ativarForwarder($estab->fresh());
+            } catch (\Throwable $e) {
+                Log::warning('AutomacaoPagBankJob: falha ao ativar forwarder', [
+                    'estabelecimento_id' => $estab->id,
+                    'erro' => $e->getMessage(),
+                ]);
+            }
+
+            Log::info('AutomacaoPagBankJob: automação concluída com sucesso', [
                     'estabelecimento_id' => $estab->id,
                     'job_id'             => $jobId,
                 ]);

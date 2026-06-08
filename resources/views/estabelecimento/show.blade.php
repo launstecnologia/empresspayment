@@ -565,6 +565,12 @@
                         $kycDoc  = $item['kycDoc'];
                         $estabDoc = $item['estabDoc'];
                         $statusDoc = $kycDoc?->statusEfetivo() ?? ($estabDoc ? 'aguardando_analise' : 'pendente');
+                        $divergenciasDoc = $kycDoc?->cruzamento_divergencias ?? [];
+                        $provavelOcrDoc = $kycDoc && $kycDoc->cruzamento_status === 'divergencia'
+                            && \App\Support\KycDivergenciaHelper::provavelErroLeitura($divergenciasDoc);
+                        $statusDocLabel = $provavelOcrDoc && ! $kycEhAdmin
+                            ? 'Reenviar foto'
+                            : str_replace('_', ' ', ucfirst($statusDoc));
                         $statusDocClass = match ($statusDoc) {
                             'aprovado'           => 'text-emerald-600',
                             'reprovado'          => 'text-red-600',
@@ -576,15 +582,18 @@
                     <div class="rounded-xl border {{ $estabDoc ? 'border-emerald-100 bg-emerald-50/30' : 'border-gray-100 bg-gray-50' }} p-4">
                         <div class="flex items-start justify-between gap-2">
                             <p class="font-semibold text-gray-800">{{ $item['label'] }}</p>
-                            <span class="text-xs font-bold {{ $statusDocClass }}">{{ str_replace('_', ' ', ucfirst($statusDoc)) }}</span>
+                            <span class="text-xs font-bold {{ $statusDocClass }}">{{ $statusDocLabel }}</span>
                         </div>
                         @if ($estabDoc)
                             <p class="mt-1 truncate text-xs text-gray-500">{{ $estabDoc->arquivo_nome ?: basename($estabDoc->arquivo_path) }}</p>
-                            @if ($kycDoc?->openai_motivo_reprovacao)
-                                <p class="mt-2 text-xs text-red-600">{{ $kycDoc->openai_motivo_reprovacao }}</p>
-                            @endif
                             @if ($kycDoc && $kycDoc->cruzamento_status === 'divergencia')
-                                <p class="mt-1 text-xs text-amber-700">Cruzamento: divergência nos dados</p>
+                                @include('partials.kyc-divergencia-alerta', [
+                                    'documento' => $kycDoc,
+                                    'estabelecimento' => $estabelecimento,
+                                    'mostrarBotaoReenvio' => ! $kycEhAdmin,
+                                ])
+                            @elseif ($kycDoc?->openai_motivo_reprovacao)
+                                <p class="mt-2 text-xs text-red-600">{{ $kycDoc->openai_motivo_reprovacao }}</p>
                             @endif
 
                             {{-- Admin: detalhes OpenAI e ações por documento --}}
@@ -596,7 +605,10 @@
                                     </details>
                                 @endif
                                 @if ($kycDoc->cruzamento_divergencias)
-                                    <pre class="mt-2 overflow-x-auto rounded bg-red-50 p-2 text-xs text-red-800">{{ json_encode($kycDoc->cruzamento_divergencias, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                    <details class="mt-2">
+                                        <summary class="cursor-pointer text-xs font-semibold text-gray-400 hover:text-gray-700">Detalhes técnicos (JSON)</summary>
+                                        <pre class="mt-1 overflow-x-auto rounded bg-red-50 p-2 text-xs text-red-800">{{ json_encode($kycDoc->cruzamento_divergencias, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                    </details>
                                 @endif
                                 <div class="mt-3 flex flex-wrap gap-2">
                                     <form method="POST" action="{{ route('admin.kyc.documentos.override', $kycDoc) }}">

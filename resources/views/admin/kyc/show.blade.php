@@ -82,11 +82,20 @@
                         <p class="font-semibold text-gray-800">{{ \App\Support\KycDocumentosObrigatorios::labelTipo($doc->tipo) }}</p>
                         <p class="mt-1 text-sm {{ $statusClass }}">PPID: {{ strtoupper(str_replace('_', ' ', $status)) }}</p>
                         <p class="text-sm text-gray-500">Cruzamento: {{ str_replace('_', ' ', $doc->cruzamento_status) }}</p>
-                        @if ($doc->openai_motivo_reprovacao)
+                        @if ($doc->cruzamento_status === 'divergencia')
+                            @include('partials.kyc-divergencia-alerta', [
+                                'documento' => $doc,
+                                'estabelecimento' => $estabelecimento,
+                                'mostrarBotaoReenvio' => false,
+                            ])
+                            @if ($doc->cruzamento_divergencias)
+                                <details class="mt-2">
+                                    <summary class="cursor-pointer text-xs font-semibold text-gray-500">Detalhes técnicos (JSON)</summary>
+                                    <pre class="mt-1 overflow-x-auto rounded bg-red-50 p-2 text-xs text-red-800">{{ json_encode($doc->cruzamento_divergencias, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                </details>
+                            @endif
+                        @elseif ($doc->openai_motivo_reprovacao)
                             <p class="mt-2 text-sm text-red-600">{{ $doc->openai_motivo_reprovacao }}</p>
-                        @endif
-                        @if ($doc->cruzamento_divergencias)
-                            <pre class="mt-2 overflow-x-auto rounded bg-red-50 p-2 text-xs text-red-800">{{ json_encode($doc->cruzamento_divergencias, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
                         @endif
                         @if ($doc->openai_dados_extraidos)
                             <details class="mt-2">

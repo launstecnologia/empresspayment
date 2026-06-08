@@ -74,6 +74,12 @@
                     $kycDoc = $item['kyc_documento'];
                     $estabDoc = $item['estabelecimento_documento'];
                     $statusDoc = $kycDoc?->statusEfetivo() ?? ($estabDoc ? 'aguardando_analise' : 'pendente');
+                    $divergenciasDoc = $kycDoc?->cruzamento_divergencias ?? [];
+                    $provavelOcrDoc = $kycDoc && $kycDoc->cruzamento_status === 'divergencia'
+                        && \App\Support\KycDivergenciaHelper::provavelErroLeitura($divergenciasDoc);
+                    $statusDocLabel = $provavelOcrDoc
+                        ? 'Reenviar foto'
+                        : str_replace('_', ' ', ucfirst($statusDoc));
                     $statusDocClass = match ($statusDoc) {
                         'aprovado' => 'text-green-600',
                         'reprovado' => 'text-red-600',
@@ -85,15 +91,17 @@
                 <div class="rounded-xl border {{ $estabDoc ? 'border-emerald-100 bg-emerald-50/30' : 'border-gray-100 bg-gray-50' }} p-4">
                     <div class="flex items-start justify-between gap-2">
                         <p class="font-semibold text-gray-800">{{ $item['label'] }}</p>
-                        <span class="text-xs font-bold {{ $statusDocClass }}">{{ str_replace('_', ' ', ucfirst($statusDoc)) }}</span>
+                        <span class="text-xs font-bold {{ $statusDocClass }}">{{ $statusDocLabel }}</span>
                     </div>
                     @if ($estabDoc)
                         <p class="mt-1 truncate text-xs text-gray-500">{{ $estabDoc->arquivo_nome ?: basename($estabDoc->arquivo_path) }}</p>
-                        @if ($kycDoc?->openai_motivo_reprovacao)
-                            <p class="mt-2 text-xs text-red-600">{{ $kycDoc->openai_motivo_reprovacao }}</p>
-                        @endif
                         @if ($kycDoc && $kycDoc->cruzamento_status === 'divergencia')
-                            <p class="mt-1 text-xs text-amber-700">Cruzamento: divergência nos dados</p>
+                            @include('partials.kyc-divergencia-alerta', [
+                                'documento' => $kycDoc,
+                                'estabelecimento' => $estabelecimento,
+                            ])
+                        @elseif ($kycDoc?->openai_motivo_reprovacao)
+                            <p class="mt-2 text-xs text-red-600">{{ $kycDoc->openai_motivo_reprovacao }}</p>
                         @endif
                     @else
                         <p class="mt-1 text-xs text-gray-400">Anexe na aba Documentos</p>

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\KycDocumento;
+use App\Support\KycDivergenciaHelper;
 
 class KycCruzamentoService
 {
@@ -125,6 +126,7 @@ class KycCruzamentoService
 
         if (! empty($divergencias) && $documento->openai_status === 'aprovado') {
             $updates['openai_status'] = 'revisao_manual';
+            $updates['openai_motivo_reprovacao'] = KycDivergenciaHelper::mensagemReenvio($divergencias);
         }
 
         $documento->update($updates);

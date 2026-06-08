@@ -140,17 +140,19 @@ class CadastradorFV:
             self._navegar_cadastrar_cliente()
             self._etapa('Consultando documento no PagBank...')
 
-            self._preencher(By.XPATH, "//*[@id='document']", documento, 'cpf_cnpj')
-            time.sleep(2)
-            self._salvar_screenshot('consulta_documento')
+            campo = self._preencher_react(
+                By.XPATH, "//*[@id='document']", documento, 'cpf_cnpj'
+            )
+            self._disparar_validacao_documento(campo)
 
             try:
-                self._verificar_erro_cliente_interno()
+                erros = self._aguardar_validacao_documento(timeout=15)
             except ClienteInternoPagBankError as e:
                 msg = str(e).strip() or (
-                    'Este cliente é gerenciado pelos times internos do PagBank '
-                    '(FV-CDS-01). Não é possível cadastrá-lo pelo portal de parceiros.'
+                    'Este cliente é gerenciado pelos times internos do PagBank. '
+                    'FV-CDS-01. Não é possível cadastrá-lo pelo portal de parceiros.'
                 )
+                self._salvar_screenshot('consulta_cliente_interno')
                 return {
                     'sucesso': True,
                     'documento': documento,
@@ -161,27 +163,8 @@ class CadastradorFV:
                     'screenshots': self.screenshots,
                 }
 
-            erros = self._coletar_erros()
-            if erros:
-                situacao = self._classificar_situacao_documento(erros)
-                return {
-                    'sucesso': True,
-                    'documento': documento,
-                    'tipo': tipo,
-                    'situacao': situacao,
-                    'mensagem': erros[0],
-                    'erros': erros,
-                    'screenshots': self.screenshots,
-                }
-
-            return {
-                'sucesso': True,
-                'documento': documento,
-                'tipo': tipo,
-                'situacao': 'disponivel',
-                'mensagem': 'Documento disponível para cadastro na Força de Vendas.',
-                'screenshots': self.screenshots,
-            }
+            self._salvar_screenshot('consulta_documento')
+            return self._resultado_consulta_documento(documento, tipo, erros)
 
         except Exception as e:
             log.error(f'ERRO consulta documento: {str(e)}')
@@ -201,6 +184,8 @@ class CadastradorFV:
 
     def _classificar_situacao_documento(self, erros: list[str]) -> str:
         texto = ' '.join(erros).lower()
+        if self._texto_e_cliente_interno(texto):
+            return 'cliente_interno'
         if any(
             termo in texto
             for termo in (
@@ -211,6 +196,8 @@ class CadastradorFV:
                 'minha carteira',
                 'já possui',
                 'ja possui',
+                'já existe',
+                'ja existe',
             )
         ):
             return 'ja_cadastrado'
@@ -256,16 +243,120 @@ class CadastradorFV:
     # Helpers
     # ----------------------------------------------------------------
     def _verificar_erro_cliente_interno(self):
-        erros = self.driver.find_elements(
-            By.XPATH,
-            '//*[@data-testid="error-input"]//h3[contains(text(), "FV-CDS-01")]'
-            ' | //*[contains(@id,"feedback-title") and contains(text(), "FV-CDS-01")]'
-            ' | //*[contains(text(), "gerenciado pelos times internos")]',
-        )
-        if erros:
-            msg = erros[0].text.strip()
-            log.error(f'BLOQUEIO PagBank: {msg}')
+        for el in self._elementos_erro_documento():
+            msg = el.text.strip()
+            if self._texto_e_cliente_interno(msg):
+                log.error(f'BLOQUEIO PagBank: {msg}')
+                raise ClienteInternoPagBankError(msg)
+
+        if self._page_source_indica_cliente_interno():
+            msg = (
+                'Este cliente é gerenciado pelos times internos do PagBank. '
+                'FV-CDS-01'
+            )
+            log.error(f'BLOQUEIO PagBank (page source): {msg}')
             raise ClienteInternoPagBankError(msg)
+
+    def _texto_e_cliente_interno(self, texto: str) -> bool:
+        t = (texto or '').lower()
+        return 'fv-cds-01' in t or 'gerenciado pelos times internos' in t
+
+    def _page_source_indica_cliente_interno(self) -> bool:
+        html = (self.driver.page_source or '').lower()
+        return 'fv-cds-01' in html and 'gerenciado pelos times internos' in html
+
+    def _elementos_erro_documento(self) -> list:
+        xpaths = [
+            '//*[@data-testid="error-input"]//*[self::h3 or self::p or self::span]',
+            '//*[contains(@id,"feedback-title")]',
+            '//*[@role="alert"]',
+            '//*[contains(text(), "FV-CDS-01")]',
+            '//*[contains(text(), "gerenciado pelos times internos")]',
+        ]
+        vistos: set[str] = set()
+        elementos = []
+        for xpath in xpaths:
+            for el in self.driver.find_elements(By.XPATH, xpath):
+                try:
+                    if not el.is_displayed():
+                        continue
+                except Exception:
+                    continue
+                txt = (el.text or '').strip()
+                if not txt or txt in vistos:
+                    continue
+                vistos.add(txt)
+                elementos.append(el)
+        return elementos
+
+    def _disparar_validacao_documento(self, campo) -> None:
+        from selenium.webdriver.common.keys import Keys
+
+        self.driver.execute_script(
+            """
+            const el = arguments[0];
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            el.dispatchEvent(new Event('blur', { bubbles: true }));
+            """,
+            campo,
+        )
+        campo.send_keys(Keys.TAB)
+        time.sleep(0.3)
+
+    def _aguardar_validacao_documento(self, timeout: int = 15) -> list[str]:
+        """Aguarda a validação assíncrona do CPF/CNPJ no PagBank."""
+        deadline = time.time() + timeout
+        ultimos_erros: list[str] = []
+
+        while time.time() < deadline:
+            try:
+                self._verificar_erro_cliente_interno()
+            except ClienteInternoPagBankError:
+                raise
+
+            ultimos_erros = self._coletar_erros()
+            if ultimos_erros:
+                return ultimos_erros
+
+            time.sleep(0.75)
+
+        return ultimos_erros
+
+    def _resultado_consulta_documento(self, documento: str, tipo: str, erros: list[str]) -> dict:
+        if erros:
+            texto = ' '.join(erros)
+            if self._texto_e_cliente_interno(texto):
+                return {
+                    'sucesso': True,
+                    'documento': documento,
+                    'tipo': tipo,
+                    'situacao': 'cliente_interno',
+                    'codigo': 'FV-CDS-01',
+                    'mensagem': erros[0],
+                    'erros': erros,
+                    'screenshots': self.screenshots,
+                }
+
+            situacao = self._classificar_situacao_documento(erros)
+            return {
+                'sucesso': True,
+                'documento': documento,
+                'tipo': tipo,
+                'situacao': situacao,
+                'mensagem': erros[0],
+                'erros': erros,
+                'screenshots': self.screenshots,
+            }
+
+        return {
+            'sucesso': True,
+            'documento': documento,
+            'tipo': tipo,
+            'situacao': 'disponivel',
+            'mensagem': 'Documento disponível para cadastro na Força de Vendas.',
+            'screenshots': self.screenshots,
+        }
 
     def _clicar(self, by, seletor, descricao=''):
         try:
@@ -329,8 +420,15 @@ class CadastradorFV:
         time.sleep(0.3)
 
     def _coletar_erros(self):
-        erros = self.driver.find_elements(By.XPATH, '//*[@data-testid="error-input"]//h3')
-        msgs = [e.text.strip() for e in erros if e.text.strip()]
+        msgs: list[str] = []
+        vistos: set[str] = set()
+
+        for el in self._elementos_erro_documento():
+            txt = el.text.strip()
+            if txt and txt not in vistos:
+                vistos.add(txt)
+                msgs.append(txt)
+
         if msgs:
             log.warning(f'Erros de validacao ({len(msgs)}): {msgs}')
         return msgs
@@ -435,8 +533,13 @@ class CadastradorFV:
 
     def _preencher_dados_iniciais(self):
         log.info('--- ETAPA 3: CPF/CNPJ E EMAIL ---')
-        self._preencher(By.XPATH, "//*[@id='document']", self.dados['cpf_cnpj'], 'cpf_cnpj')
-        time.sleep(1)
+        campo = self._preencher_react(
+            By.XPATH, "//*[@id='document']", self.dados['cpf_cnpj'], 'cpf_cnpj'
+        )
+        self._disparar_validacao_documento(campo)
+        erros_doc = self._aguardar_validacao_documento(timeout=12)
+        if erros_doc:
+            self._exigir_sem_erros('documento')
         self._verificar_erro_cliente_interno()
 
         self._preencher(

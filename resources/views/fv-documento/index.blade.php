@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </a>`;
         } else if (situacao === 'cliente_interno') {
             boxClass = 'border-red-200 bg-red-50 text-red-900';
-            titulo = 'Cliente interno PagBank (FV-CDS-01)';
+            titulo = 'Não disponível para cadastro (FV-CDS-01)';
             icone = 'fa-ban';
         } else if (situacao === 'ja_cadastrado') {
             boxClass = 'border-amber-200 bg-amber-50 text-amber-900';

@@ -4,7 +4,6 @@ namespace App\Jobs;
 
 use App\Models\Estabelecimento;
 use App\Services\AutomacaoPagBankService;
-use App\Services\EmailPlataformaService;
 use App\Services\NotificacaoEmailService;
 use App\Support\NotificacaoVars;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -29,7 +28,7 @@ class AutomacaoPagBankJob implements ShouldQueue
         public readonly string $senha6,
     ) {}
 
-    public function handle(AutomacaoPagBankService $service, NotificacaoEmailService $notificacao, EmailPlataformaService $emailService): void
+    public function handle(AutomacaoPagBankService $service, NotificacaoEmailService $notificacao): void
     {
         $estab = Estabelecimento::withoutGlobalScopes()->find($this->estabelecimentoId);
 
@@ -98,16 +97,6 @@ class AutomacaoPagBankJob implements ShouldQueue
                 // Atualiza o status do estabelecimento se ainda for em_cadastro
                 'status'         => $estab->status === 'em_cadastro' ? 'habilitado' : $estab->status,
             ]);
-
-            // Ativa o forwarder agora que a automação já leu o e-mail de validação
-            try {
-                $emailService->ativarForwarder($estab->fresh());
-            } catch (\Throwable $e) {
-                Log::warning('AutomacaoPagBankJob: falha ao ativar forwarder', [
-                    'estabelecimento_id' => $estab->id,
-                    'erro' => $e->getMessage(),
-                ]);
-            }
 
             Log::info('AutomacaoPagBankJob: automação concluída com sucesso', [
                     'estabelecimento_id' => $estab->id,

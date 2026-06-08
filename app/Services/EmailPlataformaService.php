@@ -55,44 +55,15 @@ class EmailPlataformaService
             throw new \RuntimeException("Não foi possível criar a conta {$emailPlataforma} no servidor.");
         }
 
-        // Forwarder NÃO é criado aqui intencionalmente:
-        // o e-mail de validação do PagBank precisa chegar no Roundcube para a automação ler.
-        // O forwarder é ativado em ativarForwarder() após a automação concluir.
+        if (filled($estabelecimento->email)) {
+            // Forwarder com cópia local: encaminha para o e-mail original E mantém cópia no Roundcube
+            $this->da->redirecionarEmailPlataforma($username, $estabelecimento->email);
+        }
 
         $estabelecimento->update([
-            'webmail_email'           => $emailPlataforma,
-            'webmail_senha'           => $senha,
-            'webmail_forwarder_ativo' => false,
+            'webmail_email' => $emailPlataforma,
+            'webmail_senha' => $senha,
         ]);
-    }
-
-    /**
-     * Cria o forwarder para o e-mail original do estabelecimento.
-     * Deve ser chamado após a automação concluir com sucesso.
-     */
-    public function ativarForwarder(Estabelecimento $estabelecimento): void
-    {
-        if (blank($estabelecimento->webmail_email) || blank($estabelecimento->email)) {
-            return;
-        }
-
-        $username = Str::before($estabelecimento->webmail_email, '@');
-        $this->da->redirecionarEmailPlataforma($username, $estabelecimento->email);
-        $estabelecimento->update(['webmail_forwarder_ativo' => true]);
-    }
-
-    /**
-     * Remove o forwarder (para que e-mails fiquem no Roundcube durante retentativa de automação).
-     */
-    public function desativarForwarder(Estabelecimento $estabelecimento): void
-    {
-        if (blank($estabelecimento->webmail_email)) {
-            return;
-        }
-
-        $username = Str::before($estabelecimento->webmail_email, '@');
-        $this->da->excluirForwarderPlataforma($username);
-        $estabelecimento->update(['webmail_forwarder_ativo' => false]);
     }
 
     /**

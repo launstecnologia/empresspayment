@@ -124,11 +124,18 @@ class DirectAdminService
 
     public function redirecionarEmailPlataforma(string $user, string $destino): bool
     {
+        $dominio       = config('directadmin.dominio');
+        $emailLocal    = "{$user}@{$dominio}";
+
+        // Inclui o próprio e-mail local para manter cópia na caixa do Roundcube
+        // e ao mesmo tempo encaminhar para o e-mail original do estabelecimento
+        $destinosStr = "{$emailLocal},{$destino}";
+
         $response = $this->client()->post('/CMD_API_EMAIL_FORWARDERS', [
             'action' => 'create',
-            'domain' => config('directadmin.dominio'),
-            'user' => $user,
-            'email' => $destino,
+            'domain' => $dominio,
+            'user'   => $user,
+            'email'  => $destinosStr,
         ]);
 
         return $response->successful();

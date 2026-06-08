@@ -7,7 +7,6 @@ use App\Jobs\AutomacaoPagBankJob;
 use App\Jobs\AutomacaoRetentarEmailJob;
 use App\Models\Estabelecimento;
 use App\Services\AutomacaoPagBankService;
-use App\Services\EmailPlataformaService;
 use App\Support\PlatformSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -60,14 +59,6 @@ class EstabelecimentoAutomacaoController extends Controller
         }
 
         try {
-            // Remove o forwarder para que o e-mail do PagBank chegue no Roundcube
-            try {
-                $emailService = new EmailPlataformaService(app(\App\Services\DirectAdminService::class));
-                $emailService->desativarForwarder($estabelecimento);
-            } catch (\Throwable $e) {
-                Log::warning('retentarEmail: falha ao desativar forwarder', ['erro' => $e->getMessage()]);
-            }
-
             $senha6 = $estabelecimento->fv_senha_6 ?: $this->gerarSenha6();
 
             $estabelecimento->update([

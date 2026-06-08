@@ -955,8 +955,15 @@
                 @csrf
                 <label class="block space-y-1">
                     <span class="text-sm font-bold text-gray-800">Sua senha de administrador</span>
-                    <input type="password" name="senha_admin" autocomplete="current-password" required
-                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm @error('senha_admin') border-red-500 @enderror">
+                    <div class="relative">
+                        <input type="password" name="senha_admin" id="senha-admin-inativar" autocomplete="current-password" required
+                               class="w-full rounded-lg border border-gray-300 py-2 pl-3 pr-10 text-sm @error('senha_admin') border-red-500 @enderror">
+                        <button type="button" id="toggle-senha-admin-inativar"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                aria-label="Mostrar senha">
+                            <i class="fa-regular fa-eye" id="toggle-senha-admin-inativar-icon"></i>
+                        </button>
+                    </div>
                     @error('senha_admin')
                         <p class="text-xs font-medium text-red-600">{{ $message }}</p>
                     @enderror
@@ -1045,6 +1052,16 @@
         @if ($errors->has('senha_admin') || $errors->has('confirmacao') || session('abrir_modal_inativar'))
             document.querySelector('[data-modal="inativar-sistema"]')?.classList.add('is-open');
         @endif
+
+        document.getElementById('toggle-senha-admin-inativar')?.addEventListener('click', () => {
+            const input = document.getElementById('senha-admin-inativar');
+            const icon = document.getElementById('toggle-senha-admin-inativar-icon');
+            if (!input || !icon) return;
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            icon.classList.toggle('fa-eye', !show);
+            icon.classList.toggle('fa-eye-slash', show);
+        });
 
         document.querySelectorAll('[data-modal-open]').forEach((button) => {
             button.addEventListener('click', () => {

@@ -212,13 +212,28 @@
                     </span>
                 </div>
             @else
-                <div class="flex items-center gap-3">
-                    <span class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-bold {{ $fvCores[0] }}">
-                        <i class="fa-solid {{ $fvCores[1] }}"></i>
-                        {{ $fvCores[2] }}
-                    </span>
-                    @if ($fvStatus === 'em_andamento')
-                        <span class="text-xs text-blue-600 animate-pulse">Atualize a página para checar progresso</span>
+                <div class="flex flex-col gap-2">
+                    <div class="flex items-center gap-3">
+                        <span id="automacao-status-badge" class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-bold {{ $fvCores[0] }}">
+                            <i id="automacao-status-icon" class="fa-solid {{ $fvCores[1] }}"></i>
+                            <span id="automacao-status-label">{{ $fvCores[2] }}</span>
+                        </span>
+                    </div>
+                    @if (in_array($fvStatus, ['em_andamento', 'pendente']))
+                        <div id="automacao-etapa-box"
+                             class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3"
+                             data-automacao-poll
+                             data-status-url="{{ route('admin.estabelecimentos.automacao.status', $estabelecimento) }}"
+                             data-fv-status="{{ $fvStatus }}">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-blue-600">Etapa atual</p>
+                            <p id="automacao-etapa-texto" class="mt-1 text-sm font-medium text-blue-900">
+                                {{ $fvStatus === 'pendente' ? 'Aguardando fila...' : 'Consultando progresso...' }}
+                            </p>
+                            <p class="mt-1 text-xs text-blue-500">
+                                <i class="fa-solid fa-arrows-rotate fa-spin mr-1"></i>
+                                Atualização automática a cada 20 segundos
+                            </p>
+                        </div>
                     @endif
                 </div>
             @endif
@@ -263,6 +278,9 @@
         </div>
 
         {{-- Detalhes da execução --}}
+        @php
+            $emailPagBank = $estabelecimento->webmail_email ?: $estabelecimento->email;
+        @endphp
         <dl class="grid gap-4 sm:grid-cols-2">
             <div class="rounded-lg border border-gray-100 bg-gray-50 p-4">
                 <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Iniciado em</dt>
@@ -276,6 +294,25 @@
                     {{ $estabelecimento->fv_concluido_em?->format('d/m/Y H:i:s') ?: '—' }}
                 </dd>
             </div>
+            @if ($fvStatus === 'concluido' && filled($emailPagBank))
+                <div class="rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-emerald-600">E-mail PagBank</dt>
+                    <dd class="mt-1 break-all text-sm font-medium text-gray-900">{{ $emailPagBank }}</dd>
+                </div>
+            @endif
+            @if ($fvStatus === 'concluido' && filled($estabelecimento->fv_senha_6))
+                <div class="rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Senha PagBank (6 dígitos)</dt>
+                    <dd x-data="{ mostrar: false }" class="mt-1 flex flex-wrap items-center gap-2">
+                        <span x-show="!mostrar" class="font-mono text-sm tracking-widest text-gray-400">••••••</span>
+                        <span x-show="mostrar" class="font-mono text-sm font-bold text-gray-900">{{ $estabelecimento->fv_senha_6 }}</span>
+                        <button type="button" @click="mostrar = !mostrar" class="text-xs font-semibold text-emerald-700 hover:text-emerald-900">
+                            <span x-show="!mostrar">mostrar</span>
+                            <span x-show="mostrar">ocultar</span>
+                        </button>
+                    </dd>
+                </div>
+            @endif
             <div class="rounded-lg border border-gray-100 bg-gray-50 p-4 sm:col-span-2">
                 <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">ID do Job (API Python)</dt>
                 <dd class="mt-1 break-all font-mono text-xs text-gray-700">
@@ -1130,6 +1167,38 @@
             const input = document.querySelector('[data-public-link]');
             await navigator.clipboard.writeText(input.value);
         });
+
+        // Polling da automação FV — atualiza etapa a cada 20s
+        const automacaoPollBox = document.querySelector('[data-automacao-poll]');
+        if (automacaoPollBox) {
+            const statusUrl = automacaoPollBox.dataset.statusUrl;
+            const etapaTexto = document.getElementById('automacao-etapa-texto');
+            const statusFinal = ['concluido', 'erro', 'erro_email', 'timeout'];
+
+            const atualizarAutomacao = async () => {
+                try {
+                    const resp = await fetch(statusUrl, {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    if (!resp.ok) return;
+
+                    const data = await resp.json();
+                    if (data.etapa_atual && etapaTexto) {
+                        etapaTexto.textContent = data.etapa_atual;
+                    }
+
+                    const apiStatus = data.status || data.fv_status;
+                    if (statusFinal.includes(apiStatus) || statusFinal.includes(data.fv_status)) {
+                        window.location.reload();
+                    }
+                } catch (_) {
+                    // silencioso — tenta novamente no próximo ciclo
+                }
+            };
+
+            atualizarAutomacao();
+            setInterval(atualizarAutomacao, 20000);
+        }
 
     });
 </script>

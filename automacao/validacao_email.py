@@ -18,6 +18,8 @@ from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
 
+from progresso import reportar as reportar_etapa
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -34,7 +36,8 @@ class ValidadorEmail:
     def __init__(self, webmail_url: str, webmail_usuario: str, webmail_senha: str,
                  senha_6: str, headless: bool = True,
                  screenshot_dir: str = '/tmp/screenshots',
-                 aguardar_email_seg: int = 60):
+                 aguardar_email_seg: int = 60,
+                 job_id: str | None = None):
         self.webmail_url = self._normalizar_webmail_url(webmail_url)
         self.webmail_usuario = webmail_usuario
         self.webmail_senha = webmail_senha
@@ -42,11 +45,15 @@ class ValidadorEmail:
         self.headless = headless
         self.screenshot_dir = screenshot_dir
         self.aguardar_email_seg = aguardar_email_seg
+        self.job_id = job_id
         self.driver = None
         self.wait = None
         self.screenshots: list[str] = []
 
         os.makedirs(screenshot_dir, exist_ok=True)
+
+    def _etapa(self, mensagem: str) -> None:
+        reportar_etapa(self.job_id, mensagem)
 
     # ----------------------------------------------------------------
     # Execucao principal
@@ -54,15 +61,22 @@ class ValidadorEmail:
     def executar(self) -> dict:
         """Executa o fluxo completo. Retorna dict com resultado."""
         try:
+            self._etapa('Acessando webmail...')
             self.driver = self._iniciar_browser()
             self.wait = WebDriverWait(self.driver, 30)
 
+            self._etapa('Fazendo login no webmail...')
             self._fazer_login_webmail()
+            self._etapa('Aguardando e-mail do PagBank...')
             self._abrir_email_pagbank()
+            self._etapa('Finalizando cadastro no PagBank...')
             self._clicar_finalizar_cadastro()
+            self._etapa('Criando senha de acesso...')
             self._criar_senha_acesso()
+            self._etapa('Confirmando senha...')
             self._confirmar_senha_acesso()
 
+            self._etapa('E-mail e senha concluídos')
             log.info('VALIDACAO E SENHA CONCLUIDAS!')
             return {
                 'sucesso': True,
@@ -400,7 +414,8 @@ class ValidadorEmail:
 def validar_email(webmail_url: str, webmail_usuario: str, webmail_senha: str,
                   senha_6: str, headless: bool = True,
                   screenshot_dir: str = '/tmp/screenshots',
-                  aguardar_email_seg: int = 60) -> dict:
+                  aguardar_email_seg: int = 60,
+                  job_id: str | None = None) -> dict:
     """
     Ponto de entrada publico para a API FastAPI.
     Retorna dict com chaves: sucesso, email, senha_6, screenshots, erro (se falhou).
@@ -413,6 +428,7 @@ def validar_email(webmail_url: str, webmail_usuario: str, webmail_senha: str,
         headless=headless,
         screenshot_dir=screenshot_dir,
         aguardar_email_seg=aguardar_email_seg,
+        job_id=job_id,
     )
     return validador.executar()
 

@@ -18,6 +18,8 @@ from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 
+from progresso import reportar as reportar_etapa
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -37,17 +39,22 @@ class CadastradorFV:
     """Encapsula toda a lógica de cadastro na Força de Vendas."""
 
     def __init__(self, dados: dict, fv_usuario: str, fv_senha: str,
-                 headless: bool = True, screenshot_dir: str = '/tmp/screenshots'):
+                 headless: bool = True, screenshot_dir: str = '/tmp/screenshots',
+                 job_id: str | None = None):
         self.dados = dados
         self.fv_usuario = fv_usuario
         self.fv_senha = fv_senha
         self.headless = headless
         self.screenshot_dir = screenshot_dir
+        self.job_id = job_id
         self.driver = None
         self.wait = None
         self.screenshots: list[str] = []
 
         os.makedirs(screenshot_dir, exist_ok=True)
+
+    def _etapa(self, mensagem: str) -> None:
+        reportar_etapa(self.job_id, mensagem)
 
     # ----------------------------------------------------------------
     # Execucao principal
@@ -55,27 +62,38 @@ class CadastradorFV:
     def executar(self) -> dict:
         """Executa o fluxo completo. Retorna dict com resultado."""
         try:
+            self._etapa('Iniciando navegador...')
             self.driver = self._iniciar_browser()
             self.wait = WebDriverWait(self.driver, 20)
 
+            self._etapa('Acessando portal Força de Vendas...')
             self._fazer_login()
+            self._etapa('Abrindo cadastro de cliente...')
             self._navegar_cadastrar_cliente()
+            self._etapa('Preenchendo dados iniciais...')
             self._preencher_dados_iniciais()
 
             tipo = self._detectar_tipo_cliente()
 
             if tipo == 'pj':
                 log.info('>>> Fluxo PESSOA JURÍDICA (CNPJ)')
+                self._etapa('Preenchendo dados da empresa (PJ)...')
                 self._preencher_dados_empresa()
+                self._etapa('Preenchendo dados do proprietário...')
                 self._preencher_dados_proprietario()
             else:
                 log.info('>>> Fluxo PESSOA FÍSICA (CPF)')
+                self._etapa('Preenchendo dados pessoais (PF)...')
                 self._preencher_dados_pf()
 
+            self._etapa('Preenchendo endereço...')
             self._preencher_endereco()
+            self._etapa('Preenchendo segmento...')
             self._preencher_segmento()
+            self._etapa('Preenchendo condições comerciais...')
             self._preencher_condicoes_comerciais()
 
+            self._etapa('Cadastro PagBank concluído')
             log.info(f'CADASTRO {tipo.upper()} CONCLUÍDO!')
             return {
                 'sucesso': True,
@@ -656,7 +674,8 @@ class CadastradorFV:
 # Funcao publica — usada pela API
 # ----------------------------------------------------------------
 def cadastrar_fv(dados: dict, fv_usuario: str, fv_senha: str,
-                 headless: bool = True, screenshot_dir: str = '/tmp/screenshots') -> dict:
+                 headless: bool = True, screenshot_dir: str = '/tmp/screenshots',
+                 job_id: str | None = None) -> dict:
     """
     Ponto de entrada publico para a API FastAPI.
     Retorna dict com chaves: sucesso, tipo, cpf_cnpj, screenshots, erro (se falhou).
@@ -667,6 +686,7 @@ def cadastrar_fv(dados: dict, fv_usuario: str, fv_senha: str,
         fv_senha=fv_senha,
         headless=headless,
         screenshot_dir=screenshot_dir,
+        job_id=job_id,
     )
     return cadastrador.executar()
 

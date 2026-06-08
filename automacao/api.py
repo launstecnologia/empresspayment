@@ -54,6 +54,7 @@ def _init_db() -> None:
                 id                  TEXT PRIMARY KEY,
                 estabelecimento_id  INTEGER,
                 status              TEXT NOT NULL DEFAULT "pendente",
+                etapa_atual         TEXT,
                 dados               TEXT,
                 resultado           TEXT,
                 erro                TEXT,
@@ -61,6 +62,10 @@ def _init_db() -> None:
                 atualizado_em       TEXT NOT NULL
             )
         ''')
+        try:
+            conn.execute('ALTER TABLE jobs ADD COLUMN etapa_atual TEXT')
+        except sqlite3.OperationalError:
+            pass
         conn.commit()
 
 
@@ -70,20 +75,45 @@ _db_lock = threading.Lock()
 
 def _update_job(job_id: str, status: str,
                 resultado: dict | None = None,
-                erro: str | None = None) -> None:
+                erro: str | None = None,
+                etapa_atual: str | None = None) -> None:
+    with _db_lock:
+        with _get_conn() as conn:
+            if etapa_atual is not None:
+                conn.execute(
+                    'UPDATE jobs SET status=?, resultado=?, erro=?, etapa_atual=?, atualizado_em=? WHERE id=?',
+                    (
+                        status,
+                        json.dumps(resultado, ensure_ascii=False) if resultado else None,
+                        erro,
+                        etapa_atual,
+                        datetime.now().isoformat(),
+                        job_id,
+                    ),
+                )
+            else:
+                conn.execute(
+                    'UPDATE jobs SET status=?, resultado=?, erro=?, atualizado_em=? WHERE id=?',
+                    (
+                        status,
+                        json.dumps(resultado, ensure_ascii=False) if resultado else None,
+                        erro,
+                        datetime.now().isoformat(),
+                        job_id,
+                    ),
+                )
+            conn.commit()
+
+
+def _set_etapa(job_id: str, etapa: str) -> None:
     with _db_lock:
         with _get_conn() as conn:
             conn.execute(
-                'UPDATE jobs SET status=?, resultado=?, erro=?, atualizado_em=? WHERE id=?',
-                (
-                    status,
-                    json.dumps(resultado, ensure_ascii=False) if resultado else None,
-                    erro,
-                    datetime.now().isoformat(),
-                    job_id,
-                ),
+                'UPDATE jobs SET etapa_atual=?, atualizado_em=? WHERE id=?',
+                (etapa, datetime.now().isoformat(), job_id),
             )
             conn.commit()
+    log.info(f'[{job_id}] Etapa: {etapa}')
 
 
 # ----------------------------------------------------------------
@@ -124,11 +154,15 @@ def _autenticar(x_api_key: str) -> None:
 # Lógica de execução (roda em thread separada)
 # ----------------------------------------------------------------
 def _executar_somente_email(job_id: str, req: dict) -> None:
+    from progresso import registrar, remover
+
     screenshot_dir = os.path.join(SCREENSHOT_DIR, job_id)
     os.makedirs(screenshot_dir, exist_ok=True)
 
+    registrar(job_id, lambda etapa: _set_etapa(job_id, etapa))
+
     try:
-        _update_job(job_id, 'em_andamento')
+        _update_job(job_id, 'em_andamento', etapa_atual='Retentando etapa de e-mail...')
         log.info(f'[{job_id}] Retentando apenas email para estab {req["estabelecimento_id"]}')
         log.info(f'[{job_id}] webmail_url={req.get("webmail_url")}')
 
@@ -142,6 +176,7 @@ def _executar_somente_email(job_id: str, req: dict) -> None:
             headless=req.get('headless', True),
             screenshot_dir=screenshot_dir,
             aguardar_email_seg=req.get('aguardar_email_seg', 90),
+            job_id=job_id,
         )
 
         resultado_final = {
@@ -151,26 +186,33 @@ def _executar_somente_email(job_id: str, req: dict) -> None:
         }
 
         if email_resultado.get('sucesso'):
-            _update_job(job_id, 'concluido', resultado=resultado_final)
+            _update_job(job_id, 'concluido', resultado=resultado_final, etapa_atual='Concluído com sucesso')
             log.info(f'[{job_id}] Email concluído com sucesso!')
         else:
             _update_job(
                 job_id, 'erro_email',
                 resultado=resultado_final,
                 erro=email_resultado.get('erro', 'Erro na validação de email'),
+                etapa_atual='Erro na etapa de e-mail',
             )
 
     except Exception as e:
         log.exception(f'[{job_id}] Erro inesperado no retentar email')
-        _update_job(job_id, 'erro_email', erro=str(e))
+        _update_job(job_id, 'erro_email', erro=str(e), etapa_atual='Erro inesperado')
+    finally:
+        remover(job_id)
 
 
 def _executar_job(job_id: str, req: dict) -> None:
+    from progresso import registrar, remover
+
     screenshot_dir = os.path.join(SCREENSHOT_DIR, job_id)
     os.makedirs(screenshot_dir, exist_ok=True)
 
+    registrar(job_id, lambda etapa: _set_etapa(job_id, etapa))
+
     try:
-        _update_job(job_id, 'em_andamento')
+        _update_job(job_id, 'em_andamento', etapa_atual='Iniciando automação...')
 
         # --- Etapa 1: Cadastro na Força de Vendas ---
         log.info(f'[{job_id}] Iniciando cadastro FV para estab {req["estabelecimento_id"]}')
@@ -183,6 +225,7 @@ def _executar_job(job_id: str, req: dict) -> None:
             fv_senha=req['fv_senha'],
             headless=req.get('headless', True),
             screenshot_dir=screenshot_dir,
+            job_id=job_id,
         )
 
         if not fv_resultado.get('sucesso'):
@@ -190,10 +233,12 @@ def _executar_job(job_id: str, req: dict) -> None:
                 job_id, 'erro',
                 resultado={'etapa': 'cadastro_fv', 'detalhe': fv_resultado},
                 erro=fv_resultado.get('erro', 'Erro desconhecido no cadastro FV'),
+                etapa_atual='Erro no cadastro PagBank',
             )
             return
 
         log.info(f'[{job_id}] Cadastro FV concluído — aguardando email...')
+        _set_etapa(job_id, 'Cadastro PagBank concluído — iniciando e-mail...')
 
         # --- Etapa 2: Validação de email e criação de senha ---
         from validacao_email import validar_email
@@ -206,6 +251,7 @@ def _executar_job(job_id: str, req: dict) -> None:
             headless=req.get('headless', True),
             screenshot_dir=screenshot_dir,
             aguardar_email_seg=req.get('aguardar_email_seg', 90),
+            job_id=job_id,
         )
 
         resultado_final = {
@@ -215,18 +261,21 @@ def _executar_job(job_id: str, req: dict) -> None:
         }
 
         if email_resultado.get('sucesso'):
-            _update_job(job_id, 'concluido', resultado=resultado_final)
+            _update_job(job_id, 'concluido', resultado=resultado_final, etapa_atual='Concluído com sucesso')
             log.info(f'[{job_id}] Job concluído com sucesso!')
         else:
             _update_job(
                 job_id, 'erro_email',
                 resultado=resultado_final,
                 erro=email_resultado.get('erro', 'Erro na validação de email'),
+                etapa_atual='Erro na etapa de e-mail',
             )
 
     except Exception as e:
         log.exception(f'[{job_id}] Erro inesperado')
-        _update_job(job_id, 'erro', erro=str(e))
+        _update_job(job_id, 'erro', erro=str(e), etapa_atual='Erro inesperado')
+    finally:
+        remover(job_id)
 
 
 # ----------------------------------------------------------------
@@ -269,10 +318,11 @@ async def iniciar_cadastro(request: CadastrarRequest, x_api_key: str = Header(..
     with _db_lock:
         with _get_conn() as conn:
             conn.execute(
-                'INSERT INTO jobs (id, estabelecimento_id, status, dados, criado_em, atualizado_em)'
-                ' VALUES (?, ?, ?, ?, ?, ?)',
+                'INSERT INTO jobs (id, estabelecimento_id, status, etapa_atual, dados, criado_em, atualizado_em)'
+                ' VALUES (?, ?, ?, ?, ?, ?, ?)',
                 (job_id, request.estabelecimento_id,
-                 'pendente', json.dumps(request.model_dump(), ensure_ascii=False),
+                 'pendente', 'Aguardando início',
+                 json.dumps(request.model_dump(), ensure_ascii=False),
                  agora, agora),
             )
             conn.commit()
@@ -302,10 +352,11 @@ async def retentar_email(request: RetentarEmailRequest, x_api_key: str = Header(
     with _db_lock:
         with _get_conn() as conn:
             conn.execute(
-                'INSERT INTO jobs (id, estabelecimento_id, status, dados, criado_em, atualizado_em)'
-                ' VALUES (?, ?, ?, ?, ?, ?)',
+                'INSERT INTO jobs (id, estabelecimento_id, status, etapa_atual, dados, criado_em, atualizado_em)'
+                ' VALUES (?, ?, ?, ?, ?, ?, ?)',
                 (job_id, request.estabelecimento_id,
-                 'pendente', json.dumps(request.model_dump(), ensure_ascii=False),
+                 'pendente', 'Aguardando início',
+                 json.dumps(request.model_dump(), ensure_ascii=False),
                  agora, agora),
             )
             conn.commit()
@@ -345,6 +396,7 @@ async def consultar_status(job_id: str, x_api_key: str = Header(...)):
         'job_id':             row['id'],
         'estabelecimento_id': row['estabelecimento_id'],
         'status':             row['status'],
+        'etapa_atual':       row['etapa_atual'],
         'resultado':          json.loads(row['resultado']) if row['resultado'] else None,
         'erro':               row['erro'],
         'criado_em':          row['criado_em'],

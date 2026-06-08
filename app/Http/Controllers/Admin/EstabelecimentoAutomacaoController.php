@@ -81,6 +81,56 @@ class EstabelecimentoAutomacaoController extends Controller
         }
     }
 
+    public function status(Estabelecimento $estabelecimento)
+    {
+        abort_unless(auth()->user()?->tipo === 'admin', 403);
+
+        $estabelecimento->refresh();
+
+        if (! PlatformSettings::automacaoConfigurado()) {
+            return response()->json([
+                'fv_status'   => $estabelecimento->fv_status,
+                'etapa_atual' => null,
+                'erro'        => null,
+            ]);
+        }
+
+        if (blank($estabelecimento->fv_job_id)) {
+            return response()->json([
+                'fv_status'   => $estabelecimento->fv_status,
+                'etapa_atual' => $estabelecimento->fv_status === 'pendente'
+                    ? 'Aguardando fila...'
+                    : null,
+                'erro'        => $estabelecimento->fv_erro,
+            ]);
+        }
+
+        try {
+            $status = app(AutomacaoPagBankService::class)
+                ->consultarStatus($estabelecimento->fv_job_id);
+
+            return response()->json([
+                'fv_status'   => $estabelecimento->fv_status,
+                'status'      => $status['status'] ?? null,
+                'etapa_atual' => $status['etapa_atual'] ?? null,
+                'erro'        => $status['erro'] ?? $estabelecimento->fv_erro,
+                'atualizado_em' => $status['atualizado_em'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Automacao status: falha ao consultar API Python', [
+                'estabelecimento_id' => $estabelecimento->id,
+                'job_id'             => $estabelecimento->fv_job_id,
+                'erro'               => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'fv_status'   => $estabelecimento->fv_status,
+                'etapa_atual' => 'Consultando status...',
+                'erro'        => null,
+            ]);
+        }
+    }
+
     private function gerarSenha6(): string
     {
         do {

@@ -97,6 +97,7 @@ services:
       dockerfile: docker/automacao/Dockerfile
     container_name: express-automacao
     restart: unless-stopped
+    shm_size: '2gb'
     env_file: automacao/.env
     volumes:
       - automacao-screenshots:/tmp/automacao_screenshots

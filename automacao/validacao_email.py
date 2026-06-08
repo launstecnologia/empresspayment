@@ -35,7 +35,7 @@ class ValidadorEmail:
                  senha_6: str, headless: bool = True,
                  screenshot_dir: str = '/tmp/screenshots',
                  aguardar_email_seg: int = 60):
-        self.webmail_url = webmail_url
+        self.webmail_url = self._normalizar_webmail_url(webmail_url)
         self.webmail_usuario = webmail_usuario
         self.webmail_senha = webmail_senha
         self.senha_6 = senha_6
@@ -125,10 +125,34 @@ class ValidadorEmail:
     # ----------------------------------------------------------------
     # Etapas
     # ----------------------------------------------------------------
+    def _normalizar_webmail_url(self, url: str) -> str:
+        url = (url or '').strip().rstrip('/')
+        if not url:
+            return url
+        if '/roundcube' not in url.lower():
+            url = f'{url}/roundcube'
+        return url
+
     def _fazer_login_webmail(self):
         log.info('--- LOGIN WEBMAIL ---')
+        log.info(f'URL configurada: {self.webmail_url}')
+
         self.driver.get(self.webmail_url)
-        time.sleep(2)
+        time.sleep(3)
+
+        url_atual = self.driver.current_url
+        titulo = self.driver.title or ''
+        log.info(f'URL após carregamento: {url_atual}')
+        log.info(f'Título da página: {titulo}')
+        self._salvar_screenshot('pagina_inicial')
+
+        if 'rcmloginuser' not in self.driver.page_source:
+            raise Exception(
+                f'Página de webmail incorreta. '
+                f'Configurado: {self.webmail_url} | '
+                f'Carregou: {url_atual} | '
+                f'Título: {titulo}'
+            )
 
         campo_user = self.wait.until(EC.presence_of_element_located((By.ID, 'rcmloginuser')))
         campo_user.clear()

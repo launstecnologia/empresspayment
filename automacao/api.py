@@ -130,6 +130,7 @@ def _executar_somente_email(job_id: str, req: dict) -> None:
     try:
         _update_job(job_id, 'em_andamento')
         log.info(f'[{job_id}] Retentando apenas email para estab {req["estabelecimento_id"]}')
+        log.info(f'[{job_id}] webmail_url={req.get("webmail_url")}')
 
         from validacao_email import validar_email
 
@@ -173,6 +174,7 @@ def _executar_job(job_id: str, req: dict) -> None:
 
         # --- Etapa 1: Cadastro na Força de Vendas ---
         log.info(f'[{job_id}] Iniciando cadastro FV para estab {req["estabelecimento_id"]}')
+        log.info(f'[{job_id}] webmail_url={req.get("webmail_url")}')
         from main import cadastrar_fv
 
         fv_resultado = cadastrar_fv(

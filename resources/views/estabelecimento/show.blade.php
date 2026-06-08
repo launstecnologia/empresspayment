@@ -231,34 +231,27 @@
                         </button>
                     </form>
                     {{-- Opção 2: refazer tudo --}}
-                    <form method="POST"
-                          action="{{ route('admin.estabelecimentos.automacao.iniciar', $estabelecimento) }}"
-                          onsubmit="return confirm('Refazer TODA a automação (cadastro FV + e-mail)?\n\nUse esta opção apenas se o cadastro FV precisar ser refeito.')">
-                        @csrf
-                        <button type="submit"
-                                class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">
-                            <i class="fa-solid fa-rotate-right"></i> Refazer Tudo
-                        </button>
-                    </form>
+                    <button type="button"
+                            data-modal-open="automacao-confirmar"
+                            data-automacao-label="Confirmar e refazer tudo"
+                            class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                        <i class="fa-solid fa-rotate-right"></i> Refazer Tudo
+                    </button>
                 @elseif ($fvPodeIniciar)
-                    <form method="POST" action="{{ route('admin.estabelecimentos.automacao.iniciar', $estabelecimento) }}"
-                          onsubmit="return confirm('Iniciar a automação Força de Vendas para este estabelecimento?')">
-                        @csrf
-                        <button type="submit"
-                                class="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-bold text-white shadow hover:bg-indigo-800">
-                            <i class="fa-solid fa-robot"></i>
-                            {{ in_array($fvStatus, ['erro','timeout']) ? 'Retentar Automação' : 'Iniciar Automação' }}
-                        </button>
-                    </form>
+                    <button type="button"
+                            data-modal-open="automacao-confirmar"
+                            data-automacao-label="{{ in_array($fvStatus, ['erro','timeout']) ? 'Confirmar e retentar' : 'Confirmar e iniciar' }}"
+                            class="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-bold text-white shadow hover:bg-indigo-800">
+                        <i class="fa-solid fa-robot"></i>
+                        {{ in_array($fvStatus, ['erro','timeout']) ? 'Retentar Automação' : 'Iniciar Automação' }}
+                    </button>
                 @elseif ($fvStatus === 'concluido' && $fvEhAdmin)
-                    <form method="POST" action="{{ route('admin.estabelecimentos.automacao.iniciar', $estabelecimento) }}"
-                          onsubmit="return confirm('A automação já foi concluída. Deseja realmente reexecutar?\n\nIsso irá marcar o status como pendente e despachar um novo job.')">
-                        @csrf
-                        <button type="submit"
-                                class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                            <i class="fa-solid fa-rotate-right"></i> Reexecutar
-                        </button>
-                    </form>
+                    <button type="button"
+                            data-modal-open="automacao-confirmar"
+                            data-automacao-label="Confirmar e reexecutar"
+                            class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                        <i class="fa-solid fa-rotate-right"></i> Reexecutar
+                    </button>
                 @endif
             </div>
         </div>
@@ -812,6 +805,8 @@
 @endsection
 
 @push('modals')
+    @include('estabelecimento.partials.automacao-confirmacao-modal')
+
     {{-- ── Modal: Criar E-mail Plataforma ── --}}
     @if ($estabelecimento->email && blank($estabelecimento->webmail_email))
     @php $usernameSugerido = preg_replace('/[^a-z0-9._-]/i', '', strtolower(str($estabelecimento->email)->before('@')->value())); @endphp
@@ -992,8 +987,16 @@
 
         document.querySelectorAll('[data-modal-open]').forEach((button) => {
             button.addEventListener('click', () => {
-                const modal = document.querySelector(`[data-modal="${button.dataset.modalOpen}"]`);
+                const modalName = button.dataset.modalOpen;
+                const modal = document.querySelector(`[data-modal="${modalName}"]`);
                 modal?.classList.add('is-open');
+
+                if (modalName === 'automacao-confirmar' && button.dataset.automacaoLabel) {
+                    const label = document.getElementById('automacao-confirmar-label');
+                    if (label) {
+                        label.textContent = button.dataset.automacaoLabel;
+                    }
+                }
             });
         });
 

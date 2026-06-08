@@ -123,6 +123,117 @@ class AutomacaoPagBankService
     }
 
     // ----------------------------------------------------------------
+    // Preview dos dados enviados à automação (confirmação antes de iniciar)
+    // ----------------------------------------------------------------
+    public function previewConfirmacao(Estabelecimento $estab): array
+    {
+        $estab->loadMissing('plano');
+
+        $payload = $this->montarPayload($estab, '000000');
+        $dados   = $payload['dados'];
+        $avisos  = [];
+
+        if (blank($estab->webmail_email)) {
+            $avisos[] = 'E-mail da plataforma (@express.app.br) não configurado.';
+        }
+
+        if (blank($estab->webmail_senha)) {
+            $avisos[] = 'Senha do webmail não disponível — configure na aba E-mail.';
+        }
+
+        if (blank($dados['cpf_cnpj'])) {
+            $avisos[] = 'CPF/CNPJ não informado.';
+        }
+
+        if (blank($dados['email'])) {
+            $avisos[] = 'E-mail para cadastro no PagBank não informado.';
+        }
+
+        if (blank($dados['promocao'])) {
+            $avisos[] = 'Plano sem código Força de Vendas (codigo_fv).';
+        }
+
+        if (blank($dados['segmento'])) {
+            $avisos[] = 'Segmento não informado.';
+        }
+
+        if (blank($dados['faturamento'])) {
+            $avisos[] = 'Faturamento mensal não informado.';
+        }
+
+        if (blank($dados['cep']) || blank($dados['endereco'])) {
+            $avisos[] = 'Endereço incompleto (CEP ou logradouro).';
+        }
+
+        if ($estab->pessoa_tipo === 'juridica' && blank($dados['razao_social'] ?? null)) {
+            $avisos[] = 'Razão social não informada.';
+        }
+
+        if (blank($payload['fv_usuario']) || blank($payload['fv_senha'])) {
+            $avisos[] = 'Credenciais do portal FV não configuradas no .env.';
+        }
+
+        if (blank($payload['webmail_url'])) {
+            $avisos[] = 'URL do webmail (AUTOMACAO_WEBMAIL_URL) não configurada.';
+        }
+
+        $secaoIdentificacao = [
+            ['label' => 'Tipo', 'value' => $estab->pessoa_tipo === 'juridica' ? 'Pessoa Jurídica' : 'Pessoa Física'],
+            ['label' => 'CPF/CNPJ', 'value' => $dados['cpf_cnpj'] ?: '—'],
+        ];
+
+        if ($estab->pessoa_tipo === 'juridica') {
+            $secaoIdentificacao[] = ['label' => 'Razão social', 'value' => $dados['razao_social'] ?? '—'];
+            $secaoIdentificacao[] = ['label' => 'Nome fantasia', 'value' => $dados['nome_fantasia'] ?? '—'];
+            $secaoIdentificacao[] = ['label' => 'CPF do sócio', 'value' => $dados['cpf_socio'] ?? '—'];
+            $secaoIdentificacao[] = ['label' => 'Nome do sócio', 'value' => $dados['nome_socio'] ?? '—'];
+            $secaoIdentificacao[] = ['label' => 'Nascimento do sócio', 'value' => $dados['nascimento'] ?? '—'];
+        }
+
+        $secaoContato = [
+            ['label' => 'E-mail PagBank', 'value' => $dados['email'] ?: '—', 'destaque' => true],
+            ['label' => 'E-mail original (redirecionamento)', 'value' => $estab->email ?: '—'],
+            ['label' => 'Celular', 'value' => $this->formatarTelefone($dados['celular'])],
+            ['label' => 'Telefone', 'value' => $this->formatarTelefone($dados['telefone'])],
+        ];
+
+        $secaoEndereco = [
+            ['label' => 'CEP', 'value' => $this->formatarCep($dados['cep'])],
+            ['label' => 'Endereço', 'value' => trim(($dados['endereco'] ?? '').', '.($dados['numero'] ?? ''))],
+            ['label' => 'Complemento', 'value' => $dados['complemento'] ?: '—'],
+            ['label' => 'Bairro', 'value' => $dados['bairro'] ?: '—'],
+            ['label' => 'Estado', 'value' => $dados['estado'] ?: '—'],
+        ];
+
+        $secaoPlano = [
+            ['label' => 'Plano', 'value' => $estab->plano?->nome ?: '—'],
+            ['label' => 'Código FV (promoção)', 'value' => $dados['promocao'] ?: '—', 'destaque' => true],
+            ['label' => 'Segmento', 'value' => $dados['segmento'] ?: '—'],
+            ['label' => 'Faturamento mensal', 'value' => $dados['faturamento'] ?: '—'],
+            ['label' => 'Tipo de link', 'value' => $dados['tipo_link'] ?? 'Link Mobile'],
+        ];
+
+        $secaoWebmail = [
+            ['label' => 'URL do webmail', 'value' => $payload['webmail_url'] ?: '—'],
+            ['label' => 'Usuário webmail', 'value' => $payload['webmail_usuario'] ?: '—', 'destaque' => true],
+            ['label' => 'Senha webmail', 'value' => filled($estab->webmail_senha) ? '•••••••• (configurada)' : '—'],
+            ['label' => 'Senha PagBank (6 dígitos)', 'value' => 'Será gerada automaticamente ao confirmar'],
+        ];
+
+        return [
+            'valido'  => empty($avisos),
+            'avisos'  => $avisos,
+            'secoes'  => [
+                ['titulo' => 'Identificação', 'campos' => $secaoIdentificacao],
+                ['titulo' => 'Contato', 'campos' => $secaoContato],
+                ['titulo' => 'Endereço', 'campos' => $secaoEndereco],
+                ['titulo' => 'Plano e segmento', 'campos' => $secaoPlano],
+                ['titulo' => 'E-mail e senha', 'campos' => $secaoWebmail],
+            ],
+        ];
+    }
+
+    // ----------------------------------------------------------------
     // Monta o payload com os dados do estabelecimento
     // ----------------------------------------------------------------
     private function montarPayload(Estabelecimento $estab, string $senha6): array
@@ -216,5 +327,28 @@ class AutomacaoPagBankService
         // Os segmentos agora são cadastrados com os nomes exatos do portal PagBank FV
         // Retorna direto o campo segmento, com fallback para "Outras atividades empresariais"
         return filled($estab->segmento) ? $estab->segmento : 'Outras atividades empresariais';
+    }
+
+    private function formatarTelefone(?string $numero): string
+    {
+        $n = preg_replace('/\D/', '', $numero ?? '');
+        if (strlen($n) === 11) {
+            return '('.substr($n, 0, 2).') '.substr($n, 2, 5).'-'.substr($n, 7);
+        }
+        if (strlen($n) === 10) {
+            return '('.substr($n, 0, 2).') '.substr($n, 2, 4).'-'.substr($n, 6);
+        }
+
+        return filled($numero) ? $numero : '—';
+    }
+
+    private function formatarCep(?string $cep): string
+    {
+        $n = preg_replace('/\D/', '', $cep ?? '');
+        if (strlen($n) === 8) {
+            return substr($n, 0, 5).'-'.substr($n, 5);
+        }
+
+        return filled($cep) ? $cep : '—';
     }
 }

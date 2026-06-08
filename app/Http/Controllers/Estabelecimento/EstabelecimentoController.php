@@ -9,6 +9,7 @@ use App\Models\Plano;
 use App\Models\Segmento;
 use App\Models\Usuario;
 use App\Support\UsuarioComercial;
+use App\Services\AutomacaoPagBankService;
 use App\Services\EmailPlataformaService;
 use App\Services\HierarquiaService;
 use App\Services\KycDocumentoSyncService;
@@ -169,11 +170,21 @@ class EstabelecimentoController extends Controller
             ->take(10)
             ->get();
 
+        $automacaoPreview = null;
+        if (auth()->user()?->tipo === 'admin' && PlatformSettings::automacaoConfigurado()) {
+            try {
+                $automacaoPreview = app(AutomacaoPagBankService::class)->previewConfirmacao($estabelecimento);
+            } catch (\Throwable) {
+                $automacaoPreview = null;
+            }
+        }
+
         return view('estabelecimento.show', compact(
             'estabelecimento',
             'logs',
             'kyc',
             'kycItens',
+            'automacaoPreview',
         ) + [
             'kycAtivo'           => PlatformSettings::kycAtivo(),
             'openaiConfigurado'  => PlatformSettings::openaiConfigurado(),

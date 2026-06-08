@@ -224,20 +224,21 @@ class CadastradorFV:
             log.warning(f'Erros de validacao ({len(msgs)}): {msgs}')
         return msgs
 
-    def _telefone_eh_fixo_valido(self, telefone: str, celular: str) -> bool:
-        """Fixo BR: DDD (2) + 8 dígitos, local não começa com 9."""
-        tel = re.sub(r'\D', '', telefone or '')
-        cel = re.sub(r'\D', '', celular or '')
-        if len(tel) != 10 or tel == cel:
-            return False
-
-        return not tel[2:].startswith('9')
-
     def _limpar_telefone_fixo(self):
+        """Remove telefone fixo — PagBank pré-preenche via CNPJ e costuma invalidar."""
         try:
+            from selenium.webdriver.common.keys import Keys
             campo = self.driver.find_element(By.ID, 'info.formattedPhone')
-            campo.clear()
-            log.info('Campo telefone fixo limpo')
+            valor = (campo.get_attribute('value') or '').strip()
+            if not valor:
+                return
+            self.driver.execute_script('arguments[0].scrollIntoView(true);', campo)
+            campo.click()
+            time.sleep(0.2)
+            campo.send_keys(Keys.CONTROL, 'a')
+            campo.send_keys(Keys.BACK_SPACE)
+            time.sleep(0.3)
+            log.info(f'Telefone fixo ignorado (removido valor: {valor})')
         except Exception:
             pass
 
@@ -380,13 +381,10 @@ class CadastradorFV:
         self._redigitar_ultimo_char(campo_fantasia, self.dados['nome_fantasia'])
         log.info(f'Preencheu nome_fantasia: {self.dados["nome_fantasia"]}')
 
-        tel = re.sub(r'\D', '', self.dados.get('telefone') or '')
         cel = re.sub(r'\D', '', self.dados.get('celular') or '')
 
-        if tel and self._telefone_eh_fixo_valido(tel, cel):
-            self._preencher(By.ID, 'info.formattedPhone', tel, 'telefone')
-        elif tel:
-            log.info(f'Ignorando telefone fixo inválido (provável celular): {tel}')
+        # Telefone fixo: sempre ignorar (nunca preencher; limpa se PagBank pré-preencheu)
+        self._limpar_telefone_fixo()
 
         if cel:
             self._preencher(By.ID, 'info.formattedCelphone', cel, 'celular')
@@ -398,7 +396,7 @@ class CadastradorFV:
         erros = self._coletar_erros()
 
         if any('número inválido' in (e or '').lower() or 'numero invalido' in (e or '').lower() for e in erros):
-            log.warning('Erro de telefone — removendo fixo e revalidando')
+            log.warning('Erro de telefone — limpando fixo novamente')
             self._limpar_telefone_fixo()
             time.sleep(0.5)
             erros = self._coletar_erros()
@@ -498,9 +496,7 @@ class CadastradorFV:
         cel = re.sub(r'\D', '', self.dados.get('celular') or '')
         campo_cel.send_keys(cel)
 
-        tel = re.sub(r'\D', '', self.dados.get('telefone') or '')
-        if tel and self._telefone_eh_fixo_valido(tel, cel):
-            self._preencher(By.ID, 'info.formattedPhone', tel, 'telefone')
+        self._limpar_telefone_fixo()
 
         if self.dados.get('url_site'):
             self._preencher(By.ID, 'info.websiteURL', self.dados['url_site'], 'url_site')

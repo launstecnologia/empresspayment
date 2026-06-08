@@ -327,6 +327,17 @@
                                     Redireciona para <span class="font-semibold text-gray-700">{{ $estabelecimento->email }}</span>
                                 </p>
                             @endif
+                            @if ($estabelecimento->webmail_senha)
+                                <div x-data="{ mostrar: false }" class="mt-2 flex items-center gap-2">
+                                    <span class="text-xs text-gray-500">Senha:</span>
+                                    <span x-show="!mostrar" class="font-mono text-xs tracking-widest text-gray-400">••••••••</span>
+                                    <span x-show="mostrar" class="font-mono text-xs font-semibold text-gray-800">{{ $estabelecimento->webmail_senha }}</span>
+                                    <button type="button" @click="mostrar = !mostrar" class="text-xs text-blue-500 hover:text-blue-700">
+                                        <span x-show="!mostrar">mostrar</span>
+                                        <span x-show="mostrar">ocultar</span>
+                                    </button>
+                                </div>
+                            @endif
                         </div>
                     </div>
 

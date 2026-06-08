@@ -36,6 +36,7 @@ class KycDocumento extends Model
         'openai_tokens_usados',
         'openai_modelo',
         'openai_analisado_em',
+        'ppid_consulta_id',
         'cruzamento_status',
         'cruzamento_divergencias',
         'admin_override',

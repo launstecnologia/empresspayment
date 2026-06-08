@@ -188,7 +188,7 @@ class EstabelecimentoController extends Controller
             'automacaoPreview',
         ) + [
             'kycAtivo'           => PlatformSettings::kycAtivo(),
-            'openaiConfigurado'  => PlatformSettings::openaiConfigurado(),
+            'ppidConfigurado'  => PlatformSettings::ppidConfigurado(),
         ]);
     }
 

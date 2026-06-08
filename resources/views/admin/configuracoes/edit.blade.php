@@ -21,7 +21,7 @@
                 'seo' => ['SEO', 'fa-magnifying-glass'],
                 'empresa' => ['Empresa / PDF', 'fa-building'],
                 'email' => ['E-mail', 'fa-envelope'],
-                'kyc' => ['KYC / OpenAI', 'fa-shield-halved'],
+                'kyc' => ['KYC / PPID', 'fa-shield-halved'],
                 'pagbank' => ['PagBank', 'fa-building-columns'],
             ] as $key => [$label, $icon])
                 <button
@@ -266,7 +266,7 @@
 
             @include('admin.configuracoes.partials.email', ['config' => $config])
 
-            @include('admin.configuracoes.partials.kyc', ['config' => $config, 'openaiConfigurado' => $openaiConfigurado])
+            @include('admin.configuracoes.partials.kyc', ['config' => $config, 'ppidConfigurado' => $ppidConfigurado])
 
             @include('admin.configuracoes.partials.pagbank', ['config' => $config, 'pagbankConfigurado' => $pagbankConfigurado])
 

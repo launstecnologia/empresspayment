@@ -49,8 +49,11 @@ class KycCruzamentoService
                     }
                 }
 
-                if (! empty($dados['data_expiracao']) && now()->gt($dados['data_expiracao'])) {
-                    $divergencias['documento_expirado'] = ['expiracao' => $dados['data_expiracao']];
+                if (! empty($dados['data_expiracao'])) {
+                    $exp = strtotime((string) $dados['data_expiracao']);
+                    if ($exp && $exp < time()) {
+                        $divergencias['documento_expirado'] = ['expiracao' => $dados['data_expiracao']];
+                    }
                 }
                 break;
 
@@ -67,6 +70,21 @@ class KycCruzamentoService
                     $ufCad = strtoupper(trim((string) ($estab->uf ?? '')));
                     if ($ufCad && $ufDoc !== $ufCad) {
                         $divergencias['uf'] = ['documento' => $ufDoc, 'cadastro' => $ufCad];
+                    }
+                }
+
+                if (isset($dados['cidade'])) {
+                    $cidadeDoc = mb_strtolower(trim((string) $dados['cidade']), 'UTF-8');
+                    $cidadeCad = mb_strtolower(trim((string) ($estab->cidade ?? '')), 'UTF-8');
+                    if ($cidadeCad !== '') {
+                        similar_text($cidadeDoc, $cidadeCad, $similaridade);
+                        if ($similaridade < 75) {
+                            $divergencias['cidade'] = [
+                                'documento' => $dados['cidade'],
+                                'cadastro' => $estab->cidade,
+                                'similaridade' => round($similaridade, 1),
+                            ];
+                        }
                     }
                 }
                 break;

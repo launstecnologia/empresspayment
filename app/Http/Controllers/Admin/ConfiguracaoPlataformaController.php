@@ -20,7 +20,7 @@ class ConfiguracaoPlataformaController extends Controller
             'logoUrl' => PlatformSettings::logoUrl('default'),
             'logoWhiteUrl' => PlatformSettings::logoUrl('white'),
             'faviconUrl' => PlatformSettings::logoUrl('favicon'),
-            'openaiConfigurado' => PlatformSettings::openaiConfigurado(),
+            'ppidConfigurado' => PlatformSettings::ppidConfigurado(),
             'pagbankConfigurado' => PlatformSettings::pagbankConfigurado(),
         ]);
     }
@@ -72,8 +72,10 @@ class ConfiguracaoPlataformaController extends Controller
             'mail_reset_assunto' => ['nullable', 'string', 'max:200'],
             'mail_reset_corpo' => ['nullable', 'string', 'max:5000'],
             'kyc_ativo' => ['boolean'],
-            'openai_api_key' => ['nullable', 'string', 'max:500'],
-            'openai_modelo' => ['nullable', 'string', 'max:50'],
+            'ppid_api_url' => ['nullable', 'url', 'max:255'],
+            'ppid_email' => ['nullable', 'email', 'max:150'],
+            'ppid_senha' => ['nullable', 'string', 'max:500'],
+            'ppid_limite_mensal' => ['nullable', 'integer', 'min:1', 'max:5000'],
             'brasilapi_url' => ['nullable', 'url', 'max:255'],
             'pagbank_ambiente' => ['required', 'in:sandbox,producao'],
             'pagbank_token' => ['nullable', 'string', 'max:500'],
@@ -124,8 +126,8 @@ class ConfiguracaoPlataformaController extends Controller
         $dados['mail_reset_ativo'] = $request->boolean('mail_reset_ativo');
         $dados['kyc_ativo'] = $request->boolean('kyc_ativo');
 
-        if (! $request->filled('openai_api_key')) {
-            unset($dados['openai_api_key']);
+        if (! $request->filled('ppid_senha')) {
+            unset($dados['ppid_senha']);
         }
 
         if (! $request->filled('pagbank_token')) {

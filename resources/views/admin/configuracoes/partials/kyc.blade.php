@@ -1,6 +1,6 @@
 <div x-show="aba === 'kyc'" x-cloak class="space-y-5">
     <p class="text-sm text-gray-500 dark:text-gray-400">
-        Configurações do módulo KYC (Know Your Customer) e integração com OpenAI Vision para análise de documentos.
+        Configurações do módulo KYC (Know Your Customer) e integração com a <strong>PPID</strong> para OCR e validação de documentos.
     </p>
 
     <label class="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
@@ -10,39 +10,64 @@
     </label>
 
     <label class="block space-y-1">
-        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Token OpenAI (API Key)</span>
+        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">URL da API PPID</span>
         <input
-            type="password"
-            name="openai_api_key"
-            value=""
-            autocomplete="new-password"
-            placeholder="{{ $openaiConfigurado ? '••••••••  (deixe em branco para manter o atual)' : 'sk-...' }}"
-            class="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-        >
-        <span class="text-xs text-gray-400">
-            Usado na análise automática de documentos (GPT-4o Vision). Também pode ser definido em <code class="text-xs">OPENAI_API_KEY</code> no .env.
-        </span>
-        @if ($openaiConfigurado)
-            <span class="inline-flex items-center gap-1 text-xs font-semibold text-green-600">
-                <i class="fa-solid fa-circle-check"></i> Token configurado
-            </span>
-        @else
-            <span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-600">
-                <i class="fa-solid fa-triangle-exclamation"></i> Nenhum token configurado — documentos irão para revisão manual
-            </span>
-        @endif
-    </label>
-
-    <label class="block max-w-md space-y-1">
-        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Modelo OpenAI</span>
-        <input
-            type="text"
-            name="openai_modelo"
-            value="{{ old('openai_modelo', $config->openai_modelo ?: 'gpt-4o') }}"
+            type="url"
+            name="ppid_api_url"
+            value="{{ old('ppid_api_url', $config->ppid_api_url ?: 'https://api.ppid.com.br') }}"
             class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
         >
-        <span class="text-xs text-gray-400">Padrão: gpt-4o (suporta visão)</span>
+        <span class="text-xs text-gray-400">Padrão: https://api.ppid.com.br — também pode ser definido em <code class="text-xs">PPID_API_URL</code> no .env.</span>
     </label>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block space-y-1">
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">E-mail PPID</span>
+            <input
+                type="email"
+                name="ppid_email"
+                value="{{ old('ppid_email', $config->ppid_email) }}"
+                autocomplete="off"
+                placeholder="conta@empresa.com.br"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+            >
+        </label>
+
+        <label class="block space-y-1">
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Senha PPID</span>
+            <input
+                type="password"
+                name="ppid_senha"
+                value=""
+                autocomplete="new-password"
+                placeholder="{{ $ppidConfigurado ? '••••••••  (deixe em branco para manter)' : 'Senha do painel PPID' }}"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+            >
+        </label>
+    </div>
+
+    <label class="block max-w-xs space-y-1">
+        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Limite mensal de consultas OCR</span>
+        <input
+            type="number"
+            name="ppid_limite_mensal"
+            min="1"
+            max="5000"
+            value="{{ old('ppid_limite_mensal', $config->ppid_limite_mensal ?: 490) }}"
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+        >
+        <span class="text-xs text-gray-400">Padrão: 490 (margem abaixo dos 500 do plano gratuito PPID).</span>
+    </label>
+
+    @if ($ppidConfigurado)
+        <span class="inline-flex items-center gap-1 text-xs font-semibold text-green-600">
+            <i class="fa-solid fa-circle-check"></i> PPID configurada
+        </span>
+    @else
+        <span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-600">
+            <i class="fa-solid fa-triangle-exclamation"></i> PPID não configurada — documentos irão para revisão manual
+        </span>
+    @endif
 
     <label class="block space-y-1">
         <span class="text-sm font-medium text-gray-700 dark:text-gray-300">URL BrasilAPI (Receita / CNPJ)</span>

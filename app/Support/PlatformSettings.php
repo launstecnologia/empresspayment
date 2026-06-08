@@ -111,6 +111,45 @@ class PlatformSettings
         return filled(self::openaiApiKey());
     }
 
+    public static function ppidApiUrl(): string
+    {
+        $setting = self::get();
+        $url = $setting->ppid_api_url ?? config('services.ppid.url');
+
+        return rtrim((string) ($url ?: 'https://api.ppid.com.br'), '/');
+    }
+
+    public static function ppidEmail(): ?string
+    {
+        $setting = self::get();
+        $email = $setting->ppid_email ?? config('services.ppid.email');
+
+        return filled($email) ? (string) $email : null;
+    }
+
+    public static function ppidSenha(): ?string
+    {
+        $setting = self::get();
+        $senha = $setting->ppid_senha ?? config('services.ppid.senha');
+
+        return filled($senha) ? (string) $senha : null;
+    }
+
+    public static function ppidLimiteMensal(): int
+    {
+        $setting = self::get();
+        $limite = $setting->ppid_limite_mensal ?? config('services.ppid.limite_mensal', 490);
+
+        return max(1, (int) $limite);
+    }
+
+    public static function ppidConfigurado(): bool
+    {
+        return filled(self::ppidApiUrl())
+            && filled(self::ppidEmail())
+            && filled(self::ppidSenha());
+    }
+
     public static function pagbankAmbiente(): string
     {
         $ambiente = self::get()->pagbank_ambiente;

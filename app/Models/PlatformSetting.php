@@ -49,6 +49,10 @@ class PlatformSetting extends Model
         'openai_api_key',
         'openai_modelo',
         'brasilapi_url',
+        'ppid_api_url',
+        'ppid_email',
+        'ppid_senha',
+        'ppid_limite_mensal',
         'pagbank_ambiente',
         'pagbank_token',
         'pagbank_client_id',
@@ -62,6 +66,7 @@ class PlatformSetting extends Model
             'mail_password' => 'encrypted',
             'kyc_ativo' => 'boolean',
             'openai_api_key' => 'encrypted',
+            'ppid_senha' => 'encrypted',
             'pagbank_token' => 'encrypted',
             'pagbank_client_secret' => 'encrypted',
         ];

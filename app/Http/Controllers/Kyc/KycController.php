@@ -47,7 +47,7 @@ class KycController extends Controller
             'kyc' => $kyc,
             'itens' => $itens,
             'kycAtivo' => PlatformSettings::kycAtivo(),
-            'openaiConfigurado' => PlatformSettings::openaiConfigurado(),
+            'ppidConfigurado' => PlatformSettings::ppidConfigurado(),
         ]);
     }
 

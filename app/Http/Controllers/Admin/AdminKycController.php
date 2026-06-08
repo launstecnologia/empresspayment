@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\AnalisarDocumentoKycJob;
 use App\Models\KycAnalise;
 use App\Models\KycDocumento;
 use App\Services\KycDocumentoSyncService;
@@ -149,11 +148,16 @@ class AdminKycController extends Controller
         $documento->update([
             'openai_status' => 'pendente',
             'openai_motivo_reprovacao' => null,
+            'openai_dados_extraidos' => null,
+            'openai_analisado_em' => null,
+            'ppid_consulta_id' => null,
+            'cruzamento_status' => 'nao_verificado',
+            'cruzamento_divergencias' => null,
             'admin_override' => null,
             'admin_override_motivo' => null,
         ]);
 
-        AnalisarDocumentoKycJob::dispatch($documento->fresh());
+        app(KycDocumentoSyncService::class)->dispararAnalise($documento->fresh());
 
         $historico->registrar($documento->kycAnalise, 'reanalise_solicitada', "Reanálise do documento {$documento->tipo}", null, $request->user());
 

@@ -174,10 +174,10 @@ class KycDocumentoSyncService
 
     public function dispararAnalise(KycDocumento $documento): void
     {
-        if (! PlatformSettings::openaiConfigurado()) {
+        if (! PlatformSettings::ppidConfigurado()) {
             $documento->update([
                 'openai_status' => 'revisao_manual',
-                'openai_motivo_reprovacao' => 'OpenAI não configurada — análise manual necessária.',
+                'openai_motivo_reprovacao' => 'PPID não configurada — análise manual necessária.',
             ]);
             $this->finalizacao->verificar($documento->kyc_analise_id);
 
@@ -188,10 +188,20 @@ class KycDocumentoSyncService
             return;
         }
 
-        if (! $this->mimeSuportadoVision($documento->mime_type)) {
+        if (! $this->tipoElegivelPpid($documento->tipo)) {
             $documento->update([
                 'openai_status' => 'revisao_manual',
-                'openai_motivo_reprovacao' => 'Formato não suportado pela visão automática (envie JPG/PNG ou revise manualmente).',
+                'openai_motivo_reprovacao' => 'Tipo de documento não analisado automaticamente pela PPID — revisão manual necessária.',
+            ]);
+            $this->finalizacao->verificar($documento->kyc_analise_id);
+
+            return;
+        }
+
+        if (! $this->mimeSuportadoPpid($documento->mime_type)) {
+            $documento->update([
+                'openai_status' => 'revisao_manual',
+                'openai_motivo_reprovacao' => 'Formato não suportado pela PPID (use JPG, PNG, WEBP ou PDF).',
             ]);
             $this->finalizacao->verificar($documento->kyc_analise_id);
 
@@ -202,12 +212,28 @@ class KycDocumentoSyncService
         AnalisarDocumentoKycJob::dispatch($documento->fresh());
     }
 
-    private function mimeSuportadoVision(?string $mime): bool
+    private function tipoElegivelPpid(string $tipo): bool
+    {
+        return in_array($tipo, [
+            'rg_frente',
+            'cnh_frente',
+            'rg_verso',
+            'cnh_verso',
+            'comprovante_endereco',
+        ], true);
+    }
+
+    private function mimeSuportadoPpid(?string $mime): bool
     {
         if (! $mime) {
             return false;
         }
 
-        return str_starts_with($mime, 'image/');
+        return in_array($mime, [
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+            'application/pdf',
+        ], true);
     }
 }

@@ -5,7 +5,7 @@ namespace App\Jobs;
 use App\Models\KycDocumento;
 use App\Services\KycCruzamentoService;
 use App\Services\KycFinalizacaoService;
-use App\Services\OpenAiKycService;
+use App\Services\PpidKycService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -22,7 +22,7 @@ class AnalisarDocumentoKycJob implements ShouldQueue
     public function __construct(public KycDocumento $documento) {}
 
     public function handle(
-        OpenAiKycService $openAi,
+        PpidKycService $ppidKyc,
         KycCruzamentoService $cruzamento,
         KycFinalizacaoService $finalizacao,
     ): void {
@@ -30,7 +30,7 @@ class AnalisarDocumentoKycJob implements ShouldQueue
         $documento->update(['openai_status' => 'processando']);
 
         try {
-            $resultado = $openAi->analisarDocumento($documento);
+            $resultado = $ppidKyc->analisarDocumento($documento);
 
             $documento->update([
                 'openai_status' => $resultado['status'],
@@ -40,6 +40,7 @@ class AnalisarDocumentoKycJob implements ShouldQueue
                 'openai_tokens_usados' => $resultado['tokens'],
                 'openai_modelo' => $resultado['modelo'],
                 'openai_analisado_em' => now(),
+                'ppid_consulta_id' => $resultado['ppid_consulta_id'] ?? null,
             ]);
 
             if ($resultado['status'] === 'aprovado') {
@@ -48,9 +49,13 @@ class AnalisarDocumentoKycJob implements ShouldQueue
 
             $finalizacao->verificar($documento->kyc_analise_id);
         } catch (\Throwable $e) {
+            $motivo = str_contains($e->getMessage(), 'Limite mensal')
+                ? 'Limite mensal de consultas PPID atingido — análise manual necessária.'
+                : 'Erro na análise PPID: '.$e->getMessage();
+
             $documento->update([
                 'openai_status' => 'revisao_manual',
-                'openai_motivo_reprovacao' => 'Erro na análise: '.$e->getMessage(),
+                'openai_motivo_reprovacao' => $motivo,
             ]);
 
             $finalizacao->verificar($documento->kyc_analise_id);

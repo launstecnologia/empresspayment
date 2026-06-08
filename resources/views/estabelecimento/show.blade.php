@@ -192,38 +192,75 @@
 
     <div class="space-y-6 p-6">
 
-        {{-- Status atual + botão ação --}}
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div class="flex items-center gap-3">
-                <span class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-bold {{ $fvCores[0] }}">
-                    <i class="fa-solid {{ $fvCores[1] }}"></i>
-                    {{ $fvCores[2] }}
-                </span>
-                @if ($fvStatus === 'em_andamento')
-                    <span class="text-xs text-blue-600 animate-pulse">Atualize a página para checar progresso</span>
+        {{-- Status atual + botões de ação --}}
+        <div class="flex flex-col gap-4">
+
+            {{-- Etapas detalhadas quando é erro_email --}}
+            @if ($fvStatus === 'erro_email')
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-700">
+                        <i class="fa-solid fa-circle-check"></i> Cadastro PagBank: Concluído
+                    </span>
+                    <span class="inline-flex items-center gap-2 rounded-full border border-orange-300 bg-orange-50 px-3 py-1.5 text-sm font-bold text-orange-700">
+                        <i class="fa-solid fa-circle-exclamation"></i> E-mail / Senha: Erro
+                    </span>
+                </div>
+            @else
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-bold {{ $fvCores[0] }}">
+                        <i class="fa-solid {{ $fvCores[1] }}"></i>
+                        {{ $fvCores[2] }}
+                    </span>
+                    @if ($fvStatus === 'em_andamento')
+                        <span class="text-xs text-blue-600 animate-pulse">Atualize a página para checar progresso</span>
+                    @endif
+                </div>
+            @endif
+
+            {{-- Botões de ação --}}
+            <div class="flex flex-wrap items-center gap-3">
+                @if ($fvStatus === 'erro_email' && $fvEhAdmin)
+                    {{-- Opção 1: retentar apenas o e-mail --}}
+                    <form method="POST"
+                          action="{{ route('admin.estabelecimentos.automacao.retentar-email', $estabelecimento) }}"
+                          onsubmit="return confirm('Retentar apenas a etapa de e-mail/senha para este estabelecimento?')">
+                        @csrf
+                        <button type="submit"
+                                class="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white shadow hover:bg-orange-700">
+                            <i class="fa-solid fa-envelope-circle-check"></i> Retentar E-mail
+                        </button>
+                    </form>
+                    {{-- Opção 2: refazer tudo --}}
+                    <form method="POST"
+                          action="{{ route('admin.estabelecimentos.automacao.iniciar', $estabelecimento) }}"
+                          onsubmit="return confirm('Refazer TODA a automação (cadastro FV + e-mail)?\n\nUse esta opção apenas se o cadastro FV precisar ser refeito.')">
+                        @csrf
+                        <button type="submit"
+                                class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                            <i class="fa-solid fa-rotate-right"></i> Refazer Tudo
+                        </button>
+                    </form>
+                @elseif ($fvPodeIniciar)
+                    <form method="POST" action="{{ route('admin.estabelecimentos.automacao.iniciar', $estabelecimento) }}"
+                          onsubmit="return confirm('Iniciar a automação Força de Vendas para este estabelecimento?')">
+                        @csrf
+                        <button type="submit"
+                                class="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-bold text-white shadow hover:bg-indigo-800">
+                            <i class="fa-solid fa-robot"></i>
+                            {{ in_array($fvStatus, ['erro','timeout']) ? 'Retentar Automação' : 'Iniciar Automação' }}
+                        </button>
+                    </form>
+                @elseif ($fvStatus === 'concluido' && $fvEhAdmin)
+                    <form method="POST" action="{{ route('admin.estabelecimentos.automacao.iniciar', $estabelecimento) }}"
+                          onsubmit="return confirm('A automação já foi concluída. Deseja realmente reexecutar?\n\nIsso irá marcar o status como pendente e despachar um novo job.')">
+                        @csrf
+                        <button type="submit"
+                                class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                            <i class="fa-solid fa-rotate-right"></i> Reexecutar
+                        </button>
+                    </form>
                 @endif
             </div>
-
-            @if ($fvPodeIniciar)
-                <form method="POST" action="{{ route('admin.estabelecimentos.automacao.iniciar', $estabelecimento) }}"
-                      onsubmit="return confirm('Iniciar a automação Força de Vendas para este estabelecimento?')">
-                    @csrf
-                    <button type="submit"
-                            class="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-bold text-white shadow hover:bg-indigo-800">
-                        <i class="fa-solid fa-robot"></i>
-                        {{ in_array($fvStatus, ['erro','erro_email','timeout']) ? 'Retentar Automação' : 'Iniciar Automação' }}
-                    </button>
-                </form>
-            @elseif ($fvStatus === 'concluido' && $fvEhAdmin)
-                <form method="POST" action="{{ route('admin.estabelecimentos.automacao.iniciar', $estabelecimento) }}"
-                      onsubmit="return confirm('A automação já foi concluída. Deseja realmente reexecutar?\n\nIsso irá marcar o status como pendente e despachar um novo job.')">
-                    @csrf
-                    <button type="submit"
-                            class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                        <i class="fa-solid fa-rotate-right"></i> Reexecutar
-                    </button>
-                </form>
-            @endif
         </div>
 
         {{-- Detalhes da execução --}}

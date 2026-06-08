@@ -77,6 +77,34 @@ class AutomacaoPagBankService
     }
 
     // ----------------------------------------------------------------
+    // Retenta apenas a etapa de e-mail
+    // ----------------------------------------------------------------
+    public function retentarEmail(Estabelecimento $estab, string $senha6): string
+    {
+        $payload = [
+            'estabelecimento_id'  => $estab->id,
+            'webmail_url'         => PlatformSettings::automacaoWebmailUrl() ?? '',
+            'webmail_usuario'     => $estab->webmail_email ?? '',
+            'webmail_senha'       => $estab->webmail_senha ?? '',
+            'senha_6'             => $senha6,
+            'headless'            => config('automacao.headless', true),
+            'aguardar_email_seg'  => config('automacao.aguardar_email_seg', 90),
+        ];
+
+        $response = Http::timeout(15)
+            ->withHeaders(['X-Api-Key' => $this->apiKey])
+            ->post("{$this->apiUrl}/retentar-email", $payload);
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                'Falha ao retentar e-mail: '.$response->status().' — '.$response->body()
+            );
+        }
+
+        return $response->json('job_id');
+    }
+
+    // ----------------------------------------------------------------
     // Consulta status do job
     // ----------------------------------------------------------------
     public function consultarStatus(string $jobId): array

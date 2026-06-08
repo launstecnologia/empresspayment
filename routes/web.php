@@ -143,6 +143,8 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
             ->name('admin.estabelecimentos.pagbank.edi');
         Route::post('estabelecimentos/{estabelecimento}/automacao/iniciar', [EstabelecimentoAutomacaoController::class, 'iniciar'])
             ->name('admin.estabelecimentos.automacao.iniciar');
+        Route::post('estabelecimentos/{estabelecimento}/automacao/retentar-email', [EstabelecimentoAutomacaoController::class, 'retentarEmail'])
+            ->name('admin.estabelecimentos.automacao.retentar-email');
         Route::get('admin/email-templates', [EmailTemplateController::class, 'index'])->name('admin.email-templates.index');
         Route::get('admin/email-templates/{emailTemplate}/edit', [EmailTemplateController::class, 'edit'])->name('admin.email-templates.edit');
         Route::put('admin/email-templates/{emailTemplate}', [EmailTemplateController::class, 'update'])->name('admin.email-templates.update');

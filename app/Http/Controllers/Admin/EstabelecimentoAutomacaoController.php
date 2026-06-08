@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Jobs\AutomacaoPagBankJob;
 use App\Models\Estabelecimento;
+use App\Services\AutomacaoPagBankService;
 use App\Support\PlatformSettings;
 use Illuminate\Http\Request;
 
@@ -37,6 +38,45 @@ class EstabelecimentoAutomacaoController extends Controller
         return redirect()
             ->route('estabelecimentos.show', $estabelecimento)
             ->with('status', 'Automação enfileirada. Acompanhe o status nesta página.');
+    }
+
+    public function retentarEmail(Request $request, Estabelecimento $estabelecimento)
+    {
+        abort_unless($request->user()?->tipo === 'admin', 403);
+
+        if ($estabelecimento->fv_status !== 'erro_email') {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->with('aviso', 'Esta ação só está disponível quando o status é "Erro no e-mail".');
+        }
+
+        if (! PlatformSettings::automacaoConfigurado()) {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->withErrors(['automacao' => 'A automação não está configurada.']);
+        }
+
+        try {
+            $service = new AutomacaoPagBankService();
+            $senha6 = $estabelecimento->fv_senha_6 ?: $this->gerarSenha6();
+            $jobId = $service->retentarEmail($estabelecimento, $senha6);
+
+            $estabelecimento->update([
+                'fv_status'  => 'em_andamento',
+                'fv_job_id'  => $jobId,
+                'fv_erro'    => null,
+                'fv_senha_6' => $senha6,
+            ]);
+
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->with('status', 'Retentando etapa de e-mail. Acompanhe o status nesta página.');
+
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->withErrors(['automacao' => 'Erro ao retentar e-mail: '.$e->getMessage()]);
+        }
     }
 
     private function gerarSenha6(): string

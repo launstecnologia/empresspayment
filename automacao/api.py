@@ -102,6 +102,16 @@ class CadastrarRequest(BaseModel):
     aguardar_email_seg: int = Field(default=90, description='Segundos para aguardar o email de confirmação')
 
 
+class RetentarEmailRequest(BaseModel):
+    estabelecimento_id: int = Field(..., description='ID do estabelecimento no Laravel')
+    webmail_url: str = Field(..., description='URL do Roundcube')
+    webmail_usuario: str = Field(..., description='Email para login no webmail')
+    webmail_senha: str = Field(..., description='Senha do webmail')
+    senha_6: str = Field(..., min_length=6, max_length=6, description='Senha 6 dígitos para conta PagBank')
+    headless: bool = Field(default=True)
+    aguardar_email_seg: int = Field(default=90)
+
+
 # ----------------------------------------------------------------
 # Autenticação
 # ----------------------------------------------------------------
@@ -113,6 +123,47 @@ def _autenticar(x_api_key: str) -> None:
 # ----------------------------------------------------------------
 # Lógica de execução (roda em thread separada)
 # ----------------------------------------------------------------
+def _executar_somente_email(job_id: str, req: dict) -> None:
+    screenshot_dir = os.path.join(SCREENSHOT_DIR, job_id)
+    os.makedirs(screenshot_dir, exist_ok=True)
+
+    try:
+        _update_job(job_id, 'em_andamento')
+        log.info(f'[{job_id}] Retentando apenas email para estab {req["estabelecimento_id"]}')
+
+        from validacao_email import validar_email
+
+        email_resultado = validar_email(
+            webmail_url=req['webmail_url'],
+            webmail_usuario=req['webmail_usuario'],
+            webmail_senha=req['webmail_senha'],
+            senha_6=req['senha_6'],
+            headless=req.get('headless', True),
+            screenshot_dir=screenshot_dir,
+            aguardar_email_seg=req.get('aguardar_email_seg', 90),
+        )
+
+        resultado_final = {
+            'etapa_fv': {'sucesso': True, 'info': 'Cadastro FV já concluído anteriormente'},
+            'etapa_email': email_resultado,
+            'senha_6': req['senha_6'],
+        }
+
+        if email_resultado.get('sucesso'):
+            _update_job(job_id, 'concluido', resultado=resultado_final)
+            log.info(f'[{job_id}] Email concluído com sucesso!')
+        else:
+            _update_job(
+                job_id, 'erro_email',
+                resultado=resultado_final,
+                erro=email_resultado.get('erro', 'Erro na validação de email'),
+            )
+
+    except Exception as e:
+        log.exception(f'[{job_id}] Erro inesperado no retentar email')
+        _update_job(job_id, 'erro_email', erro=str(e))
+
+
 def _executar_job(job_id: str, req: dict) -> None:
     screenshot_dir = os.path.join(SCREENSHOT_DIR, job_id)
     os.makedirs(screenshot_dir, exist_ok=True)
@@ -232,6 +283,39 @@ async def iniciar_cadastro(request: CadastrarRequest, x_api_key: str = Header(..
     thread.start()
 
     log.info(f'Job {job_id} criado para estab {request.estabelecimento_id}')
+    return {'job_id': job_id, 'status': 'pendente'}
+
+
+@app.post('/retentar-email', tags=['Automação'], status_code=202)
+async def retentar_email(request: RetentarEmailRequest, x_api_key: str = Header(...)):
+    """
+    Retenta apenas a etapa de e-mail (login Roundcube + criar senha PagBank).
+    Usado quando o cadastro FV foi concluido mas o e-mail falhou (status erro_email).
+    """
+    _autenticar(x_api_key)
+
+    job_id = str(uuid.uuid4())
+    agora  = datetime.now().isoformat()
+
+    with _db_lock:
+        with _get_conn() as conn:
+            conn.execute(
+                'INSERT INTO jobs (id, estabelecimento_id, status, dados, criado_em, atualizado_em)'
+                ' VALUES (?, ?, ?, ?, ?, ?)',
+                (job_id, request.estabelecimento_id,
+                 'pendente', json.dumps(request.model_dump(), ensure_ascii=False),
+                 agora, agora),
+            )
+            conn.commit()
+
+    thread = threading.Thread(
+        target=_executar_somente_email,
+        args=(job_id, request.model_dump()),
+        daemon=True,
+    )
+    thread.start()
+
+    log.info(f'Job email-only {job_id} criado para estab {request.estabelecimento_id}')
     return {'job_id': job_id, 'status': 'pendente'}
 
 

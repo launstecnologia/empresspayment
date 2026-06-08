@@ -224,6 +224,40 @@ class CadastradorFV:
             log.warning(f'Erros de validacao ({len(msgs)}): {msgs}')
         return msgs
 
+    def _telefone_eh_fixo_valido(self, telefone: str, celular: str) -> bool:
+        """Fixo BR: DDD (2) + 8 dígitos, local não começa com 9."""
+        tel = re.sub(r'\D', '', telefone or '')
+        cel = re.sub(r'\D', '', celular or '')
+        if len(tel) != 10 or tel == cel:
+            return False
+
+        return not tel[2:].startswith('9')
+
+    def _limpar_telefone_fixo(self):
+        try:
+            campo = self.driver.find_element(By.ID, 'info.formattedPhone')
+            campo.clear()
+            log.info('Campo telefone fixo limpo')
+        except Exception:
+            pass
+
+    def _exigir_sem_erros(self, contexto: str):
+        erros = self._coletar_erros()
+        if erros:
+            self._salvar_screenshot(f'erro_validacao_{contexto}')
+            raise Exception(f'Validação PagBank ({contexto}): {", ".join(erros)}')
+
+    def _aguardar_campo_ou_falhar(self, by, seletor: str, contexto: str, timeout: int = 25):
+        try:
+            WebDriverWait(self.driver, timeout).until(
+                EC.presence_of_element_located((by, seletor))
+            )
+        except TimeoutException:
+            erros = self._coletar_erros()
+            self._salvar_screenshot(f'timeout_{contexto}')
+            detalhe = ', '.join(erros) if erros else f'Campo {seletor} não apareceu'
+            raise Exception(f'PagBank não avançou ({contexto}): {detalhe}')
+
     # ----------------------------------------------------------------
     # Etapas
     # ----------------------------------------------------------------
@@ -348,17 +382,26 @@ class CadastradorFV:
 
         tel = re.sub(r'\D', '', self.dados.get('telefone') or '')
         cel = re.sub(r'\D', '', self.dados.get('celular') or '')
-        # Preenche telefone fixo apenas se for 10 dígitos e diferente do celular
-        if tel and len(tel) == 10 and tel != cel:
-            self._preencher(By.ID, 'info.formattedPhone', tel, 'telefone')
 
-        self._preencher(By.ID, 'info.formattedCelphone', self.dados['celular'], 'celular')
+        if tel and self._telefone_eh_fixo_valido(tel, cel):
+            self._preencher(By.ID, 'info.formattedPhone', tel, 'telefone')
+        elif tel:
+            log.info(f'Ignorando telefone fixo inválido (provável celular): {tel}')
+
+        if cel:
+            self._preencher(By.ID, 'info.formattedCelphone', cel, 'celular')
 
         if self.dados.get('url_site'):
             self._preencher(By.ID, 'info.websiteURL', self.dados['url_site'], 'url_site')
 
         time.sleep(0.5)
         erros = self._coletar_erros()
+
+        if any('número inválido' in (e or '').lower() or 'numero invalido' in (e or '').lower() for e in erros):
+            log.warning('Erro de telefone — removendo fixo e revalidando')
+            self._limpar_telefone_fixo()
+            time.sleep(0.5)
+            erros = self._coletar_erros()
 
         # Se o nome fantasia não é aceito, tenta com a razão social
         nome_nao_similar = any('similar' in (e or '').lower() for e in erros)
@@ -369,19 +412,23 @@ class CadastradorFV:
             time.sleep(0.3)
             campo_fantasia.send_keys(self.dados['razao_social'])
             time.sleep(0.5)
+            self._redigitar_ultimo_char(campo_fantasia, self.dados['razao_social'])
+            erros = self._coletar_erros()
+
+        self._exigir_sem_erros('dados da empresa')
 
         self._clicar(
             By.XPATH,
             "//*[@id='__next']/div/main/div/div/form/div[2]/div/button[2]",
             'botao_continuar_etapa2',
         )
-        time.sleep(3)
-        self._coletar_erros()
+        time.sleep(2)
+        self._aguardar_campo_ou_falhar(By.ID, 'info.cpf', 'dados do proprietário')
         self._salvar_screenshot('etapa3')
 
     def _preencher_dados_proprietario(self):
         log.info('--- ETAPA 5: DADOS DO PROPRIETARIO ---')
-        self.wait.until(EC.presence_of_element_located((By.ID, 'info.cpf')))
+        self._aguardar_campo_ou_falhar(By.ID, 'info.cpf', 'dados do proprietário', timeout=5)
         time.sleep(1)
 
         self._preencher(By.ID, 'info.cpf', self.dados['cpf_socio'], 'cpf_socio')
@@ -448,10 +495,12 @@ class CadastradorFV:
         self.driver.execute_script('arguments[0].scrollIntoView(true);', campo_cel)
         campo_cel.clear()
         time.sleep(0.3)
-        campo_cel.send_keys(self.dados['celular'])
+        cel = re.sub(r'\D', '', self.dados.get('celular') or '')
+        campo_cel.send_keys(cel)
 
-        if self.dados.get('telefone'):
-            self._preencher(By.ID, 'info.formattedPhone', self.dados['telefone'], 'telefone')
+        tel = re.sub(r'\D', '', self.dados.get('telefone') or '')
+        if tel and self._telefone_eh_fixo_valido(tel, cel):
+            self._preencher(By.ID, 'info.formattedPhone', tel, 'telefone')
 
         if self.dados.get('url_site'):
             self._preencher(By.ID, 'info.websiteURL', self.dados['url_site'], 'url_site')

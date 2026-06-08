@@ -181,6 +181,42 @@ class CadastradorFV:
             self._salvar_screenshot(f'erro_preencher_{descricao}')
             raise Exception(f'Nao encontrou campo: {descricao or seletor}')
 
+    def _preencher_react(self, by, seletor, valor, descricao=''):
+        """Preenche campo React disparando evento de input corretamente.
+        Simula digitação humana: preenche, apaga última letra e redigita
+        para forçar o React a revalidar o campo."""
+        from selenium.webdriver.common.keys import Keys
+        try:
+            el = self.wait.until(EC.presence_of_element_located((by, seletor)))
+            self.driver.execute_script('arguments[0].scrollIntoView(true);', el)
+            time.sleep(0.3)
+            el.clear()
+            time.sleep(0.2)
+            el.send_keys(str(valor))
+            time.sleep(0.3)
+            # Apaga última letra e redigita para disparar validação React
+            el.send_keys(Keys.BACK_SPACE)
+            time.sleep(0.2)
+            el.send_keys(str(valor)[-1])
+            time.sleep(0.3)
+            log.info(f'Preencheu (react) {descricao or seletor}: {valor}')
+            return el
+        except TimeoutException:
+            self._salvar_screenshot(f'erro_preencher_{descricao}')
+            raise Exception(f'Nao encontrou campo: {descricao or seletor}')
+
+    def _redigitar_ultimo_char(self, campo, valor: str):
+        """Apaga o último caractere e redigita para forçar revalidação do React."""
+        from selenium.webdriver.common.keys import Keys
+        if not valor:
+            return
+        campo.send_keys(Keys.END)
+        time.sleep(0.2)
+        campo.send_keys(Keys.BACK_SPACE)
+        time.sleep(0.3)
+        campo.send_keys(valor[-1])
+        time.sleep(0.3)
+
     def _coletar_erros(self):
         erros = self.driver.find_elements(By.XPATH, '//*[@data-testid="error-input"]//h3')
         msgs = [e.text.strip() for e in erros if e.text.strip()]
@@ -293,13 +329,22 @@ class CadastradorFV:
         self.wait.until(EC.presence_of_element_located((By.ID, 'info.companyName')))
         time.sleep(1)
 
+        # Razão social já vem pré-preenchida pelo PagBank via CNPJ
+        # Apenas dispara o evento de input para o React reconhecer o valor
         campo = self.driver.find_element(By.ID, 'info.companyName')
         campo.click()
-        campo.clear()
         time.sleep(0.3)
-        campo.send_keys(self.dados['razao_social'])
+        self._redigitar_ultimo_char(campo, self.dados['razao_social'])
 
-        self._preencher(By.ID, 'info.trademark', self.dados['nome_fantasia'], 'nome_fantasia')
+        # Nome fantasia: preenche e força revalidação do React com backspace+redigitar
+        campo_fantasia = self.wait.until(EC.presence_of_element_located((By.ID, 'info.trademark')))
+        self.driver.execute_script('arguments[0].scrollIntoView(true);', campo_fantasia)
+        campo_fantasia.clear()
+        time.sleep(0.3)
+        campo_fantasia.send_keys(self.dados['nome_fantasia'])
+        time.sleep(0.5)
+        self._redigitar_ultimo_char(campo_fantasia, self.dados['nome_fantasia'])
+        log.info(f'Preencheu nome_fantasia: {self.dados["nome_fantasia"]}')
 
         tel = re.sub(r'\D', '', self.dados.get('telefone') or '')
         cel = re.sub(r'\D', '', self.dados.get('celular') or '')

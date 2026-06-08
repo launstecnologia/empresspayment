@@ -131,10 +131,14 @@ class AutomacaoPagBankService
             ? $this->formatarCnpj($estab->cnpj)
             : $this->formatarCpf($estab->cpf);
 
+        // Usa o e-mail da plataforma (@express.app.br) para o cadastro no PagBank.
+        // O e-mail original do cliente (hotmail/gmail) é só para redirecionamento interno.
+        $emailPagBank = $estab->webmail_email ?: $estab->email;
+
         $dados = [
             'cpf_cnpj'        => $cpfCnpj,
-            'email'           => $estab->email,
-            'email_confirmar' => $estab->email,
+            'email'           => $emailPagBank,
+            'email_confirmar' => $emailPagBank,
             'celular'         => preg_replace('/\D/', '', $estab->celular ?? ''),
             'telefone'        => preg_replace('/\D/', '', $estab->telefone ?? ''),
             'url_site'        => '',

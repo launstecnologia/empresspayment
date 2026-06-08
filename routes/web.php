@@ -18,6 +18,7 @@ use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Chamado\ChamadoController;
 use App\Http\Controllers\Estabelecimento\EstabelecimentoCaixaEmailController;
 use App\Http\Controllers\Estabelecimento\EstabelecimentoController;
+use App\Http\Controllers\Estabelecimento\FvDocumentoConsultaController;
 use App\Http\Controllers\Estabelecimento\EstabelecimentoWebmailController;
 use App\Http\Controllers\Kyc\KycController;
 use App\Http\Controllers\Estabelecimento\EstabelecimentoDocumentoController;
@@ -109,6 +110,9 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
     Route::delete('kyc/documentos/{documento}', [KycController::class, 'removerDocumento'])->name('kyc.documentos.destroy');
     Route::post('estabelecimentos/{estabelecimento}/inativar-sistema', [EstabelecimentoController::class, 'inativarSistema'])
         ->name('estabelecimentos.inativar-sistema');
+    Route::get('pesquisar-documento', [FvDocumentoConsultaController::class, 'index'])->name('fv-documento.index');
+    Route::post('pesquisar-documento/consultar', [FvDocumentoConsultaController::class, 'consultar'])->name('fv-documento.consultar');
+    Route::get('pesquisar-documento/status/{jobId}', [FvDocumentoConsultaController::class, 'status'])->name('fv-documento.status');
     Route::resource('estabelecimentos', EstabelecimentoController::class)->except(['destroy']);
     Route::resource('planos', PlanoController::class);
     Route::prefix('planos/{plano}')->name('planos.')->group(function () {

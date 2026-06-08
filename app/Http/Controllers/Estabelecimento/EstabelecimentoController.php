@@ -60,14 +60,26 @@ class EstabelecimentoController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $this->autorizarMutacaoEstabelecimento();
 
+        $estabelecimento = new Estabelecimento;
+        $digits = preg_replace('/\D/', '', (string) $request->query('documento', ''));
+
+        if (strlen($digits) === 14) {
+            $estabelecimento->pessoa_tipo = 'juridica';
+            $estabelecimento->cnpj = $digits;
+        } elseif (strlen($digits) === 11) {
+            $estabelecimento->pessoa_tipo = 'fisica';
+            $estabelecimento->cpf = $digits;
+        }
+
         return view('estabelecimento.form', [
-            'estabelecimento' => new Estabelecimento,
+            'estabelecimento' => $estabelecimento,
             'planos' => Plano::where('ativo', true)->orderBy('nome')->get(),
             'segmentos' => Segmento::where('ativo', true)->orderBy('nome')->get(),
+            'prefillDocumento' => in_array(strlen($digits), [11, 14], true),
             ...$this->opcoesFormulario(),
         ]);
     }

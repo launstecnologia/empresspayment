@@ -123,6 +123,99 @@ class CadastradorFV:
                 self.driver.quit()
                 log.info('Browser fechado')
 
+    def executar_consulta_documento(self) -> dict:
+        """Consulta CPF/CNPJ no portal FV sem concluir o cadastro."""
+        documento = self.dados.get('cpf_cnpj') or self.dados.get('documento') or ''
+        digits = re.sub(r'\D', '', documento)
+        tipo = 'pj' if len(digits) == 14 else 'pf'
+
+        try:
+            self._etapa('Iniciando navegador...')
+            self.driver = self._iniciar_browser()
+            self.wait = WebDriverWait(self.driver, 20)
+
+            self._etapa('Acessando portal Força de Vendas...')
+            self._fazer_login()
+            self._etapa('Abrindo cadastro de cliente...')
+            self._navegar_cadastrar_cliente()
+            self._etapa('Consultando documento no PagBank...')
+
+            self._preencher(By.XPATH, "//*[@id='document']", documento, 'cpf_cnpj')
+            time.sleep(2)
+            self._salvar_screenshot('consulta_documento')
+
+            try:
+                self._verificar_erro_cliente_interno()
+            except ClienteInternoPagBankError as e:
+                msg = str(e).strip() or (
+                    'Este cliente é gerenciado pelos times internos do PagBank '
+                    '(FV-CDS-01). Não é possível cadastrá-lo pelo portal de parceiros.'
+                )
+                return {
+                    'sucesso': True,
+                    'documento': documento,
+                    'tipo': tipo,
+                    'situacao': 'cliente_interno',
+                    'codigo': 'FV-CDS-01',
+                    'mensagem': msg,
+                    'screenshots': self.screenshots,
+                }
+
+            erros = self._coletar_erros()
+            if erros:
+                situacao = self._classificar_situacao_documento(erros)
+                return {
+                    'sucesso': True,
+                    'documento': documento,
+                    'tipo': tipo,
+                    'situacao': situacao,
+                    'mensagem': erros[0],
+                    'erros': erros,
+                    'screenshots': self.screenshots,
+                }
+
+            return {
+                'sucesso': True,
+                'documento': documento,
+                'tipo': tipo,
+                'situacao': 'disponivel',
+                'mensagem': 'Documento disponível para cadastro na Força de Vendas.',
+                'screenshots': self.screenshots,
+            }
+
+        except Exception as e:
+            log.error(f'ERRO consulta documento: {str(e)}')
+            if self.driver:
+                self._salvar_screenshot('erro_consulta_documento')
+            return {
+                'sucesso': False,
+                'documento': documento,
+                'tipo': tipo,
+                'erro': str(e),
+                'screenshots': self.screenshots,
+            }
+        finally:
+            if self.driver:
+                self.driver.quit()
+                log.info('Browser fechado')
+
+    def _classificar_situacao_documento(self, erros: list[str]) -> str:
+        texto = ' '.join(erros).lower()
+        if any(
+            termo in texto
+            for termo in (
+                'já cadastr',
+                'ja cadastr',
+                'cadastrado',
+                'existente',
+                'minha carteira',
+                'já possui',
+                'ja possui',
+            )
+        ):
+            return 'ja_cadastrado'
+        return 'erro_pagbank'
+
     # ----------------------------------------------------------------
     # Browser
     # ----------------------------------------------------------------
@@ -673,6 +766,21 @@ class CadastradorFV:
 # ----------------------------------------------------------------
 # Funcao publica — usada pela API
 # ----------------------------------------------------------------
+def consultar_documento_fv(documento: str, fv_usuario: str, fv_senha: str,
+                           headless: bool = True, screenshot_dir: str = '/tmp/screenshots',
+                           job_id: str | None = None) -> dict:
+    """Consulta CPF/CNPJ no portal FV sem concluir cadastro."""
+    cadastrador = CadastradorFV(
+        dados={'cpf_cnpj': documento},
+        fv_usuario=fv_usuario,
+        fv_senha=fv_senha,
+        headless=headless,
+        screenshot_dir=screenshot_dir,
+        job_id=job_id,
+    )
+    return cadastrador.executar_consulta_documento()
+
+
 def cadastrar_fv(dados: dict, fv_usuario: str, fv_senha: str,
                  headless: bool = True, screenshot_dir: str = '/tmp/screenshots',
                  job_id: str | None = None) -> dict:

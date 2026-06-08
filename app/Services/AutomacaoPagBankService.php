@@ -123,6 +123,46 @@ class AutomacaoPagBankService
     }
 
     // ----------------------------------------------------------------
+    // Consulta CPF/CNPJ no portal FV (sem cadastrar)
+    // ----------------------------------------------------------------
+    public function iniciarConsultaDocumento(string $documento): string
+    {
+        $documentoFormatado = $this->formatarDocumentoConsulta($documento);
+
+        $response = Http::timeout(15)
+            ->withHeaders(['X-Api-Key' => $this->apiKey])
+            ->post("{$this->apiUrl}/consultar-documento", [
+                'documento' => $documentoFormatado,
+                'fv_usuario' => PlatformSettings::automacaoFvUsuario() ?? '',
+                'fv_senha' => PlatformSettings::automacaoFvSenha() ?? '',
+                'headless' => config('automacao.headless', true),
+            ]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                'Falha ao consultar documento: '.$response->status().' — '.$response->body()
+            );
+        }
+
+        return $response->json('job_id');
+    }
+
+    public function formatarDocumentoConsulta(string $documento): string
+    {
+        $digits = preg_replace('/\D/', '', $documento);
+
+        if (strlen($digits) === 11) {
+            return $this->formatarCpf($digits);
+        }
+
+        if (strlen($digits) === 14) {
+            return $this->formatarCnpj($digits);
+        }
+
+        throw new RuntimeException('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.');
+    }
+
+    // ----------------------------------------------------------------
     // Preview dos dados enviados à automação (confirmação antes de iniciar)
     // ----------------------------------------------------------------
     public function previewConfirmacao(Estabelecimento $estab): array

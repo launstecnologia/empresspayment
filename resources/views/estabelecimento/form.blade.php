@@ -451,6 +451,13 @@
         });
 
         syncPessoaTipo(document.querySelector('input[name="pessoa_tipo"]:checked')?.value || 'juridica');
+
+        @if (! empty($prefillDocumento ?? false))
+            const prefillCnpj = field('cnpj');
+            if (prefillCnpj?.value && prefillCnpj.value.replace(/\D/g, '').length === 14) {
+                buscarCnpj(true);
+            }
+        @endif
     });
 </script>
 @endsection

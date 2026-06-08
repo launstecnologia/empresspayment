@@ -132,6 +132,13 @@ class CadastrarRequest(BaseModel):
     aguardar_email_seg: int = Field(default=90, description='Segundos para aguardar o email de confirmação')
 
 
+class ConsultarDocumentoRequest(BaseModel):
+    documento: str = Field(..., min_length=11, max_length=18, description='CPF ou CNPJ')
+    fv_usuario: str = Field(..., description='Usuário de acesso ao portal FV PagBank')
+    fv_senha: str = Field(..., description='Senha do portal FV PagBank')
+    headless: bool = Field(default=True, description='Rodar Chrome em modo headless')
+
+
 class RetentarEmailRequest(BaseModel):
     estabelecimento_id: int = Field(..., description='ID do estabelecimento no Laravel')
     webmail_url: str = Field(..., description='URL do Roundcube')
@@ -199,6 +206,52 @@ def _executar_somente_email(job_id: str, req: dict) -> None:
     except Exception as e:
         log.exception(f'[{job_id}] Erro inesperado no retentar email')
         _update_job(job_id, 'erro_email', erro=str(e), etapa_atual='Erro inesperado')
+    finally:
+        remover(job_id)
+
+
+def _executar_consulta_documento(job_id: str, req: dict) -> None:
+    from progresso import registrar, remover
+
+    screenshot_dir = os.path.join(SCREENSHOT_DIR, job_id)
+    os.makedirs(screenshot_dir, exist_ok=True)
+
+    registrar(job_id, lambda etapa: _set_etapa(job_id, etapa))
+
+    try:
+        _update_job(job_id, 'em_andamento', etapa_atual='Consultando documento no PagBank...')
+        log.info(f'[{job_id}] Consulta FV: {req.get("documento")}')
+
+        from main import consultar_documento_fv
+
+        resultado = consultar_documento_fv(
+            documento=req['documento'],
+            fv_usuario=req['fv_usuario'],
+            fv_senha=req['fv_senha'],
+            headless=req.get('headless', True),
+            screenshot_dir=screenshot_dir,
+            job_id=job_id,
+        )
+
+        if not resultado.get('sucesso'):
+            _update_job(
+                job_id, 'erro',
+                resultado={'tipo_job': 'consulta_documento', 'detalhe': resultado},
+                erro=resultado.get('erro', 'Erro na consulta do documento'),
+                etapa_atual='Erro na consulta',
+            )
+            return
+
+        _update_job(
+            job_id, 'concluido',
+            resultado={'tipo_job': 'consulta_documento', 'detalhe': resultado},
+            etapa_atual='Consulta concluída',
+        )
+        log.info(f'[{job_id}] Consulta concluída: {resultado.get("situacao")}')
+
+    except Exception as e:
+        log.exception(f'[{job_id}] Erro inesperado na consulta')
+        _update_job(job_id, 'erro', erro=str(e), etapa_atual='Erro inesperado')
     finally:
         remover(job_id)
 
@@ -335,6 +388,41 @@ async def iniciar_cadastro(request: CadastrarRequest, x_api_key: str = Header(..
     thread.start()
 
     log.info(f'Job {job_id} criado para estab {request.estabelecimento_id}')
+    return {'job_id': job_id, 'status': 'pendente'}
+
+
+@app.post('/consultar-documento', tags=['Automação'], status_code=202)
+async def consultar_documento(request: ConsultarDocumentoRequest, x_api_key: str = Header(...)):
+    """
+    Consulta se um CPF/CNPJ pode ser cadastrado na Força de Vendas PagBank.
+    Retorna `job_id` para acompanhar via GET /status/{job_id}.
+    """
+    _autenticar(x_api_key)
+
+    job_id = str(uuid.uuid4())
+    agora = datetime.now().isoformat()
+
+    with _db_lock:
+        with _get_conn() as conn:
+            conn.execute(
+                'INSERT INTO jobs (id, estabelecimento_id, status, etapa_atual, dados, criado_em, atualizado_em)'
+                ' VALUES (?, ?, ?, ?, ?, ?, ?)',
+                (
+                    job_id, 0, 'pendente', 'Aguardando consulta',
+                    json.dumps(request.model_dump(), ensure_ascii=False),
+                    agora, agora,
+                ),
+            )
+            conn.commit()
+
+    thread = threading.Thread(
+        target=_executar_consulta_documento,
+        args=(job_id, request.model_dump()),
+        daemon=True,
+    )
+    thread.start()
+
+    log.info(f'Job consulta {job_id} criado para documento {request.documento}')
     return {'job_id': job_id, 'status': 'pendente'}
 
 

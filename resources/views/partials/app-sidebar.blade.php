@@ -42,6 +42,12 @@
             <i class="fa-solid fa-store w-5 text-center text-[15px]"></i>
             <span>Estabelecimentos</span>
         </a>
+        @if ($ehAdmin || \App\Support\UsuarioComercial::podeCadastrarEstabelecimento())
+            <a href="{{ route('fv-documento.index') }}" class="{{ $navClass('fv-documento.*') }}">
+                <i class="fa-solid fa-magnifying-glass w-5 text-center text-[15px]"></i>
+                <span>Pesquisar CNPJ/CPF</span>
+            </a>
+        @endif
         <a href="{{ route('planos.index') }}" class="{{ $navClass('planos.*') }}">
             <i class="fa-solid fa-credit-card w-5 text-center text-[15px]"></i>
             <span>Planos e Taxas</span>

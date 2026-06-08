@@ -3,6 +3,7 @@
 # Aceita dados dinâmicos via parametro (uso pela API) ou DADOS_CLI (uso local)
 
 import json
+import re
 import sys
 import time
 import logging
@@ -109,11 +110,16 @@ class CadastradorFV:
     # ----------------------------------------------------------------
     def _iniciar_browser(self):
         opcoes = Options()
+        # Flags obrigatórias para Docker (sempre ativas)
+        opcoes.add_argument('--no-sandbox')
+        opcoes.add_argument('--disable-dev-shm-usage')
+        opcoes.add_argument('--disable-gpu')
+        opcoes.add_argument('--no-zygote')
+        opcoes.add_argument('--disable-software-rasterizer')
+        opcoes.add_argument('--disable-extensions')
+
         if self.headless:
             opcoes.add_argument('--headless')
-            opcoes.add_argument('--no-sandbox')
-            opcoes.add_argument('--disable-dev-shm-usage')
-            opcoes.add_argument('--disable-gpu')
 
         opcoes.add_argument('--window-size=1366,768')
         opcoes.add_argument('--disable-blink-features=AutomationControlled')
@@ -295,8 +301,11 @@ class CadastradorFV:
 
         self._preencher(By.ID, 'info.trademark', self.dados['nome_fantasia'], 'nome_fantasia')
 
-        if self.dados.get('telefone'):
-            self._preencher(By.ID, 'info.formattedPhone', self.dados['telefone'], 'telefone')
+        tel = re.sub(r'\D', '', self.dados.get('telefone') or '')
+        cel = re.sub(r'\D', '', self.dados.get('celular') or '')
+        # Preenche telefone fixo apenas se for 10 dígitos e diferente do celular
+        if tel and len(tel) == 10 and tel != cel:
+            self._preencher(By.ID, 'info.formattedPhone', tel, 'telefone')
 
         self._preencher(By.ID, 'info.formattedCelphone', self.dados['celular'], 'celular')
 

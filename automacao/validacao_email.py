@@ -91,11 +91,16 @@ class ValidadorEmail:
     # ----------------------------------------------------------------
     def _iniciar_browser(self):
         opcoes = Options()
+        # Flags obrigatórias para Docker (sempre ativas)
+        opcoes.add_argument('--no-sandbox')
+        opcoes.add_argument('--disable-dev-shm-usage')
+        opcoes.add_argument('--disable-gpu')
+        opcoes.add_argument('--no-zygote')
+        opcoes.add_argument('--disable-software-rasterizer')
+        opcoes.add_argument('--disable-extensions')
+
         if self.headless:
             opcoes.add_argument('--headless')
-            opcoes.add_argument('--no-sandbox')
-            opcoes.add_argument('--disable-dev-shm-usage')
-            opcoes.add_argument('--disable-gpu')
 
         opcoes.add_argument('--window-size=1366,768')
         opcoes.add_argument('--disable-blink-features=AutomationControlled')

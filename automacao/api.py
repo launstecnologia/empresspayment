@@ -139,6 +139,15 @@ class ConsultarDocumentoRequest(BaseModel):
     headless: bool = Field(default=True, description='Rodar Chrome em modo headless')
 
 
+class BuscarSafepayRequest(BaseModel):
+    estabelecimento_id: int = Field(..., description='ID do estabelecimento no Laravel')
+    documento: str = Field(..., min_length=11, max_length=18, description='CPF ou CNPJ')
+    fv_usuario: str = Field(..., description='Usuário de acesso ao portal FV PagBank')
+    fv_senha: str = Field(..., description='Senha do portal FV PagBank')
+    email_suffix: str = Field(default='express.app.br', description='Domínio do e-mail a localizar')
+    headless: bool = Field(default=True, description='Rodar Chrome em modo headless')
+
+
 class RetentarEmailRequest(BaseModel):
     estabelecimento_id: int = Field(..., description='ID do estabelecimento no Laravel')
     webmail_url: str = Field(..., description='URL do Roundcube')
@@ -206,6 +215,57 @@ def _executar_somente_email(job_id: str, req: dict) -> None:
     except Exception as e:
         log.exception(f'[{job_id}] Erro inesperado no retentar email')
         _update_job(job_id, 'erro_email', erro=str(e), etapa_atual='Erro inesperado')
+    finally:
+        remover(job_id)
+
+
+def _executar_busca_safepay(job_id: str, req: dict) -> None:
+    from progresso import registrar, remover
+
+    screenshot_dir = os.path.join(SCREENSHOT_DIR, job_id)
+    os.makedirs(screenshot_dir, exist_ok=True)
+
+    registrar(job_id, lambda etapa: _set_etapa(job_id, etapa))
+
+    try:
+        _update_job(job_id, 'em_andamento', etapa_atual='Buscando Safepay ID no PagBank...')
+        log.info(f'[{job_id}] Busca Safepay ID: {req.get("documento")}')
+
+        from main import buscar_safepay_id_fv
+
+        email_suffix = req.get('email_suffix') or 'express.app.br'
+        if not email_suffix.startswith('@'):
+            email_suffix = f'@{email_suffix}'
+
+        resultado = buscar_safepay_id_fv(
+            documento=req['documento'],
+            fv_usuario=req['fv_usuario'],
+            fv_senha=req['fv_senha'],
+            email_suffix=email_suffix,
+            headless=req.get('headless', True),
+            screenshot_dir=screenshot_dir,
+            job_id=job_id,
+        )
+
+        if not resultado.get('sucesso'):
+            _update_job(
+                job_id, 'erro',
+                resultado={'tipo_job': 'busca_safepay', 'detalhe': resultado},
+                erro=resultado.get('erro', 'Safepay ID não encontrado'),
+                etapa_atual='Safepay ID não encontrado',
+            )
+            return
+
+        _update_job(
+            job_id, 'concluido',
+            resultado={'tipo_job': 'busca_safepay', 'detalhe': resultado, 'safepay_id': resultado.get('safepay_id')},
+            etapa_atual='Safepay ID encontrado',
+        )
+        log.info(f'[{job_id}] Safepay ID: {resultado.get("safepay_id")}')
+
+    except Exception as e:
+        log.exception(f'[{job_id}] Erro inesperado na busca Safepay')
+        _update_job(job_id, 'erro', erro=str(e), etapa_atual='Erro inesperado')
     finally:
         remover(job_id)
 
@@ -312,6 +372,27 @@ def _executar_job(job_id: str, req: dict) -> None:
             'etapa_email': email_resultado,
             'senha_6': req['senha_6'],
         }
+
+        if email_resultado.get('sucesso'):
+            _set_etapa(job_id, 'Buscando Safepay ID no portal FV...')
+            from main import buscar_safepay_id_fv
+
+            email_suffix = '@express.app.br'
+            safepay_resultado = buscar_safepay_id_fv(
+                documento=req['dados']['cpf_cnpj'],
+                fv_usuario=req['fv_usuario'],
+                fv_senha=req['fv_senha'],
+                email_suffix=email_suffix,
+                headless=req.get('headless', True),
+                screenshot_dir=screenshot_dir,
+                job_id=job_id,
+            )
+            resultado_final['etapa_safepay'] = safepay_resultado
+            if safepay_resultado.get('sucesso'):
+                resultado_final['safepay_id'] = safepay_resultado.get('safepay_id')
+                log.info(f'[{job_id}] Safepay ID encontrado: {safepay_resultado.get("safepay_id")}')
+            else:
+                log.warning(f'[{job_id}] Safepay ID não encontrado: {safepay_resultado.get("erro")}')
 
         if email_resultado.get('sucesso'):
             _update_job(job_id, 'concluido', resultado=resultado_final, etapa_atual='Concluído com sucesso')
@@ -423,6 +504,40 @@ async def consultar_documento(request: ConsultarDocumentoRequest, x_api_key: str
     thread.start()
 
     log.info(f'Job consulta {job_id} criado para documento {request.documento}')
+    return {'job_id': job_id, 'status': 'pendente'}
+
+
+@app.post('/buscar-safepay-id', tags=['Automação'], status_code=202)
+async def buscar_safepay_id(request: BuscarSafepayRequest, x_api_key: str = Header(...)):
+    """
+    Pesquisa cliente no FV por CPF/CNPJ e retorna Safepay ID do e-mail @express.app.br.
+    """
+    _autenticar(x_api_key)
+
+    job_id = str(uuid.uuid4())
+    agora = datetime.now().isoformat()
+
+    with _db_lock:
+        with _get_conn() as conn:
+            conn.execute(
+                'INSERT INTO jobs (id, estabelecimento_id, status, etapa_atual, dados, criado_em, atualizado_em)'
+                ' VALUES (?, ?, ?, ?, ?, ?, ?)',
+                (
+                    job_id, request.estabelecimento_id, 'pendente', 'Aguardando busca Safepay',
+                    json.dumps(request.model_dump(), ensure_ascii=False),
+                    agora, agora,
+                ),
+            )
+            conn.commit()
+
+    thread = threading.Thread(
+        target=_executar_busca_safepay,
+        args=(job_id, request.model_dump()),
+        daemon=True,
+    )
+    thread.start()
+
+    log.info(f'Job Safepay {job_id} criado para estab {request.estabelecimento_id}')
     return {'job_id': job_id, 'status': 'pendente'}
 
 

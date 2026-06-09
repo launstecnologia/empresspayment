@@ -182,6 +182,58 @@ class CadastradorFV:
                 self.driver.quit()
                 log.info('Browser fechado')
 
+    def executar_busca_safepay_id(self, email_suffix: str = '@express.app.br') -> dict:
+        """Pesquisa cliente no FV e retorna Safepay ID do e-mail @express.app.br."""
+        documento = self.dados.get('cpf_cnpj') or self.dados.get('documento') or ''
+
+        try:
+            self._etapa('Iniciando navegador...')
+            self.driver = self._iniciar_browser()
+            self.wait = WebDriverWait(self.driver, 20)
+
+            self._etapa('Acessando portal Força de Vendas...')
+            self._fazer_login()
+            self._etapa('Abrindo pesquisar clientes...')
+            self._navegar_pesquisar_cliente()
+            self._etapa('Pesquisando documento no PagBank...')
+
+            encontrado = self._pesquisar_safepay_id(documento, email_suffix)
+            self._salvar_screenshot('pesquisa_safepay_resultado')
+
+            if not encontrado:
+                return {
+                    'sucesso': False,
+                    'documento': documento,
+                    'erro': f'Safepay ID não encontrado para e-mail {email_suffix}',
+                    'screenshots': self.screenshots,
+                }
+
+            return {
+                'sucesso': True,
+                'documento': documento,
+                'safepay_id': encontrado['safepay_id'],
+                'email_encontrado': encontrado.get('email'),
+                'screenshots': self.screenshots,
+            }
+
+        except Exception as e:
+            log.error(f'ERRO busca Safepay ID: {str(e)}')
+            if self.driver:
+                self._salvar_screenshot('erro_busca_safepay')
+            return {
+                'sucesso': False,
+                'documento': documento,
+                'erro': str(e),
+                'screenshots': self.screenshots,
+            }
+        finally:
+            if self.driver:
+                self.driver.quit()
+                log.info('Browser fechado')
+
+    # ----------------------------------------------------------------
+    # Browser
+    # ----------------------------------------------------------------
     def _classificar_situacao_documento(self, erros: list[str]) -> str:
         texto = ' '.join(erros).lower()
         if self._texto_e_cliente_interno(texto):
@@ -203,9 +255,6 @@ class CadastradorFV:
             return 'ja_cadastrado'
         return 'erro_pagbank'
 
-    # ----------------------------------------------------------------
-    # Browser
-    # ----------------------------------------------------------------
     def _iniciar_browser(self):
         opcoes = Options()
         # Flags obrigatórias para Docker (sempre ativas)
@@ -530,6 +579,101 @@ class CadastradorFV:
         ))
         log.info('Pagina Cadastrar Cliente carregada')
         time.sleep(1)
+
+    def _navegar_pesquisar_cliente(self):
+        log.info('--- NAVEGAR PARA PESQUISAR CLIENTE ---')
+        self._clicar(By.XPATH, "//*[@id='menu']/li[3]/a/div[2]/span", 'menu_minha_carteira')
+        time.sleep(1)
+        self._clicar(By.XPATH, '//*[@id="customer-search"]/div/span', 'menu_pesquisar_cliente')
+        self.wait.until(EC.presence_of_element_located((By.ID, 'document')))
+        log.info('Pagina Pesquisar Cliente carregada')
+        time.sleep(1)
+
+    def _pesquisar_safepay_id(self, documento: str, email_suffix: str = '@express.app.br') -> dict | None:
+        self._selecionar_filtro_documento()
+        campo = self._preencher_react(By.ID, 'document', documento, 'documento_pesquisa')
+        self._disparar_validacao_documento(campo)
+        self._clicar(
+            By.XPATH,
+            '//*[@id="__next"]/div/main/div/div/div[2]/form/div[1]/div/div/button',
+            'botao_pesquisar_cliente',
+        )
+        time.sleep(2)
+        try:
+            self.wait.until(EC.presence_of_element_located(
+                (By.XPATH, '//*[contains(text(), "Safepay ID")] | //*[contains(text(), "Clientes")]')
+            ))
+        except TimeoutException:
+            log.warning('Resultados da pesquisa demoraram — tentando extrair mesmo assim')
+        time.sleep(1)
+        return self._extrair_safepay_id_express(email_suffix)
+
+    def _selecionar_filtro_documento(self):
+        for xpath in (
+            '//input[@type="radio" and (@value="document" or contains(@id, "document"))]',
+            '//label[contains(., "CPF") and contains(., "CNPJ")]//input[@type="radio"]',
+            '//label[contains(., "CPF / CNPJ")]',
+        ):
+            try:
+                el = self.driver.find_element(By.XPATH, xpath)
+                if el.tag_name.lower() == 'label':
+                    el.click()
+                else:
+                    self.driver.execute_script('arguments[0].click();', el)
+                time.sleep(0.3)
+                log.info('Filtro CPF/CNPJ selecionado')
+                return
+            except Exception:
+                continue
+
+    def _extrair_safepay_id_express(self, email_suffix: str = '@express.app.br') -> dict | None:
+        suffix = email_suffix.lower().lstrip('@')
+        padrao_email = re.compile(r'[\w.+-]+@' + re.escape(suffix), re.IGNORECASE)
+        padrao_safepay = re.compile(r'Safepay ID\s*\n?\s*(\d+)', re.IGNORECASE)
+
+        candidatos = self.driver.find_elements(
+            By.XPATH,
+            '//*[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), '
+            f'"{suffix}")]',
+        )
+
+        for el in candidatos:
+            try:
+                if not el.is_displayed():
+                    continue
+                card = el.find_element(
+                    By.XPATH,
+                    './ancestor::div[.//*[contains(text(), "Safepay ID")]][1]',
+                )
+                texto = card.text
+                if suffix not in texto.lower():
+                    continue
+                id_match = padrao_safepay.search(texto)
+                if not id_match:
+                    continue
+                email_match = padrao_email.search(texto)
+                return {
+                    'safepay_id': id_match.group(1),
+                    'email': email_match.group(0) if email_match else '',
+                }
+            except Exception:
+                continue
+
+        body = self.driver.find_element(By.TAG_NAME, 'body').text
+        blocos = re.split(r'\n\s*\n', body)
+        for bloco in blocos:
+            bloco_lower = bloco.lower()
+            if 'safepay id' not in bloco_lower or suffix not in bloco_lower:
+                continue
+            id_match = padrao_safepay.search(bloco)
+            email_match = padrao_email.search(bloco)
+            if id_match:
+                return {
+                    'safepay_id': id_match.group(1),
+                    'email': email_match.group(0) if email_match else '',
+                }
+
+        return None
 
     def _preencher_dados_iniciais(self):
         log.info('--- ETAPA 3: CPF/CNPJ E EMAIL ---')
@@ -882,6 +1026,22 @@ def consultar_documento_fv(documento: str, fv_usuario: str, fv_senha: str,
         job_id=job_id,
     )
     return cadastrador.executar_consulta_documento()
+
+
+def buscar_safepay_id_fv(documento: str, fv_usuario: str, fv_senha: str,
+                         email_suffix: str = '@express.app.br',
+                         headless: bool = True, screenshot_dir: str = '/tmp/screenshots',
+                         job_id: str | None = None) -> dict:
+    """Pesquisa cliente no FV e retorna Safepay ID do e-mail @express.app.br."""
+    cadastrador = CadastradorFV(
+        dados={'cpf_cnpj': documento},
+        fv_usuario=fv_usuario,
+        fv_senha=fv_senha,
+        headless=headless,
+        screenshot_dir=screenshot_dir,
+        job_id=job_id,
+    )
+    return cadastrador.executar_busca_safepay_id(email_suffix=email_suffix)
 
 
 def cadastrar_fv(dados: dict, fv_usuario: str, fv_senha: str,

@@ -89,18 +89,26 @@ class AutomacaoPagBankJob implements ShouldQueue
 
         // 3. Processa resultado
         if ($statusFinal === 'concluido') {
-            $estab->update([
-                'fv_status'      => 'concluido',
-                'fv_senha_6'     => $this->senha6,
+            $safepayId = $service->extrairSafepayIdDoResultado($resultado);
+
+            $update = [
+                'fv_status'       => 'concluido',
+                'fv_senha_6'      => $this->senha6,
                 'fv_concluido_em' => now(),
-                'fv_erro'        => null,
-                // Atualiza o status do estabelecimento se ainda for em_cadastro
-                'status'         => $estab->status === 'em_cadastro' ? 'habilitado' : $estab->status,
-            ]);
+                'fv_erro'         => null,
+                'status'          => $estab->status === 'em_cadastro' ? 'habilitado' : $estab->status,
+            ];
+
+            if (filled($safepayId)) {
+                $update['token_pagseguro'] = $safepayId;
+            }
+
+            $estab->update($update);
 
             Log::info('AutomacaoPagBankJob: automação concluída com sucesso', [
                     'estabelecimento_id' => $estab->id,
                     'job_id'             => $jobId,
+                    'safepay_id'         => $safepayId,
                 ]);
 
                 // Notifica o estabelecimento

@@ -154,6 +154,8 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
             ->name('admin.estabelecimentos.automacao.retentar-email');
         Route::get('estabelecimentos/{estabelecimento}/automacao/status', [EstabelecimentoAutomacaoController::class, 'status'])
             ->name('admin.estabelecimentos.automacao.status');
+        Route::post('estabelecimentos/{estabelecimento}/automacao/buscar-safepay-id', [EstabelecimentoAutomacaoController::class, 'buscarSafepayId'])
+            ->name('admin.estabelecimentos.automacao.buscar-safepay-id');
         Route::get('admin/email-templates', [EmailTemplateController::class, 'index'])->name('admin.email-templates.index');
         Route::get('admin/email-templates/{emailTemplate}/edit', [EmailTemplateController::class, 'edit'])->name('admin.email-templates.edit');
         Route::put('admin/email-templates/{emailTemplate}', [EmailTemplateController::class, 'update'])->name('admin.email-templates.update');

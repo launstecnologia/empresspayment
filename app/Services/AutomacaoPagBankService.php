@@ -147,6 +147,60 @@ class AutomacaoPagBankService
         return $response->json('job_id');
     }
 
+    public function iniciarBuscaSafepayId(Estabelecimento $estab): string
+    {
+        $documento = $this->documentoEstabelecimento($estab);
+
+        $response = Http::timeout(15)
+            ->withHeaders(['X-Api-Key' => $this->apiKey])
+            ->post("{$this->apiUrl}/buscar-safepay-id", [
+                'estabelecimento_id' => $estab->id,
+                'documento' => $documento,
+                'fv_usuario' => PlatformSettings::automacaoFvUsuario() ?? '',
+                'fv_senha' => PlatformSettings::automacaoFvSenha() ?? '',
+                'email_suffix' => 'express.app.br',
+                'headless' => config('automacao.headless', true),
+            ]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                'Falha ao buscar Safepay ID: '.$response->status().' — '.$response->body()
+            );
+        }
+
+        return $response->json('job_id');
+    }
+
+    public function documentoEstabelecimento(Estabelecimento $estab): string
+    {
+        $documento = $estab->pessoa_tipo === 'juridica'
+            ? ($estab->cnpj ?? '')
+            : ($estab->cpf ?? '');
+
+        return $this->formatarDocumentoConsulta($documento);
+    }
+
+    public function extrairSafepayIdDoResultado(?array $resultado): ?string
+    {
+        if (! is_array($resultado)) {
+            return null;
+        }
+
+        $candidatos = [
+            data_get($resultado, 'safepay_id'),
+            data_get($resultado, 'etapa_safepay.safepay_id'),
+            data_get($resultado, 'detalhe.safepay_id'),
+        ];
+
+        foreach ($candidatos as $valor) {
+            if (filled($valor)) {
+                return (string) $valor;
+            }
+        }
+
+        return null;
+    }
+
     public function formatarDocumentoConsulta(string $documento): string
     {
         $digits = preg_replace('/\D/', '', $documento);

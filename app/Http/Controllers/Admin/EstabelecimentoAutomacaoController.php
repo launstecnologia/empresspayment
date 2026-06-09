@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\AutomacaoBuscarSafepayJob;
 use App\Jobs\AutomacaoPagBankJob;
 use App\Jobs\AutomacaoRetentarEmailJob;
 use App\Models\Estabelecimento;
@@ -129,6 +130,39 @@ class EstabelecimentoAutomacaoController extends Controller
                 'erro'        => null,
             ]);
         }
+    }
+
+    public function buscarSafepayId(Request $request, Estabelecimento $estabelecimento)
+    {
+        abort_unless($request->user()?->tipo === 'admin', 403);
+
+        if (! in_array($estabelecimento->fv_status, ['concluido', 'erro_email'], true)) {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->with('aviso', 'A busca do Safepay ID só está disponível após o cadastro na Força de Vendas.');
+        }
+
+        if (! PlatformSettings::automacaoConfigurado()) {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->withErrors(['automacao' => 'A automação não está configurada.']);
+        }
+
+        try {
+            app(AutomacaoPagBankService::class)->documentoEstabelecimento($estabelecimento);
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->withErrors(['automacao' => $e->getMessage()]);
+        }
+
+        AutomacaoBuscarSafepayJob::dispatch($estabelecimento->id)
+            ->onQueue('automacao');
+
+        return redirect()
+            ->route('estabelecimentos.show', $estabelecimento)
+            ->withFragment('automacao')
+            ->with('status', 'Buscando Safepay ID no portal PagBank. Atualize a página em instantes.');
     }
 
     private function gerarSenha6(): string

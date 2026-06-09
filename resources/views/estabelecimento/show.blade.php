@@ -313,6 +313,26 @@
                     </dd>
                 </div>
             @endif
+            @if (in_array($fvStatus, ['concluido', 'erro_email'], true))
+                <div class="rounded-lg border {{ filled($estabelecimento->token_pagseguro) ? 'border-emerald-100 bg-emerald-50/50' : 'border-amber-100 bg-amber-50/50' }} p-4">
+                    <dt class="text-xs font-semibold uppercase tracking-wide {{ filled($estabelecimento->token_pagseguro) ? 'text-emerald-600' : 'text-amber-700' }}">ID PagSeguro (Safepay ID)</dt>
+                    <dd class="mt-1 flex flex-wrap items-center gap-3">
+                        <span class="font-mono text-sm font-bold text-gray-900">{{ $estabelecimento->token_pagseguro ?: '—' }}</span>
+                        @if ($fvEhAdmin && blank($estabelecimento->token_pagseguro))
+                            <form method="POST" action="{{ route('admin.estabelecimentos.automacao.buscar-safepay-id', $estabelecimento) }}">
+                                @csrf
+                                <button type="submit"
+                                        class="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700">
+                                    <i class="fa-solid fa-magnifying-glass"></i> Buscar Safepay ID
+                                </button>
+                            </form>
+                        @endif
+                    </dd>
+                    @if (blank($estabelecimento->token_pagseguro))
+                        <p class="mt-2 text-xs text-amber-700">Busca no FV o cliente com e-mail @express.app.br e preenche automaticamente.</p>
+                    @endif
+                </div>
+            @endif
             <div class="rounded-lg border border-gray-100 bg-gray-50 p-4 sm:col-span-2">
                 <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">ID do Job (API Python)</dt>
                 <dd class="mt-1 break-all font-mono text-xs text-gray-700">

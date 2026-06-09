@@ -5,6 +5,7 @@ use App\Http\Middleware\EnsureMarketplaceTenantAccess;
 use App\Http\Middleware\EnsureNivel;
 use App\Http\Middleware\EnsurePermissao;
 use App\Http\Middleware\RedirectMarketplacePlanos;
+use App\Http\Middleware\ResolveMarketplaceTenant;
 use App\Support\TenantUrl;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Http\Request;

@@ -178,7 +178,7 @@ class EstabelecimentoAutomacaoController extends Controller
             return redirect()
                 ->route('estabelecimentos.show', $estabelecimento)
                 ->withFragment('automacao')
-                ->withErrors(['automacao' => 'Execute php artisan migrate no servidor antes de aceitar a proposta.']);
+                ->withErrors(['automacao' => 'Execute docker compose exec app php artisan migrate --force no servidor antes de aceitar a proposta.']);
         }
 
         if (blank($estabelecimento->fv_senha_6)) {

@@ -334,7 +334,7 @@
                 @elseif ($fvEhAdmin && $fvStatus === 'concluido' && ! \App\Support\AutomacaoSchema::temColunasProposta())
                     <p class="text-sm text-amber-700">
                         <i class="fa-solid fa-triangle-exclamation mr-1"></i>
-                        Execute <code class="rounded bg-amber-100 px-1">php artisan migrate</code> para habilitar o aceite de proposta.
+                        Execute <code class="rounded bg-amber-100 px-1">docker compose exec app php artisan migrate --force</code> para habilitar o aceite de proposta.
                     </p>
                 @endif
             </div>
@@ -465,7 +465,7 @@
             @if ($automacaoLogsIndisponivel ?? false)
                 <div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                     <i class="fa-solid fa-triangle-exclamation mr-1"></i>
-                    Tabela de logs ainda não criada. Execute <code class="rounded bg-amber-100 px-1">php artisan migrate</code> no servidor.
+                    Tabela de logs ainda não criada. Execute <code class="rounded bg-amber-100 px-1">docker compose exec app php artisan migrate --force</code> no servidor.
                 </div>
             @endif
             <div class="overflow-x-auto rounded-lg border border-gray-200">

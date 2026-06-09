@@ -57,7 +57,7 @@ class EstabelecimentoController extends Controller
             'masters' => $this->usuariosPorTipo('master'),
             'marketplaces' => $this->usuariosPorTipo('marketplace'),
             'revendas' => $this->usuariosPorTipo('revenda'),
-            'planos' => $this->marketplacePlano->planosDisponiveis()->map(fn (Plano $p) => ['id' => $p->id, 'nome' => $p->nome]),
+            'planos' => $this->marketplacePlano->planosDisponiveis(),
             'segmentos' => Segmento::where('ativo', true)->orderBy('nome')->get(['id', 'nome']),
         ]);
     }

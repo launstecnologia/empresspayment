@@ -7,7 +7,6 @@ use App\Jobs\AutomacaoAceitarPropostaJob;
 use App\Jobs\AutomacaoBuscarSafepayJob;
 use App\Jobs\AutomacaoPagBankJob;
 use App\Jobs\AutomacaoRetentarEmailJob;
-use App\Models\AutomacaoLog;
 use App\Models\Estabelecimento;
 use App\Services\AutomacaoLogService;
 use App\Services\AutomacaoPagBankService;
@@ -226,23 +225,6 @@ class EstabelecimentoAutomacaoController extends Controller
 
     private function logsAutomacaoJson(Estabelecimento $estabelecimento): array
     {
-        return AutomacaoLog::query()
-            ->where('estabelecimento_id', $estabelecimento->id)
-            ->orderByDesc('id')
-            ->limit(100)
-            ->get()
-            ->reverse()
-            ->values()
-            ->map(fn (AutomacaoLog $log) => [
-                'id' => $log->id,
-                'nivel' => $log->nivel,
-                'etapa' => $log->etapa,
-                'mensagem' => $log->mensagem,
-                'detalhe' => $log->detalhe,
-                'job_id' => $log->job_id,
-                'origem' => $log->origem,
-                'created_at' => $log->created_at?->format('d/m/Y H:i:s'),
-            ])
-            ->all();
+        return app(AutomacaoLogService::class)->listarJson($estabelecimento->id);
     }
 }

@@ -3,9 +3,34 @@
 namespace App\Services;
 
 use App\Models\AutomacaoLog;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Schema;
 
 class AutomacaoLogService
 {
+    public function tabelaDisponivel(): bool
+    {
+        return Schema::hasTable('automacao_logs');
+    }
+
+    /**
+     * @return Collection<int, AutomacaoLog>
+     */
+    public function listarParaEstabelecimento(int $estabelecimentoId, int $limite = 100): Collection
+    {
+        if (! $this->tabelaDisponivel()) {
+            return new Collection;
+        }
+
+        return AutomacaoLog::query()
+            ->where('estabelecimento_id', $estabelecimentoId)
+            ->orderByDesc('id')
+            ->limit($limite)
+            ->get()
+            ->reverse()
+            ->values();
+    }
+
     public function registrar(
         int $estabelecimentoId,
         string $mensagem,
@@ -15,7 +40,11 @@ class AutomacaoLogService
         ?array $detalhe = null,
         string $origem = 'laravel',
         ?string $origemRef = null,
-    ): AutomacaoLog {
+    ): ?AutomacaoLog {
+        if (! $this->tabelaDisponivel()) {
+            return null;
+        }
+
         if ($origemRef !== null) {
             $existente = AutomacaoLog::query()
                 ->where('origem', $origem)
@@ -44,6 +73,10 @@ class AutomacaoLogService
      */
     public function sincronizarDoJob(int $estabelecimentoId, string $jobId, array $logsApi): void
     {
+        if (! $this->tabelaDisponivel()) {
+            return;
+        }
+
         foreach ($logsApi as $entrada) {
             if (! is_array($entrada)) {
                 continue;
@@ -102,5 +135,24 @@ class AutomacaoLogService
             etapa: $etapa ?? 'Erro',
             detalhe: $detalhe,
         );
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function listarJson(int $estabelecimentoId, int $limite = 100): array
+    {
+        return $this->listarParaEstabelecimento($estabelecimentoId, $limite)
+            ->map(fn (AutomacaoLog $log) => [
+                'id' => $log->id,
+                'nivel' => $log->nivel,
+                'etapa' => $log->etapa,
+                'mensagem' => $log->mensagem,
+                'detalhe' => $log->detalhe,
+                'job_id' => $log->job_id,
+                'origem' => $log->origem,
+                'created_at' => $log->created_at?->format('d/m/Y H:i:s'),
+            ])
+            ->all();
     }
 }

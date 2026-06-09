@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Estabelecimento;
 
 use App\Http\Controllers\Controller;
 use App\Models\Estabelecimento;
-use App\Models\AutomacaoLog;
 use App\Models\Log;
+use App\Services\AutomacaoLogService;
 use App\Models\Plano;
 use App\Models\Segmento;
 use App\Models\Usuario;
@@ -158,7 +158,7 @@ class EstabelecimentoController extends Controller
         return redirect()->route('estabelecimentos.index')->with('status', 'Estabelecimento atualizado.');
     }
 
-    public function show(Estabelecimento $estabelecimento, KycInicializacaoService $kycInicializacao, KycDocumentoSyncService $kycSync)
+    public function show(Estabelecimento $estabelecimento, KycInicializacaoService $kycInicializacao, KycDocumentoSyncService $kycSync, AutomacaoLogService $automacaoLogService)
     {
         if (blank($estabelecimento->documento_token_publico)) {
             $estabelecimento->forceFill(['documento_token_publico' => (string) Str::uuid()])->save();
@@ -186,13 +186,8 @@ class EstabelecimentoController extends Controller
             ->take(10)
             ->get();
 
-        $automacaoLogs = AutomacaoLog::query()
-            ->where('estabelecimento_id', $estabelecimento->id)
-            ->orderByDesc('id')
-            ->limit(100)
-            ->get()
-            ->reverse()
-            ->values();
+        $automacaoLogs = $automacaoLogService->listarParaEstabelecimento($estabelecimento->id);
+        $automacaoLogsIndisponivel = ! $automacaoLogService->tabelaDisponivel();
 
         $automacaoPreview = null;
         if (auth()->user()?->tipo === 'admin' && PlatformSettings::automacaoConfigurado()) {
@@ -207,6 +202,7 @@ class EstabelecimentoController extends Controller
             'estabelecimento',
             'logs',
             'automacaoLogs',
+            'automacaoLogsIndisponivel',
             'kyc',
             'kycItens',
             'automacaoPreview',

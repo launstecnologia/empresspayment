@@ -3,14 +3,14 @@
 namespace App\Services;
 
 use App\Models\AutomacaoLog;
+use App\Support\AutomacaoSchema;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\Schema;
 
 class AutomacaoLogService
 {
     public function tabelaDisponivel(): bool
     {
-        return Schema::hasTable('automacao_logs');
+        return AutomacaoSchema::temTabelaLogs();
     }
 
     /**

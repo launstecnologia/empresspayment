@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Estabelecimento;
 use App\Services\AutomacaoLogService;
 use App\Services\AutomacaoPagBankService;
+use App\Support\AutomacaoSchema;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -31,16 +32,20 @@ class AutomacaoAceitarPropostaJob implements ShouldQueue
             return;
         }
 
-        $estab->update([
-            'fv_proposta_status' => 'em_andamento',
-            'fv_proposta_erro' => null,
-        ]);
+        if (filled(AutomacaoSchema::atualizacaoProposta('em_andamento'))) {
+            $estab->update(array_merge(
+                AutomacaoSchema::atualizacaoProposta('em_andamento'),
+                ['fv_proposta_erro' => null],
+            ));
+        }
 
         try {
-            $automacaoLog->registrarInicio($estab->id, 'Aceitar proposta comercial PagBank');
+            $automacaoLog->registrar($estab->id, 'Job de aceite de proposta enfileirado', 'info', null, 'Fila');
 
             $jobId = $service->iniciarAceitarProposta($estab);
             $estab->update(['fv_job_id' => $jobId]);
+
+            $automacaoLog->registrar($estab->id, "Automação Python iniciada (job {$jobId})", 'info', $jobId, 'Python');
 
             $intervalo = (int) config('automacao.polling_intervalo_seg', 20);
             $maxTentativas = 20;
@@ -59,13 +64,17 @@ class AutomacaoAceitarPropostaJob implements ShouldQueue
             }
 
             if ($statusFinal === 'concluido') {
-                $estab->update([
-                    'fv_proposta_status' => 'concluido',
-                    'fv_proposta_concluido_em' => now(),
-                    'fv_proposta_erro' => null,
-                    'fv_status' => $estab->fv_status === 'erro_proposta' ? 'concluido' : $estab->fv_status,
-                    'fv_erro' => $estab->fv_status === 'erro_proposta' ? null : $estab->fv_erro,
-                ]);
+                $update = array_merge(
+                    AutomacaoSchema::atualizacaoProposta('concluido'),
+                    [
+                        'fv_status' => $estab->fv_status === 'erro_proposta' ? 'concluido' : $estab->fv_status,
+                        'fv_erro' => $estab->fv_status === 'erro_proposta' ? null : $estab->fv_erro,
+                    ],
+                );
+
+                if ($update !== []) {
+                    $estab->update($update);
+                }
 
                 $automacaoLog->registrarConclusao($estab->id, 'Proposta comercial aceita com sucesso', $jobId);
 
@@ -78,12 +87,17 @@ class AutomacaoAceitarPropostaJob implements ShouldQueue
 
             $erro = $status['erro'] ?? 'Timeout ou erro ao aceitar proposta';
 
-            $estab->update([
-                'fv_proposta_status' => 'erro',
-                'fv_proposta_erro' => $erro,
-                'fv_status' => 'erro_proposta',
-                'fv_erro' => $erro,
-            ]);
+            $update = array_merge(
+                AutomacaoSchema::atualizacaoProposta('erro', $erro),
+                [
+                    'fv_status' => 'erro_proposta',
+                    'fv_erro' => $erro,
+                ],
+            );
+
+            if ($update !== []) {
+                $estab->update($update);
+            }
 
             $automacaoLog->registrarErro($estab->id, $erro, $jobId ?? null, 'erro_proposta');
 
@@ -93,12 +107,17 @@ class AutomacaoAceitarPropostaJob implements ShouldQueue
                 'erro' => $erro,
             ]);
         } catch (\Throwable $e) {
-            $estab->update([
-                'fv_proposta_status' => 'erro',
-                'fv_proposta_erro' => $e->getMessage(),
-                'fv_status' => 'erro_proposta',
-                'fv_erro' => $e->getMessage(),
-            ]);
+            $update = array_merge(
+                AutomacaoSchema::atualizacaoProposta('erro', $e->getMessage()),
+                [
+                    'fv_status' => 'erro_proposta',
+                    'fv_erro' => $e->getMessage(),
+                ],
+            );
+
+            if ($update !== []) {
+                $estab->update($update);
+            }
 
             $automacaoLog->registrarErro($estab->id, $e->getMessage(), $estab->fv_job_id ?? null, 'excecao');
 

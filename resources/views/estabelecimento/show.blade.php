@@ -199,6 +199,27 @@
 
     <div class="space-y-6 p-6">
 
+        @if ($errors->has('automacao'))
+            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <p class="font-bold"><i class="fa-solid fa-circle-exclamation mr-1"></i> Erro na automação</p>
+                @foreach ($errors->get('automacao') as $erroAutomacao)
+                    <p class="mt-1">{{ $erroAutomacao }}</p>
+                @endforeach
+            </div>
+        @endif
+
+        @if (session('status'))
+            <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
+                <i class="fa-solid fa-circle-check mr-1"></i> {{ session('status') }}
+            </div>
+        @endif
+
+        @if (session('aviso'))
+            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <i class="fa-solid fa-circle-info mr-1"></i> {{ session('aviso') }}
+            </div>
+        @endif
+
         {{-- Status atual + botões de ação --}}
         <div class="flex flex-col gap-4">
 
@@ -220,7 +241,7 @@
                             <span id="automacao-status-label">{{ $fvCores[2] }}</span>
                         </span>
                     </div>
-                    @if (in_array($fvStatus, ['em_andamento', 'pendente']) || $estabelecimento->fv_proposta_status === 'em_andamento' || session('proposta_aceitando'))
+                    @if (in_array($fvStatus, ['em_andamento', 'pendente']) || ($estabelecimento->fv_proposta_status ?? null) === 'em_andamento' || session('proposta_aceitando'))
                         <div id="automacao-etapa-box"
                              class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3"
                              data-automacao-poll
@@ -228,7 +249,7 @@
                              data-fv-status="{{ $fvStatus }}">
                             <p class="text-xs font-semibold uppercase tracking-wide text-blue-600">Etapa atual</p>
                             <p id="automacao-etapa-texto" class="mt-1 text-sm font-medium text-blue-900">
-                                @if ($estabelecimento->fv_proposta_status === 'em_andamento' || session('proposta_aceitando'))
+                                @if (($estabelecimento->fv_proposta_status ?? null) === 'em_andamento' || session('proposta_aceitando'))
                                     Aceitando proposta comercial no PagBank...
                                 @else
                                     {{ $fvStatus === 'pendente' ? 'Aguardando fila...' : 'Consultando progresso...' }}
@@ -291,22 +312,30 @@
                 @endif
 
                 @php
+                    $propostaEmAndamento = ($estabelecimento->fv_proposta_status ?? null) === 'em_andamento' || session('proposta_aceitando');
                     $podeAceitarProposta = $fvEhAdmin
                         && filled($estabelecimento->fv_senha_6)
-                        && $estabelecimento->fv_proposta_status !== 'concluido'
-                        && $estabelecimento->fv_proposta_status !== 'em_andamento'
-                        && $fvStatus === 'concluido';
+                        && ($estabelecimento->fv_proposta_status ?? null) !== 'concluido'
+                        && ! $propostaEmAndamento
+                        && $fvStatus === 'concluido'
+                        && \App\Support\AutomacaoSchema::temColunasProposta();
                 @endphp
                 @if ($podeAceitarProposta)
-                    <form method="POST"
+                    <form id="form-aceitar-proposta" method="POST"
                           action="{{ route('admin.estabelecimentos.automacao.aceitar-proposta', $estabelecimento) }}"
                           onsubmit="return confirm('Executar login no PagBank e aceitar a proposta comercial pendente?')">
                         @csrf
-                        <button type="submit"
-                                class="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-bold text-white shadow hover:bg-sky-700">
-                            <i class="fa-solid fa-file-signature"></i> Aceitar Proposta
+                        <button type="submit" id="btn-aceitar-proposta"
+                                class="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-bold text-white shadow hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+                            <i class="fa-solid fa-file-signature"></i>
+                            <span>Aceitar Proposta</span>
                         </button>
                     </form>
+                @elseif ($fvEhAdmin && $fvStatus === 'concluido' && ! \App\Support\AutomacaoSchema::temColunasProposta())
+                    <p class="text-sm text-amber-700">
+                        <i class="fa-solid fa-triangle-exclamation mr-1"></i>
+                        Execute <code class="rounded bg-amber-100 px-1">php artisan migrate</code> para habilitar o aceite de proposta.
+                    </p>
                 @endif
             </div>
         </div>
@@ -1245,6 +1274,9 @@
         @if ($errors->has('senha_admin') || $errors->has('confirmacao') || session('abrir_modal_inativar'))
             document.querySelector('[data-modal="inativar-sistema"]')?.classList.add('is-open');
         @endif
+        @if ($errors->has('automacao') || session('proposta_aceitando') || window.location.hash === '#automacao')
+            showTab('automacao');
+        @endif
 
         document.getElementById('toggle-senha-admin-inativar')?.addEventListener('click', () => {
             const input = document.getElementById('senha-admin-inativar');
@@ -1334,6 +1366,18 @@
 
         if (document.getElementById('safepay-busca-ativa')) {
             setInterval(() => window.location.reload(), 15000);
+        }
+
+        const formAceitarProposta = document.getElementById('form-aceitar-proposta');
+        const btnAceitarProposta = document.getElementById('btn-aceitar-proposta');
+        formAceitarProposta?.addEventListener('submit', () => {
+            if (!btnAceitarProposta) return;
+            btnAceitarProposta.disabled = true;
+            btnAceitarProposta.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span> Iniciando...</span>';
+        });
+
+        if (document.getElementById('proposta-aceitando-ativa') || document.querySelector('[data-automacao-poll]')?.textContent?.includes('Aceitando proposta')) {
+            setInterval(() => window.location.reload(), 20000);
         }
 
         // Polling da automação FV — atualiza etapa a cada 20s

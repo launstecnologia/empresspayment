@@ -187,7 +187,7 @@ class EstabelecimentoController extends Controller
             ->get();
 
         $automacaoLogs = $automacaoLogService->listarParaEstabelecimento($estabelecimento->id);
-        $automacaoLogsIndisponivel = ! $automacaoLogService->tabelaDisponivel();
+        $automacaoLogsIndisponivel = ! \App\Support\AutomacaoSchema::temTabelaLogs();
 
         $automacaoPreview = null;
         if (auth()->user()?->tipo === 'admin' && PlatformSettings::automacaoConfigurado()) {

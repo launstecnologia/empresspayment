@@ -10,6 +10,7 @@ use App\Jobs\AutomacaoRetentarEmailJob;
 use App\Models\Estabelecimento;
 use App\Services\AutomacaoLogService;
 use App\Services\AutomacaoPagBankService;
+use App\Support\AutomacaoSchema;
 use App\Support\PlatformSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -173,6 +174,13 @@ class EstabelecimentoAutomacaoController extends Controller
     {
         abort_unless($request->user()?->tipo === 'admin', 403);
 
+        if (! AutomacaoSchema::temColunasProposta()) {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->withFragment('automacao')
+                ->withErrors(['automacao' => 'Execute php artisan migrate no servidor antes de aceitar a proposta.']);
+        }
+
         if (blank($estabelecimento->fv_senha_6)) {
             return redirect()
                 ->route('estabelecimentos.show', $estabelecimento)
@@ -190,6 +198,7 @@ class EstabelecimentoAutomacaoController extends Controller
         if (! PlatformSettings::automacaoConfigurado()) {
             return redirect()
                 ->route('estabelecimentos.show', $estabelecimento)
+                ->withFragment('automacao')
                 ->withErrors(['automacao' => 'A automação não está configurada.']);
         }
 
@@ -202,6 +211,16 @@ class EstabelecimentoAutomacaoController extends Controller
                 ->withErrors(['automacao' => $e->getMessage()]);
         }
 
+        $estabelecimento->update(array_merge(
+            AutomacaoSchema::atualizacaoProposta('em_andamento'),
+            ['fv_proposta_erro' => null],
+        ));
+
+        app(AutomacaoLogService::class)->registrarInicio(
+            $estabelecimento->id,
+            'Aceitar proposta comercial PagBank (manual)',
+        );
+
         AutomacaoAceitarPropostaJob::dispatch($estabelecimento->id)
             ->onQueue('automacao');
 
@@ -209,7 +228,7 @@ class EstabelecimentoAutomacaoController extends Controller
             ->route('estabelecimentos.show', $estabelecimento)
             ->withFragment('automacao')
             ->with('proposta_aceitando', true)
-            ->with('status', 'Aceitando proposta comercial no PagBank...');
+            ->with('status', 'Aceitando proposta comercial no PagBank... Aguarde, a página atualiza automaticamente.');
     }
 
     private function gerarSenha6(): string

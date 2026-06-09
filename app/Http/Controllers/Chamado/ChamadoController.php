@@ -35,7 +35,7 @@ class ChamadoController extends Controller
 
     public function create()
     {
-        abort_if(request()->user()?->tipo === 'admin', 404);
+        abort_if(request()->user() instanceof Usuario && request()->user()->tipo === 'admin', 404);
 
         return view('chamados.form');
     }

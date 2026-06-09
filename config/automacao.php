@@ -33,7 +33,7 @@ return [
     | Intervalo e máximo de tentativas para consultar o status do job na API Python
     */
     'polling_intervalo_seg' => (int) env('AUTOMACAO_POLLING_INTERVALO', 20),
-    'polling_max_tentativas' => (int) env('AUTOMACAO_POLLING_MAX', 30), // 30 * 20s = 10 minutos
+    'polling_max_tentativas' => (int) env('AUTOMACAO_POLLING_MAX', 50), // 50 * 20s ≈ 16 minutos
 
     /*
     | Rodar Chrome em modo headless (true em produção, false para debug)

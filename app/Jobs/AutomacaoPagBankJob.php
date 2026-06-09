@@ -20,8 +20,8 @@ class AutomacaoPagBankJob implements ShouldQueue
      */
     public int $tries = 1;
 
-    /** 15 minutos: cadastro FV + aguardar email + criar senha */
-    public int $timeout = 900;
+    /** 20 minutos: cadastro FV + e-mail + proposta + safepay */
+    public int $timeout = 1200;
 
     public function __construct(
         public readonly int $estabelecimentoId,
@@ -82,7 +82,7 @@ class AutomacaoPagBankJob implements ShouldQueue
                     'status' => $statusFinal,
                 ]);
 
-                if (in_array($statusFinal, ['concluido', 'erro', 'erro_email'], true)) {
+                if (in_array($statusFinal, ['concluido', 'erro', 'erro_email', 'erro_proposta'], true)) {
                     break;
                 }
             }
@@ -96,6 +96,9 @@ class AutomacaoPagBankJob implements ShouldQueue
                 'fv_senha_6'      => $this->senha6,
                 'fv_concluido_em' => now(),
                 'fv_erro'         => null,
+                'fv_proposta_status' => 'concluido',
+                'fv_proposta_concluido_em' => now(),
+                'fv_proposta_erro' => null,
                 'status'          => $estab->status === 'em_cadastro' ? 'habilitado' : $estab->status,
             ];
 
@@ -121,13 +124,21 @@ class AutomacaoPagBankJob implements ShouldQueue
                     );
                 }
 
-            } elseif (in_array($statusFinal, ['erro', 'erro_email'], true)) {
+            } elseif (in_array($statusFinal, ['erro', 'erro_email', 'erro_proposta'], true)) {
                 $erro = $status['erro'] ?? 'Erro desconhecido na automação';
 
-                $estab->update([
+                $update = [
                     'fv_status' => $statusFinal,
                     'fv_erro'   => $erro,
-                ]);
+                ];
+
+                if ($statusFinal === 'erro_proposta') {
+                    $update['fv_senha_6'] = $this->senha6;
+                    $update['fv_proposta_status'] = 'erro';
+                    $update['fv_proposta_erro'] = $erro;
+                }
+
+                $estab->update($update);
 
                 Log::error('AutomacaoPagBankJob: automação falhou', [
                     'estabelecimento_id' => $estab->id,

@@ -116,6 +116,27 @@ def _set_etapa(job_id: str, etapa: str) -> None:
     log.info(f'[{job_id}] Etapa: {etapa}')
 
 
+def _executar_etapa_proposta(job_id: str, req: dict, screenshot_dir: str) -> dict:
+    from aceitar_proposta import aceitar_proposta
+
+    documento = req.get('documento') or req.get('dados', {}).get('cpf_cnpj', '')
+    email = req.get('email') or req.get('webmail_usuario') or req.get('dados', {}).get('email', '')
+    senha_6 = req.get('senha_6', '')
+
+    _set_etapa(job_id, 'Aceitando proposta comercial no PagBank...')
+    log.info(f'[{job_id}] Aceitar proposta: documento={documento}')
+
+    return aceitar_proposta(
+        documento=documento,
+        senha_6=senha_6,
+        email=email,
+        email_suffix=req.get('email_suffix', 'express.app.br'),
+        headless=req.get('headless', True),
+        screenshot_dir=screenshot_dir,
+        job_id=job_id,
+    )
+
+
 # ----------------------------------------------------------------
 # Schemas
 # ----------------------------------------------------------------
@@ -150,12 +171,22 @@ class BuscarSafepayRequest(BaseModel):
 
 class RetentarEmailRequest(BaseModel):
     estabelecimento_id: int = Field(..., description='ID do estabelecimento no Laravel')
+    documento: str = Field(default='', description='CPF ou CNPJ para aceite de proposta após senha')
     webmail_url: str = Field(..., description='URL do Roundcube')
     webmail_usuario: str = Field(..., description='Email para login no webmail')
     webmail_senha: str = Field(..., description='Senha do webmail')
     senha_6: str = Field(..., min_length=6, max_length=6, description='Senha 6 dígitos para conta PagBank')
     headless: bool = Field(default=True)
     aguardar_email_seg: int = Field(default=90)
+
+
+class AceitarPropostaRequest(BaseModel):
+    estabelecimento_id: int = Field(..., description='ID do estabelecimento no Laravel')
+    documento: str = Field(..., min_length=11, max_length=18, description='CPF ou CNPJ')
+    senha_6: str = Field(..., min_length=6, max_length=6, description='Senha 6 dígitos da conta PagBank')
+    email: str = Field(default='', description='E-mail @express.app.br do cliente')
+    email_suffix: str = Field(default='express.app.br', description='Domínio do e-mail a selecionar')
+    headless: bool = Field(default=True, description='Rodar Chrome em modo headless')
 
 
 # ----------------------------------------------------------------
@@ -202,8 +233,20 @@ def _executar_somente_email(job_id: str, req: dict) -> None:
         }
 
         if email_resultado.get('sucesso'):
+            proposta_resultado = _executar_etapa_proposta(job_id, req, screenshot_dir)
+            resultado_final['etapa_proposta'] = proposta_resultado
+
+            if not proposta_resultado.get('sucesso'):
+                _update_job(
+                    job_id, 'erro_proposta',
+                    resultado=resultado_final,
+                    erro=proposta_resultado.get('erro', 'Erro ao aceitar proposta'),
+                    etapa_atual='Erro ao aceitar proposta',
+                )
+                return
+
             _update_job(job_id, 'concluido', resultado=resultado_final, etapa_atual='Concluído com sucesso')
-            log.info(f'[{job_id}] Email concluído com sucesso!')
+            log.info(f'[{job_id}] Email + proposta concluídos com sucesso!')
         else:
             _update_job(
                 job_id, 'erro_email',
@@ -374,6 +417,18 @@ def _executar_job(job_id: str, req: dict) -> None:
         }
 
         if email_resultado.get('sucesso'):
+            proposta_resultado = _executar_etapa_proposta(job_id, req, screenshot_dir)
+            resultado_final['etapa_proposta'] = proposta_resultado
+
+            if not proposta_resultado.get('sucesso'):
+                _update_job(
+                    job_id, 'erro_proposta',
+                    resultado=resultado_final,
+                    erro=proposta_resultado.get('erro', 'Erro ao aceitar proposta'),
+                    etapa_atual='Erro ao aceitar proposta',
+                )
+                return
+
             _set_etapa(job_id, 'Buscando Safepay ID no portal FV...')
             from main import buscar_safepay_id_fv
 
@@ -394,7 +449,6 @@ def _executar_job(job_id: str, req: dict) -> None:
             else:
                 log.warning(f'[{job_id}] Safepay ID não encontrado: {safepay_resultado.get("erro")}')
 
-        if email_resultado.get('sucesso'):
             _update_job(job_id, 'concluido', resultado=resultado_final, etapa_atual='Concluído com sucesso')
             log.info(f'[{job_id}] Job concluído com sucesso!')
         else:
@@ -408,6 +462,42 @@ def _executar_job(job_id: str, req: dict) -> None:
     except Exception as e:
         log.exception(f'[{job_id}] Erro inesperado')
         _update_job(job_id, 'erro', erro=str(e), etapa_atual='Erro inesperado')
+    finally:
+        remover(job_id)
+
+
+def _executar_aceitar_proposta(job_id: str, req: dict) -> None:
+    from progresso import registrar, remover
+
+    screenshot_dir = os.path.join(SCREENSHOT_DIR, job_id)
+    os.makedirs(screenshot_dir, exist_ok=True)
+
+    registrar(job_id, lambda etapa: _set_etapa(job_id, etapa))
+
+    try:
+        _update_job(job_id, 'em_andamento', etapa_atual='Aceitando proposta comercial...')
+        log.info(f'[{job_id}] Aceitar proposta standalone: estab {req.get("estabelecimento_id")}')
+
+        resultado = _executar_etapa_proposta(job_id, req, screenshot_dir)
+
+        if resultado.get('sucesso'):
+            _update_job(
+                job_id, 'concluido',
+                resultado={'tipo_job': 'aceitar_proposta', 'detalhe': resultado},
+                etapa_atual='Proposta aceita com sucesso',
+            )
+            log.info(f'[{job_id}] Proposta aceita com sucesso')
+        else:
+            _update_job(
+                job_id, 'erro_proposta',
+                resultado={'tipo_job': 'aceitar_proposta', 'detalhe': resultado},
+                erro=resultado.get('erro', 'Erro ao aceitar proposta'),
+                etapa_atual='Erro ao aceitar proposta',
+            )
+
+    except Exception as e:
+        log.exception(f'[{job_id}] Erro inesperado ao aceitar proposta')
+        _update_job(job_id, 'erro_proposta', erro=str(e), etapa_atual='Erro inesperado')
     finally:
         remover(job_id)
 
@@ -575,6 +665,41 @@ async def retentar_email(request: RetentarEmailRequest, x_api_key: str = Header(
     return {'job_id': job_id, 'status': 'pendente'}
 
 
+@app.post('/aceitar-proposta', tags=['Automação'], status_code=202)
+async def aceitar_proposta_endpoint(request: AceitarPropostaRequest, x_api_key: str = Header(...)):
+    """
+    Login no PagBank como cliente e aceite da proposta comercial pendente.
+    Pode ser executado separadamente após a criação da senha.
+    """
+    _autenticar(x_api_key)
+
+    job_id = str(uuid.uuid4())
+    agora = datetime.now().isoformat()
+
+    with _db_lock:
+        with _get_conn() as conn:
+            conn.execute(
+                'INSERT INTO jobs (id, estabelecimento_id, status, etapa_atual, dados, criado_em, atualizado_em)'
+                ' VALUES (?, ?, ?, ?, ?, ?, ?)',
+                (
+                    job_id, request.estabelecimento_id, 'pendente', 'Aguardando aceite de proposta',
+                    json.dumps(request.model_dump(), ensure_ascii=False),
+                    agora, agora,
+                ),
+            )
+            conn.commit()
+
+    thread = threading.Thread(
+        target=_executar_aceitar_proposta,
+        args=(job_id, request.model_dump()),
+        daemon=True,
+    )
+    thread.start()
+
+    log.info(f'Job proposta {job_id} criado para estab {request.estabelecimento_id}')
+    return {'job_id': job_id, 'status': 'pendente'}
+
+
 @app.get('/status/{job_id}', tags=['Automação'])
 async def consultar_status(job_id: str, x_api_key: str = Header(...)):
     """
@@ -586,6 +711,7 @@ async def consultar_status(job_id: str, x_api_key: str = Header(...)):
     - `concluido`    — cadastro + email + senha concluídos com sucesso
     - `erro`         — falha no cadastro FV
     - `erro_email`   — cadastro FV ok, mas falha no email/senha
+    - `erro_proposta` — cadastro/senha ok, mas falha ao aceitar proposta
     """
     _autenticar(x_api_key)
 

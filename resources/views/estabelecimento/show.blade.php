@@ -185,6 +185,7 @@
         'pendente'     => ['bg-amber-100 text-amber-800 border-amber-200',       'fa-clock',              'Aguardando fila'],
         'erro'         => ['bg-red-100 text-red-800 border-red-200',             'fa-circle-exclamation', 'Erro'],
         'erro_email'   => ['bg-red-100 text-red-800 border-red-200',             'fa-circle-exclamation', 'Erro no e-mail'],
+        'erro_proposta'=> ['bg-orange-100 text-orange-800 border-orange-200',   'fa-file-circle-xmark',  'Erro na proposta'],
         'timeout'      => ['bg-orange-100 text-orange-800 border-orange-200',    'fa-hourglass-end',      'Timeout'],
         default        => ['bg-gray-100 text-gray-500 border-gray-200',          'fa-circle-minus',       'Não iniciada'],
     };
@@ -273,6 +274,35 @@
                             class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
                         <i class="fa-solid fa-rotate-right"></i> Reexecutar
                     </button>
+                @elseif ($fvStatus === 'erro_proposta' && $fvEhAdmin)
+                    <form method="POST"
+                          action="{{ route('admin.estabelecimentos.automacao.aceitar-proposta', $estabelecimento) }}"
+                          onsubmit="return confirm('Retentar aceite da proposta comercial no PagBank?')">
+                        @csrf
+                        <button type="submit"
+                                class="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white shadow hover:bg-orange-700">
+                            <i class="fa-solid fa-file-signature"></i> Retentar Proposta
+                        </button>
+                    </form>
+                @endif
+
+                @php
+                    $podeAceitarProposta = $fvEhAdmin
+                        && filled($estabelecimento->fv_senha_6)
+                        && $estabelecimento->fv_proposta_status !== 'concluido'
+                        && $estabelecimento->fv_proposta_status !== 'em_andamento'
+                        && $fvStatus === 'concluido';
+                @endphp
+                @if ($podeAceitarProposta)
+                    <form method="POST"
+                          action="{{ route('admin.estabelecimentos.automacao.aceitar-proposta', $estabelecimento) }}"
+                          onsubmit="return confirm('Executar login no PagBank e aceitar a proposta comercial pendente?')">
+                        @csrf
+                        <button type="submit"
+                                class="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-bold text-white shadow hover:bg-sky-700">
+                            <i class="fa-solid fa-file-signature"></i> Aceitar Proposta
+                        </button>
+                    </form>
                 @endif
             </div>
         </div>
@@ -343,6 +373,27 @@
                     @elseif (blank($estabelecimento->token_pagseguro))
                         <p class="mt-2 text-xs text-amber-700">Busca no FV o cliente com e-mail @express.app.br e preenche automaticamente.</p>
                     @endif
+                </div>
+            @endif
+            @if (filled($estabelecimento->fv_proposta_status))
+                <div class="rounded-lg border {{ $estabelecimento->fv_proposta_status === 'concluido' ? 'border-emerald-100 bg-emerald-50/50' : ($estabelecimento->fv_proposta_status === 'em_andamento' ? 'border-blue-100 bg-blue-50/50' : 'border-orange-100 bg-orange-50/50') }} p-4">
+                    <dt class="text-xs font-semibold uppercase tracking-wide {{ $estabelecimento->fv_proposta_status === 'concluido' ? 'text-emerald-600' : ($estabelecimento->fv_proposta_status === 'em_andamento' ? 'text-blue-600' : 'text-orange-700') }}">Proposta comercial</dt>
+                    <dd class="mt-1 text-sm font-medium text-gray-800">
+                        @if ($estabelecimento->fv_proposta_status === 'concluido')
+                            Aceita em {{ $estabelecimento->fv_proposta_concluido_em?->format('d/m/Y H:i') ?: '—' }}
+                        @elseif ($estabelecimento->fv_proposta_status === 'em_andamento')
+                            Aceitando proposta no PagBank...
+                        @else
+                            Erro: {{ $estabelecimento->fv_proposta_erro ?: 'Falha ao aceitar proposta' }}
+                        @endif
+                    </dd>
+                </div>
+            @elseif (session('proposta_aceitando') || $estabelecimento->fv_proposta_status === 'em_andamento')
+                <div id="proposta-aceitando-ativa" class="rounded-lg border border-blue-200 bg-blue-50 p-4 sm:col-span-2">
+                    <div class="flex items-center gap-2 text-sm font-semibold text-blue-800">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <span>Aceitando proposta comercial no PagBank...</span>
+                    </div>
                 </div>
             @endif
             <div class="rounded-lg border border-gray-100 bg-gray-50 p-4 sm:col-span-2">
@@ -1229,7 +1280,7 @@
         if (automacaoPollBox) {
             const statusUrl = automacaoPollBox.dataset.statusUrl;
             const etapaTexto = document.getElementById('automacao-etapa-texto');
-            const statusFinal = ['concluido', 'erro', 'erro_email', 'timeout'];
+            const statusFinal = ['concluido', 'erro', 'erro_email', 'erro_proposta', 'timeout'];
 
             const atualizarAutomacao = async () => {
                 try {

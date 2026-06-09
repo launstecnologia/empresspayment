@@ -49,6 +49,9 @@ class Estabelecimento extends Model
         'fv_erro',
         'fv_iniciado_em',
         'fv_concluido_em',
+        'fv_proposta_status',
+        'fv_proposta_erro',
+        'fv_proposta_concluido_em',
         'webmail_email',
         'webmail_senha',
         'plano_id',
@@ -77,6 +80,7 @@ class Estabelecimento extends Model
             'pagbank_cadastrado_em' => 'datetime',
             'fv_iniciado_em' => 'datetime',
             'fv_concluido_em' => 'datetime',
+            'fv_proposta_concluido_em' => 'datetime',
             // webmail_senha usa accessor próprio para tratamento seguro de descriptografia
             'data_abertura' => 'date',
             'data_nascimento' => 'date',

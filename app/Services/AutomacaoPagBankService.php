@@ -83,6 +83,7 @@ class AutomacaoPagBankService
     {
         $payload = [
             'estabelecimento_id'  => $estab->id,
+            'documento'           => $this->documentoEstabelecimento($estab),
             'webmail_url'         => PlatformSettings::automacaoWebmailUrl() ?? '',
             'webmail_usuario'     => $estab->webmail_email ?? '',
             'webmail_senha'       => $estab->webmail_senha ?? '',
@@ -165,6 +166,35 @@ class AutomacaoPagBankService
         if (! $response->successful()) {
             throw new RuntimeException(
                 'Falha ao buscar Safepay ID: '.$response->status().' — '.$response->body()
+            );
+        }
+
+        return $response->json('job_id');
+    }
+
+    public function iniciarAceitarProposta(Estabelecimento $estab): string
+    {
+        if (blank($estab->fv_senha_6)) {
+            throw new RuntimeException('Senha PagBank (6 dígitos) não disponível para este estabelecimento.');
+        }
+
+        $documento = $this->documentoEstabelecimento($estab);
+        $email = $estab->webmail_email ?: $estab->email;
+
+        $response = Http::timeout(15)
+            ->withHeaders(['X-Api-Key' => $this->apiKey])
+            ->post("{$this->apiUrl}/aceitar-proposta", [
+                'estabelecimento_id' => $estab->id,
+                'documento' => $documento,
+                'senha_6' => $estab->fv_senha_6,
+                'email' => $email ?? '',
+                'email_suffix' => 'express.app.br',
+                'headless' => config('automacao.headless', true),
+            ]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                'Falha ao iniciar aceite de proposta: '.$response->status().' — '.$response->body()
             );
         }
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\AutomacaoAceitarPropostaJob;
 use App\Jobs\AutomacaoBuscarSafepayJob;
 use App\Jobs\AutomacaoPagBankJob;
 use App\Jobs\AutomacaoRetentarEmailJob;
@@ -164,6 +165,49 @@ class EstabelecimentoAutomacaoController extends Controller
             ->withFragment('automacao')
             ->with('safepay_buscando', true)
             ->with('status', 'Pesquisando Safepay ID no portal PagBank...');
+    }
+
+    public function aceitarProposta(Request $request, Estabelecimento $estabelecimento)
+    {
+        abort_unless($request->user()?->tipo === 'admin', 403);
+
+        if (blank($estabelecimento->fv_senha_6)) {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->withFragment('automacao')
+                ->withErrors(['automacao' => 'Senha PagBank (6 dígitos) não disponível. Conclua a etapa de e-mail/senha primeiro.']);
+        }
+
+        if ($estabelecimento->fv_proposta_status === 'em_andamento') {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->withFragment('automacao')
+                ->with('aviso', 'O aceite de proposta já está em andamento.');
+        }
+
+        if (! PlatformSettings::automacaoConfigurado()) {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->withErrors(['automacao' => 'A automação não está configurada.']);
+        }
+
+        try {
+            app(AutomacaoPagBankService::class)->documentoEstabelecimento($estabelecimento);
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->withFragment('automacao')
+                ->withErrors(['automacao' => $e->getMessage()]);
+        }
+
+        AutomacaoAceitarPropostaJob::dispatch($estabelecimento->id)
+            ->onQueue('automacao');
+
+        return redirect()
+            ->route('estabelecimentos.show', $estabelecimento)
+            ->withFragment('automacao')
+            ->with('proposta_aceitando', true)
+            ->with('status', 'Aceitando proposta comercial no PagBank...');
     }
 
     private function gerarSenha6(): string

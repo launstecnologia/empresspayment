@@ -314,21 +314,33 @@
                 </div>
             @endif
             @if (in_array($fvStatus, ['concluido', 'erro_email'], true))
+                @php
+                    $safepayBuscando = session('safepay_buscando') && blank($estabelecimento->token_pagseguro);
+                @endphp
                 <div class="rounded-lg border {{ filled($estabelecimento->token_pagseguro) ? 'border-emerald-100 bg-emerald-50/50' : 'border-amber-100 bg-amber-50/50' }} p-4">
                     <dt class="text-xs font-semibold uppercase tracking-wide {{ filled($estabelecimento->token_pagseguro) ? 'text-emerald-600' : 'text-amber-700' }}">ID PagSeguro (Safepay ID)</dt>
                     <dd class="mt-1 flex flex-wrap items-center gap-3">
-                        <span class="font-mono text-sm font-bold text-gray-900">{{ $estabelecimento->token_pagseguro ?: '—' }}</span>
-                        @if ($fvEhAdmin && blank($estabelecimento->token_pagseguro))
-                            <form method="POST" action="{{ route('admin.estabelecimentos.automacao.buscar-safepay-id', $estabelecimento) }}">
+                        <span id="safepay-id-valor" class="font-mono text-sm font-bold text-gray-900">{{ $estabelecimento->token_pagseguro ?: '—' }}</span>
+                        @if ($fvEhAdmin && blank($estabelecimento->token_pagseguro) && ! $safepayBuscando)
+                            <form id="form-buscar-safepay" method="POST" action="{{ route('admin.estabelecimentos.automacao.buscar-safepay-id', $estabelecimento) }}">
                                 @csrf
-                                <button type="submit"
-                                        class="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700">
-                                    <i class="fa-solid fa-magnifying-glass"></i> Buscar Safepay ID
+                                <button type="submit" id="btn-buscar-safepay"
+                                        class="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60">
+                                    <i class="fa-solid fa-magnifying-glass"></i>
+                                    <span>Buscar Safepay ID</span>
                                 </button>
                             </form>
                         @endif
                     </dd>
-                    @if (blank($estabelecimento->token_pagseguro))
+                    @if ($safepayBuscando)
+                        <div id="safepay-busca-ativa" class="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                            <div class="flex items-center gap-2 text-sm font-semibold text-blue-800">
+                                <i class="fa-solid fa-spinner fa-spin"></i>
+                                <span>Pesquisando Safepay ID no portal PagBank...</span>
+                            </div>
+                            <p class="mt-1 text-xs text-blue-600">Aguarde — a página atualiza automaticamente quando encontrar o ID.</p>
+                        </div>
+                    @elseif (blank($estabelecimento->token_pagseguro))
                         <p class="mt-2 text-xs text-amber-700">Busca no FV o cliente com e-mail @express.app.br e preenche automaticamente.</p>
                     @endif
                 </div>
@@ -1199,6 +1211,18 @@
             const input = document.querySelector('[data-public-link]');
             await navigator.clipboard.writeText(input.value);
         });
+
+        const formBuscarSafepay = document.getElementById('form-buscar-safepay');
+        const btnBuscarSafepay = document.getElementById('btn-buscar-safepay');
+        formBuscarSafepay?.addEventListener('submit', () => {
+            if (!btnBuscarSafepay) return;
+            btnBuscarSafepay.disabled = true;
+            btnBuscarSafepay.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Pesquisando...</span>';
+        });
+
+        if (document.getElementById('safepay-busca-ativa')) {
+            setInterval(() => window.location.reload(), 15000);
+        }
 
         // Polling da automação FV — atualiza etapa a cada 20s
         const automacaoPollBox = document.querySelector('[data-automacao-poll]');

@@ -162,7 +162,8 @@ class EstabelecimentoAutomacaoController extends Controller
         return redirect()
             ->route('estabelecimentos.show', $estabelecimento)
             ->withFragment('automacao')
-            ->with('status', 'Buscando Safepay ID no portal PagBank. Atualize a página em instantes.');
+            ->with('safepay_buscando', true)
+            ->with('status', 'Pesquisando Safepay ID no portal PagBank...');
     }
 
     private function gerarSenha6(): string

@@ -118,23 +118,24 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
 
     Route::middleware('planos.marketplace')->group(function () {
         Route::get('planos', [PlanoController::class, 'index'])->name('planos.index');
-        Route::get('planos/{plano}', [PlanoController::class, 'show'])->name('planos.show');
-    });
 
-    Route::middleware('nivel:admin')->group(function () {
-        Route::get('planos/create', [PlanoController::class, 'create'])->name('planos.create');
-        Route::post('planos', [PlanoController::class, 'store'])->name('planos.store');
-        Route::get('planos/{plano}/edit', [PlanoController::class, 'edit'])->name('planos.edit');
-        Route::put('planos/{plano}', [PlanoController::class, 'update'])->name('planos.update');
-        Route::post('planos/{plano}/inativar', [PlanoController::class, 'inativar'])->name('planos.inativar');
-        Route::post('planos/{plano}/grade-taxas', [PlanoController::class, 'salvarGrade'])->name('planos.grade-taxas.salvar');
-        Route::prefix('planos/{plano}')->name('planos.')->group(function () {
-            Route::get('taxas/create', [PlanoTaxaController::class, 'create'])->name('taxas.create');
-            Route::post('taxas', [PlanoTaxaController::class, 'store'])->name('taxas.store');
-            Route::get('taxas/{taxa}/edit', [PlanoTaxaController::class, 'edit'])->name('taxas.edit');
-            Route::put('taxas/{taxa}', [PlanoTaxaController::class, 'update'])->name('taxas.update');
-            Route::delete('taxas/{taxa}', [PlanoTaxaController::class, 'destroy'])->name('taxas.destroy');
+        Route::middleware('nivel:admin')->group(function () {
+            Route::get('planos/create', [PlanoController::class, 'create'])->name('planos.create');
+            Route::post('planos', [PlanoController::class, 'store'])->name('planos.store');
+            Route::get('planos/{plano}/edit', [PlanoController::class, 'edit'])->name('planos.edit');
+            Route::put('planos/{plano}', [PlanoController::class, 'update'])->name('planos.update');
+            Route::post('planos/{plano}/inativar', [PlanoController::class, 'inativar'])->name('planos.inativar');
+            Route::post('planos/{plano}/grade-taxas', [PlanoController::class, 'salvarGrade'])->name('planos.grade-taxas.salvar');
+            Route::prefix('planos/{plano}')->name('planos.')->group(function () {
+                Route::get('taxas/create', [PlanoTaxaController::class, 'create'])->name('taxas.create');
+                Route::post('taxas', [PlanoTaxaController::class, 'store'])->name('taxas.store');
+                Route::get('taxas/{taxa}/edit', [PlanoTaxaController::class, 'edit'])->name('taxas.edit');
+                Route::put('taxas/{taxa}', [PlanoTaxaController::class, 'update'])->name('taxas.update');
+                Route::delete('taxas/{taxa}', [PlanoTaxaController::class, 'destroy'])->name('taxas.destroy');
+            });
         });
+
+        Route::get('planos/{plano}', [PlanoController::class, 'show'])->name('planos.show');
     });
     Route::get('/comissoes', [RoyaltyController::class, 'index'])->name('comissoes.index');
     Route::redirect('/royalties', '/comissoes');

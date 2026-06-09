@@ -78,13 +78,19 @@ class ChamadoController extends Controller
         abort_unless($service->podeAcessar($chamado, $request->user()), 403);
         abort_if($chamado->status === 'fechado', 422, 'Chamado fechado não aceita respostas.');
 
+        $anexos = collect($request->file('anexos', []))
+            ->filter(fn ($arquivo) => $arquivo instanceof \Illuminate\Http\UploadedFile && $arquivo->isValid())
+            ->values()
+            ->all();
+
         $dados = $request->validate([
-            'mensagem' => ['required', 'string', 'min:5'],
-            'anexos' => ['nullable', 'array', 'max:5'],
-            'anexos.*' => ['file', 'max:10240', 'mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt,zip'],
+            'mensagem' => ['required', 'string', 'min:3'],
+        ], [
+            'mensagem.required' => 'Digite uma mensagem antes de enviar.',
+            'mensagem.min' => 'A mensagem deve ter pelo menos 3 caracteres.',
         ]);
 
-        $service->responder($chamado, $request->user(), $dados['mensagem'], $request->file('anexos', []));
+        $service->responder($chamado, $request->user(), trim($dados['mensagem']), $anexos);
 
         app(ChamadoNotificacaoService::class)->respostaCliente($chamado, $dados['mensagem']);
 

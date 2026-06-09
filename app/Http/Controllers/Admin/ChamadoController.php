@@ -54,17 +54,29 @@ class ChamadoController extends Controller
 
         $chamado = Chamado::where('numero', $numero)->firstOrFail();
 
+        $anexos = collect($request->file('anexos', []))
+            ->filter(fn ($arquivo) => $arquivo instanceof \Illuminate\Http\UploadedFile && $arquivo->isValid())
+            ->values()
+            ->all();
+
         $dados = $request->validate([
-            'mensagem' => ['required', 'string', 'min:5'],
-            'interno' => ['boolean'],
-            'anexos' => ['nullable', 'array', 'max:5'],
-            'anexos.*' => ['file', 'max:10240', 'mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt,zip'],
+            'mensagem' => ['required', 'string', 'min:3'],
+            'interno' => ['nullable', 'boolean'],
+        ], [
+            'mensagem.required' => 'Digite uma mensagem antes de enviar.',
+            'mensagem.min' => 'A mensagem deve ter pelo menos 3 caracteres.',
         ]);
 
-        $service->responder($chamado, $request->user(), $dados['mensagem'], $request->file('anexos', []), (bool) ($dados['interno'] ?? false));
+        $interno = $request->boolean('interno');
 
-        if (! ($dados['interno'] ?? false)) {
-            app(ChamadoNotificacaoService::class)->respostaAdmin($chamado, $dados['mensagem']);
+        $service->responder($chamado, $request->user(), trim($dados['mensagem']), $anexos, $interno);
+
+        if (! $interno) {
+            try {
+                app(ChamadoNotificacaoService::class)->respostaAdmin($chamado, trim($dados['mensagem']));
+            } catch (\Throwable) {
+                // Resposta já foi salva; falha de e-mail não deve impedir o atendimento.
+            }
         }
 
         return redirect()->route('admin.chamados.show', $chamado->numero)->with('status', 'Resposta registrada.');

@@ -54,9 +54,16 @@
             <form method="POST" action="{{ route('chamados.responder', $chamado->numero) }}" enctype="multipart/form-data" class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
                 @csrf
                 <h3 class="mb-3 text-sm font-bold text-gray-800">Responder chamado</h3>
-                <textarea name="mensagem" rows="5" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"></textarea>
+                @if ($errors->any())
+                    <div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                        @foreach ($errors->all() as $error)
+                            <p>{{ $error }}</p>
+                        @endforeach
+                    </div>
+                @endif
+                <textarea name="mensagem" rows="5" required minlength="3" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 @error('mensagem') border-red-500 @enderror">{{ old('mensagem') }}</textarea>
                 <input type="file" name="anexos[]" multiple class="mt-3 w-full rounded-lg border border-dashed border-blue-200 bg-blue-50 px-3 py-3 text-sm text-gray-600">
-                <button class="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">Enviar mensagem</button>
+                <button type="submit" class="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">Enviar mensagem</button>
             </form>
         @endif
 

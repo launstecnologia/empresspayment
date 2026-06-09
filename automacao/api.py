@@ -66,6 +66,20 @@ def _init_db() -> None:
             conn.execute('ALTER TABLE jobs ADD COLUMN etapa_atual TEXT')
         except sqlite3.OperationalError:
             pass
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS job_logs (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id      TEXT NOT NULL,
+                nivel       TEXT NOT NULL DEFAULT 'info',
+                etapa       TEXT,
+                mensagem    TEXT NOT NULL,
+                detalhe     TEXT,
+                criado_em   TEXT NOT NULL
+            )
+        ''')
+        conn.execute(
+            'CREATE INDEX IF NOT EXISTS idx_job_logs_job_id ON job_logs(job_id, id)'
+        )
         conn.commit()
 
 
@@ -73,10 +87,80 @@ _init_db()
 _db_lock = threading.Lock()
 
 
+def _append_job_log(
+    job_id: str,
+    mensagem: str,
+    nivel: str = 'info',
+    etapa: str | None = None,
+    detalhe: dict | None = None,
+) -> int:
+    agora = datetime.now().isoformat()
+    with _db_lock:
+        with _get_conn() as conn:
+            cur = conn.execute(
+                'INSERT INTO job_logs (job_id, nivel, etapa, mensagem, detalhe, criado_em)'
+                ' VALUES (?, ?, ?, ?, ?, ?)',
+                (
+                    job_id,
+                    nivel,
+                    etapa,
+                    mensagem,
+                    json.dumps(detalhe, ensure_ascii=False) if detalhe else None,
+                    agora,
+                ),
+            )
+            conn.commit()
+            return int(cur.lastrowid)
+
+
+def _get_job_logs(job_id: str) -> list[dict]:
+    with _get_conn() as conn:
+        rows = conn.execute(
+            'SELECT id, job_id, nivel, etapa, mensagem, detalhe, criado_em'
+            ' FROM job_logs WHERE job_id=? ORDER BY id ASC',
+            (job_id,),
+        ).fetchall()
+
+    logs = []
+    for row in rows:
+        detalhe = None
+        if row['detalhe']:
+            try:
+                detalhe = json.loads(row['detalhe'])
+            except json.JSONDecodeError:
+                detalhe = {'raw': row['detalhe']}
+        logs.append({
+            'id': row['id'],
+            'job_id': row['job_id'],
+            'nivel': row['nivel'],
+            'etapa': row['etapa'],
+            'mensagem': row['mensagem'],
+            'detalhe': detalhe,
+            'criado_em': row['criado_em'],
+        })
+    return logs
+
+
 def _update_job(job_id: str, status: str,
                 resultado: dict | None = None,
                 erro: str | None = None,
                 etapa_atual: str | None = None) -> None:
+    if erro:
+        _append_job_log(
+            job_id,
+            erro,
+            nivel='erro',
+            etapa=etapa_atual,
+            detalhe={'status': status, 'resultado': resultado} if resultado else {'status': status},
+        )
+    elif status == 'concluido':
+        _append_job_log(
+            job_id,
+            etapa_atual or 'Job concluído com sucesso',
+            nivel='sucesso',
+            etapa=etapa_atual or 'Concluído',
+        )
+
     with _db_lock:
         with _get_conn() as conn:
             if etapa_atual is not None:
@@ -106,6 +190,7 @@ def _update_job(job_id: str, status: str,
 
 
 def _set_etapa(job_id: str, etapa: str) -> None:
+    _append_job_log(job_id, etapa, nivel='info', etapa=etapa)
     with _db_lock:
         with _get_conn() as conn:
             conn.execute(
@@ -209,6 +294,7 @@ def _executar_somente_email(job_id: str, req: dict) -> None:
     registrar(job_id, lambda etapa: _set_etapa(job_id, etapa))
 
     try:
+        _append_job_log(job_id, 'Execução iniciada', 'info', 'Início')
         _update_job(job_id, 'em_andamento', etapa_atual='Retentando etapa de e-mail...')
         log.info(f'[{job_id}] Retentando apenas email para estab {req["estabelecimento_id"]}')
         log.info(f'[{job_id}] webmail_url={req.get("webmail_url")}')
@@ -271,6 +357,7 @@ def _executar_busca_safepay(job_id: str, req: dict) -> None:
     registrar(job_id, lambda etapa: _set_etapa(job_id, etapa))
 
     try:
+        _append_job_log(job_id, 'Execução iniciada', 'info', 'Início')
         _update_job(job_id, 'em_andamento', etapa_atual='Buscando Safepay ID no PagBank...')
         log.info(f'[{job_id}] Busca Safepay ID: {req.get("documento")}')
 
@@ -322,6 +409,7 @@ def _executar_consulta_documento(job_id: str, req: dict) -> None:
     registrar(job_id, lambda etapa: _set_etapa(job_id, etapa))
 
     try:
+        _append_job_log(job_id, 'Execução iniciada', 'info', 'Início')
         _update_job(job_id, 'em_andamento', etapa_atual='Consultando documento no PagBank...')
         log.info(f'[{job_id}] Consulta FV: {req.get("documento")}')
 
@@ -368,6 +456,7 @@ def _executar_job(job_id: str, req: dict) -> None:
     registrar(job_id, lambda etapa: _set_etapa(job_id, etapa))
 
     try:
+        _append_job_log(job_id, 'Execução iniciada', 'info', 'Início')
         _update_job(job_id, 'em_andamento', etapa_atual='Iniciando automação...')
 
         # --- Etapa 1: Cadastro na Força de Vendas ---
@@ -475,6 +564,7 @@ def _executar_aceitar_proposta(job_id: str, req: dict) -> None:
     registrar(job_id, lambda etapa: _set_etapa(job_id, etapa))
 
     try:
+        _append_job_log(job_id, 'Execução iniciada', 'info', 'Início')
         _update_job(job_id, 'em_andamento', etapa_atual='Aceitando proposta comercial...')
         log.info(f'[{job_id}] Aceitar proposta standalone: estab {req.get("estabelecimento_id")}')
 
@@ -730,6 +820,7 @@ async def consultar_status(job_id: str, x_api_key: str = Header(...)):
         'erro':               row['erro'],
         'criado_em':          row['criado_em'],
         'atualizado_em':      row['atualizado_em'],
+        'logs':               _get_job_logs(job_id),
     }
 
 

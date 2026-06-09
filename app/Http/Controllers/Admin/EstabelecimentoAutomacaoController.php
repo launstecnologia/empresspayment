@@ -7,7 +7,9 @@ use App\Jobs\AutomacaoAceitarPropostaJob;
 use App\Jobs\AutomacaoBuscarSafepayJob;
 use App\Jobs\AutomacaoPagBankJob;
 use App\Jobs\AutomacaoRetentarEmailJob;
+use App\Models\AutomacaoLog;
 use App\Models\Estabelecimento;
+use App\Services\AutomacaoLogService;
 use App\Services\AutomacaoPagBankService;
 use App\Support\PlatformSettings;
 use Illuminate\Http\Request;
@@ -109,7 +111,7 @@ class EstabelecimentoAutomacaoController extends Controller
 
         try {
             $status = app(AutomacaoPagBankService::class)
-                ->consultarStatus($estabelecimento->fv_job_id);
+                ->consultarStatusESincronizarLogs($estabelecimento, $estabelecimento->fv_job_id);
 
             return response()->json([
                 'fv_status'   => $estabelecimento->fv_status,
@@ -117,6 +119,7 @@ class EstabelecimentoAutomacaoController extends Controller
                 'etapa_atual' => $status['etapa_atual'] ?? null,
                 'erro'        => $status['erro'] ?? $estabelecimento->fv_erro,
                 'atualizado_em' => $status['atualizado_em'] ?? null,
+                'automacao_logs' => $this->logsAutomacaoJson($estabelecimento),
             ]);
         } catch (\Throwable $e) {
             Log::warning('Automacao status: falha ao consultar API Python', [
@@ -219,5 +222,27 @@ class EstabelecimentoAutomacaoController extends Controller
         } while ($ehSequencia);
 
         return $senha;
+    }
+
+    private function logsAutomacaoJson(Estabelecimento $estabelecimento): array
+    {
+        return AutomacaoLog::query()
+            ->where('estabelecimento_id', $estabelecimento->id)
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get()
+            ->reverse()
+            ->values()
+            ->map(fn (AutomacaoLog $log) => [
+                'id' => $log->id,
+                'nivel' => $log->nivel,
+                'etapa' => $log->etapa,
+                'mensagem' => $log->mensagem,
+                'detalhe' => $log->detalhe,
+                'job_id' => $log->job_id,
+                'origem' => $log->origem,
+                'created_at' => $log->created_at?->format('d/m/Y H:i:s'),
+            ])
+            ->all();
     }
 }

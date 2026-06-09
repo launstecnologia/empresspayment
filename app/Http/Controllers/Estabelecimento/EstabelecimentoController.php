@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Estabelecimento;
 
 use App\Http\Controllers\Controller;
 use App\Models\Estabelecimento;
+use App\Models\AutomacaoLog;
 use App\Models\Log;
 use App\Models\Plano;
 use App\Models\Segmento;
@@ -185,6 +186,14 @@ class EstabelecimentoController extends Controller
             ->take(10)
             ->get();
 
+        $automacaoLogs = AutomacaoLog::query()
+            ->where('estabelecimento_id', $estabelecimento->id)
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get()
+            ->reverse()
+            ->values();
+
         $automacaoPreview = null;
         if (auth()->user()?->tipo === 'admin' && PlatformSettings::automacaoConfigurado()) {
             try {
@@ -197,6 +206,7 @@ class EstabelecimentoController extends Controller
         return view('estabelecimento.show', compact(
             'estabelecimento',
             'logs',
+            'automacaoLogs',
             'kyc',
             'kycItens',
             'automacaoPreview',

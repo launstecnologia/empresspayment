@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Estabelecimento;
+use App\Services\AutomacaoLogService;
 use App\Services\AutomacaoPagBankService;
 use App\Services\NotificacaoEmailService;
 use App\Support\NotificacaoVars;
@@ -28,8 +29,11 @@ class AutomacaoPagBankJob implements ShouldQueue
         public readonly string $senha6,
     ) {}
 
-    public function handle(AutomacaoPagBankService $service, NotificacaoEmailService $notificacao): void
-    {
+    public function handle(
+        AutomacaoPagBankService $service,
+        AutomacaoLogService $automacaoLog,
+        NotificacaoEmailService $notificacao,
+    ): void {
         $estab = Estabelecimento::withoutGlobalScopes()->find($this->estabelecimentoId);
 
         if (! $estab) {
@@ -54,10 +58,13 @@ class AutomacaoPagBankJob implements ShouldQueue
         ]);
 
         try {
+            $automacaoLog->registrarInicio($estab->id, 'Cadastro completo FV + e-mail + proposta');
+
             // 1. Inicia o job na API Python
             $jobId = $service->iniciarCadastro($estab, $this->senha6);
 
             $estab->update(['fv_job_id' => $jobId]);
+            $automacaoLog->registrar($estab->id, "Job Python enfileirado (ID: {$jobId})", 'info', $jobId, 'Enfileirado');
 
             Log::info('AutomacaoPagBankJob: job Python iniciado', [
                 'estabelecimento_id' => $estab->id,
@@ -73,7 +80,7 @@ class AutomacaoPagBankJob implements ShouldQueue
             for ($i = 0; $i < $maxTentativas; $i++) {
                 sleep($intervalo);
 
-                $status = $service->consultarStatus($jobId);
+                $status = $service->consultarStatusESincronizarLogs($estab, $jobId);
                 $statusFinal = $status['status'] ?? 'desconhecido';
                 $resultado   = $status['resultado'] ?? null;
 
@@ -108,6 +115,13 @@ class AutomacaoPagBankJob implements ShouldQueue
 
             $estab->update($update);
 
+            $automacaoLog->registrarConclusao(
+                $estab->id,
+                'Automação concluída com sucesso'.(filled($safepayId) ? " — Safepay ID: {$safepayId}" : ''),
+                $jobId,
+                ['safepay_id' => $safepayId, 'resultado' => $resultado],
+            );
+
             Log::info('AutomacaoPagBankJob: automação concluída com sucesso', [
                     'estabelecimento_id' => $estab->id,
                     'job_id'             => $jobId,
@@ -140,6 +154,14 @@ class AutomacaoPagBankJob implements ShouldQueue
 
                 $estab->update($update);
 
+                $automacaoLog->registrarErro(
+                    $estab->id,
+                    $erro,
+                    $jobId,
+                    $statusFinal,
+                    ['status' => $statusFinal, 'resultado' => $resultado],
+                );
+
                 Log::error('AutomacaoPagBankJob: automação falhou', [
                     'estabelecimento_id' => $estab->id,
                     'job_id'             => $jobId,
@@ -164,6 +186,14 @@ class AutomacaoPagBankJob implements ShouldQueue
                     'fv_erro'   => 'Timeout: automação não concluiu dentro do prazo esperado.',
                 ]);
 
+                $automacaoLog->registrarErro(
+                    $estab->id,
+                    'Timeout: automação não concluiu dentro do prazo esperado.',
+                    $jobId ?? null,
+                    'timeout',
+                    ['status_final' => $statusFinal],
+                );
+
                 Log::warning('AutomacaoPagBankJob: timeout de polling', [
                     'estabelecimento_id' => $estab->id,
                     'job_id'             => $jobId,
@@ -176,6 +206,8 @@ class AutomacaoPagBankJob implements ShouldQueue
                 'fv_status' => 'erro',
                 'fv_erro'   => $e->getMessage(),
             ]);
+
+            $automacaoLog->registrarErro($estab->id, $e->getMessage(), $estab->fv_job_id, 'excecao');
 
             Log::error('AutomacaoPagBankJob: exceção inesperada', [
                 'estabelecimento_id' => $this->estabelecimentoId,

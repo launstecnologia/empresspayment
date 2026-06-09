@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Estabelecimento;
+use App\Services\AutomacaoLogService;
 use App\Services\AutomacaoPagBankService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -18,7 +19,7 @@ class AutomacaoAceitarPropostaJob implements ShouldQueue
 
     public function __construct(public readonly int $estabelecimentoId) {}
 
-    public function handle(AutomacaoPagBankService $service): void
+    public function handle(AutomacaoPagBankService $service, AutomacaoLogService $automacaoLog): void
     {
         $estab = Estabelecimento::withoutGlobalScopes()->find($this->estabelecimentoId);
 
@@ -36,6 +37,8 @@ class AutomacaoAceitarPropostaJob implements ShouldQueue
         ]);
 
         try {
+            $automacaoLog->registrarInicio($estab->id, 'Aceitar proposta comercial PagBank');
+
             $jobId = $service->iniciarAceitarProposta($estab);
             $estab->update(['fv_job_id' => $jobId]);
 
@@ -47,7 +50,7 @@ class AutomacaoAceitarPropostaJob implements ShouldQueue
             for ($i = 0; $i < $maxTentativas; $i++) {
                 sleep($intervalo);
 
-                $status = $service->consultarStatus($jobId);
+                $status = $service->consultarStatusESincronizarLogs($estab, $jobId);
                 $statusFinal = $status['status'] ?? 'desconhecido';
 
                 if (in_array($statusFinal, ['concluido', 'erro_proposta', 'erro'], true)) {
@@ -63,6 +66,8 @@ class AutomacaoAceitarPropostaJob implements ShouldQueue
                     'fv_status' => $estab->fv_status === 'erro_proposta' ? 'concluido' : $estab->fv_status,
                     'fv_erro' => $estab->fv_status === 'erro_proposta' ? null : $estab->fv_erro,
                 ]);
+
+                $automacaoLog->registrarConclusao($estab->id, 'Proposta comercial aceita com sucesso', $jobId);
 
                 Log::info('AutomacaoAceitarPropostaJob: proposta aceita', [
                     'estabelecimento_id' => $estab->id,
@@ -80,6 +85,8 @@ class AutomacaoAceitarPropostaJob implements ShouldQueue
                 'fv_erro' => $erro,
             ]);
 
+            $automacaoLog->registrarErro($estab->id, $erro, $jobId ?? null, 'erro_proposta');
+
             Log::error('AutomacaoAceitarPropostaJob: falha', [
                 'estabelecimento_id' => $estab->id,
                 'status' => $statusFinal,
@@ -92,6 +99,8 @@ class AutomacaoAceitarPropostaJob implements ShouldQueue
                 'fv_status' => 'erro_proposta',
                 'fv_erro' => $e->getMessage(),
             ]);
+
+            $automacaoLog->registrarErro($estab->id, $e->getMessage(), $estab->fv_job_id ?? null, 'excecao');
 
             Log::error('AutomacaoAceitarPropostaJob: exceção', [
                 'estabelecimento_id' => $estab->id,

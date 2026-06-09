@@ -220,7 +220,7 @@
                             <span id="automacao-status-label">{{ $fvCores[2] }}</span>
                         </span>
                     </div>
-                    @if (in_array($fvStatus, ['em_andamento', 'pendente']))
+                    @if (in_array($fvStatus, ['em_andamento', 'pendente']) || $estabelecimento->fv_proposta_status === 'em_andamento' || session('proposta_aceitando'))
                         <div id="automacao-etapa-box"
                              class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3"
                              data-automacao-poll
@@ -228,7 +228,11 @@
                              data-fv-status="{{ $fvStatus }}">
                             <p class="text-xs font-semibold uppercase tracking-wide text-blue-600">Etapa atual</p>
                             <p id="automacao-etapa-texto" class="mt-1 text-sm font-medium text-blue-900">
-                                {{ $fvStatus === 'pendente' ? 'Aguardando fila...' : 'Consultando progresso...' }}
+                                @if ($estabelecimento->fv_proposta_status === 'em_andamento' || session('proposta_aceitando'))
+                                    Aceitando proposta comercial no PagBank...
+                                @else
+                                    {{ $fvStatus === 'pendente' ? 'Aguardando fila...' : 'Consultando progresso...' }}
+                                @endif
                             </p>
                             <p class="mt-1 text-xs text-blue-500">
                                 <i class="fa-solid fa-arrows-rotate fa-spin mr-1"></i>
@@ -426,27 +430,78 @@
             </div>
         @endif
 
-        {{-- Histórico de logs do sistema --}}
+        {{-- Histórico detalhado da automação --}}
+        <div>
+            <p class="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">Log da automação — passo a passo</p>
+            <div class="overflow-x-auto rounded-lg border border-gray-200">
+                <table class="w-full text-xs" id="automacao-logs-table">
+                    <thead class="bg-gray-50 text-gray-500">
+                        <tr>
+                            <th class="px-3 py-2 text-left font-semibold">Data/Hora</th>
+                            <th class="px-3 py-2 text-left font-semibold">Nível</th>
+                            <th class="px-3 py-2 text-left font-semibold">Etapa</th>
+                            <th class="px-3 py-2 text-left font-semibold">Mensagem</th>
+                        </tr>
+                    </thead>
+                    <tbody id="automacao-logs-body" class="divide-y divide-gray-100">
+                        @forelse ($automacaoLogs as $alog)
+                            @php
+                                $nivelCores = match($alog->nivel) {
+                                    'sucesso' => 'bg-emerald-100 text-emerald-800',
+                                    'erro' => 'bg-red-100 text-red-800',
+                                    'aviso' => 'bg-amber-100 text-amber-800',
+                                    default => 'bg-blue-50 text-blue-800',
+                                };
+                            @endphp
+                            <tr class="hover:bg-gray-50" data-log-id="{{ $alog->id }}">
+                                <td class="whitespace-nowrap px-3 py-2 text-gray-500">{{ $alog->created_at?->format('d/m/Y H:i:s') }}</td>
+                                <td class="whitespace-nowrap px-3 py-2">
+                                    <span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase {{ $nivelCores }}">{{ $alog->nivel }}</span>
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-2 text-gray-600">{{ $alog->etapa ?: '—' }}</td>
+                                <td class="px-3 py-2 text-gray-800">
+                                    {{ $alog->mensagem }}
+                                    @if (filled($alog->detalhe))
+                                        <details class="mt-1">
+                                            <summary class="cursor-pointer text-[10px] text-gray-400">detalhes</summary>
+                                            <pre class="mt-1 whitespace-pre-wrap break-all rounded bg-gray-50 p-2 font-mono text-[10px] text-gray-600">{{ json_encode($alog->detalhe, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                        </details>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr id="automacao-logs-empty">
+                                <td colspan="4" class="px-3 py-6 text-center text-gray-400">
+                                    Nenhum log registrado ainda. Os passos aparecerão aqui durante a execução.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {{-- Histórico de logs do sistema (geral) --}}
         @if ($logs->isNotEmpty())
             <div>
-                <p class="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">Logs do sistema relacionados à automação</p>
+                <p class="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">Outros logs do estabelecimento</p>
                 <div class="overflow-x-auto rounded-lg border border-gray-100">
                     <table class="w-full text-xs">
                         <thead class="bg-gray-50 text-gray-500">
                             <tr>
                                 <th class="px-3 py-2 text-left font-semibold">Data</th>
-                                <th class="px-3 py-2 text-left font-semibold">Tipo</th>
+                                <th class="px-3 py-2 text-left font-semibold">Ação</th>
                                 <th class="px-3 py-2 text-left font-semibold">Mensagem</th>
                                 <th class="px-3 py-2 text-left font-semibold">Usuário</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            @foreach ($logs->filter(fn($l) => str_contains(strtolower($l->tipo ?? ''), 'automac') || str_contains(strtolower($l->tipo ?? ''), 'fv') || str_contains(strtolower($l->mensagem ?? ''), 'automac')) as $log)
+                            @foreach ($logs as $log)
                                 <tr class="hover:bg-gray-50">
                                     <td class="whitespace-nowrap px-3 py-2 text-gray-500">{{ $log->created_at?->format('d/m/Y H:i') }}</td>
-                                    <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-700">{{ $log->tipo ?: '-' }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-700">{{ $log->acao ?: '-' }}</td>
                                     <td class="px-3 py-2 text-gray-700">{{ $log->mensagem ?: '-' }}</td>
-                                    <td class="whitespace-nowrap px-3 py-2 text-gray-500">{{ $log->usuario?->name ?: 'Sistema' }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-gray-500">{{ $log->usuario_nome ?: 'Sistema' }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -1280,7 +1335,47 @@
         if (automacaoPollBox) {
             const statusUrl = automacaoPollBox.dataset.statusUrl;
             const etapaTexto = document.getElementById('automacao-etapa-texto');
+            const logsBody = document.getElementById('automacao-logs-body');
             const statusFinal = ['concluido', 'erro', 'erro_email', 'erro_proposta', 'timeout'];
+
+            const nivelClasse = (nivel) => {
+                if (nivel === 'sucesso') return 'bg-emerald-100 text-emerald-800';
+                if (nivel === 'erro') return 'bg-red-100 text-red-800';
+                if (nivel === 'aviso') return 'bg-amber-100 text-amber-800';
+                return 'bg-blue-50 text-blue-800';
+            };
+
+            const renderLogs = (logs) => {
+                if (!logsBody || !Array.isArray(logs) || logs.length === 0) return;
+
+                const existentes = new Set(
+                    [...logsBody.querySelectorAll('[data-log-id]')].map((row) => row.dataset.logId)
+                );
+
+                const vazio = document.getElementById('automacao-logs-empty');
+                if (vazio) vazio.remove();
+
+                logs.forEach((log) => {
+                    const id = String(log.id);
+                    if (existentes.has(id)) return;
+
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50';
+                    tr.dataset.logId = id;
+                    tr.innerHTML = `
+                        <td class="whitespace-nowrap px-3 py-2 text-gray-500">${log.created_at || '—'}</td>
+                        <td class="whitespace-nowrap px-3 py-2">
+                            <span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${nivelClasse(log.nivel)}">${log.nivel || 'info'}</span>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2 text-gray-600">${log.etapa || '—'}</td>
+                        <td class="px-3 py-2 text-gray-800">${log.mensagem || '—'}</td>
+                    `;
+                    logsBody.appendChild(tr);
+                    existentes.add(id);
+                });
+
+                logsBody.parentElement?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            };
 
             const atualizarAutomacao = async () => {
                 try {
@@ -1292,6 +1387,10 @@
                     const data = await resp.json();
                     if (data.etapa_atual && etapaTexto) {
                         etapaTexto.textContent = data.etapa_atual;
+                    }
+
+                    if (data.automacao_logs) {
+                        renderLogs(data.automacao_logs);
                     }
 
                     const apiStatus = data.status || data.fv_status;

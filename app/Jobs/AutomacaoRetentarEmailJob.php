@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Estabelecimento;
+use App\Services\AutomacaoLogService;
 use App\Services\AutomacaoPagBankService;
 use App\Services\EmailPlataformaService;
 use App\Services\NotificacaoEmailService;
@@ -25,8 +26,12 @@ class AutomacaoRetentarEmailJob implements ShouldQueue
         public readonly string $senha6,
     ) {}
 
-    public function handle(AutomacaoPagBankService $service, EmailPlataformaService $emailService, NotificacaoEmailService $notificacao): void
-    {
+    public function handle(
+        AutomacaoPagBankService $service,
+        AutomacaoLogService $automacaoLog,
+        EmailPlataformaService $emailService,
+        NotificacaoEmailService $notificacao,
+    ): void {
         $estab = Estabelecimento::withoutGlobalScopes()->find($this->estabelecimentoId);
 
         if (! $estab) {
@@ -37,7 +42,8 @@ class AutomacaoRetentarEmailJob implements ShouldQueue
         }
 
         try {
-            // Inicia o job de e-mail apenas na API Python
+            $automacaoLog->registrarInicio($estab->id, 'Retentar e-mail e senha PagBank');
+
             $jobId = $service->retentarEmail($estab, $this->senha6);
 
             $estab->update(['fv_job_id' => $jobId]);
@@ -56,7 +62,7 @@ class AutomacaoRetentarEmailJob implements ShouldQueue
             for ($i = 0; $i < $maxTentativas; $i++) {
                 sleep($intervalo);
 
-                $status      = $service->consultarStatus($jobId);
+                $status = $service->consultarStatusESincronizarLogs($estab, $jobId);
                 $statusFinal = $status['status'] ?? 'desconhecido';
 
                 Log::debug("AutomacaoRetentarEmailJob: poll {$i}/{$maxTentativas}", [
@@ -81,7 +87,9 @@ class AutomacaoRetentarEmailJob implements ShouldQueue
                     'status'          => $estab->status === 'em_cadastro' ? 'habilitado' : $estab->status,
                 ]);
 
-                // Reativa o forwarder — e-mail de validação já foi lido
+                $automacaoLog->registrarConclusao($estab->id, 'Retentativa de e-mail concluída com sucesso', $jobId);
+
+                // Reativa o forwarder
                 try {
                     $emailService->ativarForwarder($estab->fresh());
                 } catch (\Throwable $e) {
@@ -118,6 +126,8 @@ class AutomacaoRetentarEmailJob implements ShouldQueue
                 }
 
                 $estab->update($update);
+
+                $automacaoLog->registrarErro($estab->id, $erro, $jobId, $statusFinal);
 
                 Log::error('AutomacaoRetentarEmailJob: retentativa falhou', [
                     'estabelecimento_id' => $estab->id,

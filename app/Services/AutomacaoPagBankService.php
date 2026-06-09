@@ -123,6 +123,19 @@ class AutomacaoPagBankService
         return $response->json();
     }
 
+    public function consultarStatusESincronizarLogs(Estabelecimento $estab, string $jobId): array
+    {
+        $status = $this->consultarStatus($jobId);
+
+        app(AutomacaoLogService::class)->sincronizarDoJob(
+            $estab->id,
+            $jobId,
+            $status['logs'] ?? [],
+        );
+
+        return $status;
+    }
+
     // ----------------------------------------------------------------
     // Consulta CPF/CNPJ no portal FV (sem cadastrar)
     // ----------------------------------------------------------------

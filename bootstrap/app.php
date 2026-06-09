@@ -4,7 +4,7 @@ use App\Http\Middleware\ChecarTrocaSenha;
 use App\Http\Middleware\EnsureMarketplaceTenantAccess;
 use App\Http\Middleware\EnsureNivel;
 use App\Http\Middleware\EnsurePermissao;
-use App\Http\Middleware\ResolveMarketplaceTenant;
+use App\Http\Middleware\RedirectMarketplacePlanos;
 use App\Support\TenantUrl;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Http\Request;
@@ -40,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permissao' => EnsurePermissao::class,
             'tenant.access' => EnsureMarketplaceTenantAccess::class,
             'trocar.senha' => ChecarTrocaSenha::class,
+            'planos.marketplace' => RedirectMarketplacePlanos::class,
         ]);
 
         $middleware->redirectGuestsTo(function (Request $request) {

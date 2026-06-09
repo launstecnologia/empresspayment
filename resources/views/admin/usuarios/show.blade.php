@@ -81,6 +81,16 @@
                     {{ number_format((float) $usuario->percentual_retencao_pai, 0, ',', '.') }}%
                 </p>
             @endif
+            @if ($usuario->tipo === 'marketplace' && auth()->user()?->tipo === 'admin')
+                <p class="md:col-span-3">
+                    <span class="font-semibold text-gray-700">Planos habilitados:</span>
+                    @if ($usuario->planosHabilitados->isNotEmpty())
+                        {{ $usuario->planosHabilitados->pluck('nome')->join(', ') }}
+                    @else
+                        <span class="text-gray-400">Nenhum plano selecionado</span>
+                    @endif
+                </p>
+            @endif
             <p><span class="font-semibold text-gray-700">E-mail:</span> {{ $usuario->email }}</p>
             <p><span class="font-semibold text-gray-700">Telefone:</span> {{ $usuario->telefone ?: '-' }}</p>
             <p><span class="font-semibold text-gray-700">Celular:</span> {{ $usuario->celular ?: '-' }}</p>

@@ -30,6 +30,7 @@ use App\Http\Controllers\Plano\PlanoTaxaController;
 use App\Http\Controllers\Publico\EnvioDocumentoController;
 use App\Http\Controllers\Relatorio\RelatorioController;
 use App\Http\Controllers\Royalty\ComissaoConfiguracaoController;
+use App\Http\Controllers\Royalty\ComissaoMeuPlanoController;
 use App\Http\Controllers\Royalty\RoyaltyController;
 use Illuminate\Support\Facades\Route;
 
@@ -114,17 +115,30 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
     Route::post('pesquisar-documento/consultar', [FvDocumentoConsultaController::class, 'consultar'])->name('fv-documento.consultar');
     Route::get('pesquisar-documento/status/{jobId}', [FvDocumentoConsultaController::class, 'status'])->name('fv-documento.status');
     Route::resource('estabelecimentos', EstabelecimentoController::class)->except(['destroy']);
-    Route::resource('planos', PlanoController::class);
-    Route::prefix('planos/{plano}')->name('planos.')->group(function () {
-        Route::post('grade-taxas', [PlanoController::class, 'salvarGrade'])->name('grade-taxas.salvar');
-        Route::get('taxas/create', [PlanoTaxaController::class, 'create'])->name('taxas.create');
-        Route::post('taxas', [PlanoTaxaController::class, 'store'])->name('taxas.store');
-        Route::get('taxas/{taxa}/edit', [PlanoTaxaController::class, 'edit'])->name('taxas.edit');
-        Route::put('taxas/{taxa}', [PlanoTaxaController::class, 'update'])->name('taxas.update');
-        Route::delete('taxas/{taxa}', [PlanoTaxaController::class, 'destroy'])->name('taxas.destroy');
+
+    Route::middleware('planos.marketplace')->group(function () {
+        Route::get('planos', [PlanoController::class, 'index'])->name('planos.index');
+        Route::get('planos/{plano}', [PlanoController::class, 'show'])->name('planos.show');
+    });
+
+    Route::middleware('nivel:admin')->group(function () {
+        Route::get('planos/create', [PlanoController::class, 'create'])->name('planos.create');
+        Route::post('planos', [PlanoController::class, 'store'])->name('planos.store');
+        Route::get('planos/{plano}/edit', [PlanoController::class, 'edit'])->name('planos.edit');
+        Route::put('planos/{plano}', [PlanoController::class, 'update'])->name('planos.update');
+        Route::delete('planos/{plano}', [PlanoController::class, 'destroy'])->name('planos.destroy');
+        Route::post('planos/{plano}/grade-taxas', [PlanoController::class, 'salvarGrade'])->name('planos.grade-taxas.salvar');
+        Route::prefix('planos/{plano}')->name('planos.')->group(function () {
+            Route::get('taxas/create', [PlanoTaxaController::class, 'create'])->name('taxas.create');
+            Route::post('taxas', [PlanoTaxaController::class, 'store'])->name('taxas.store');
+            Route::get('taxas/{taxa}/edit', [PlanoTaxaController::class, 'edit'])->name('taxas.edit');
+            Route::put('taxas/{taxa}', [PlanoTaxaController::class, 'update'])->name('taxas.update');
+            Route::delete('taxas/{taxa}', [PlanoTaxaController::class, 'destroy'])->name('taxas.destroy');
+        });
     });
     Route::get('/comissoes', [RoyaltyController::class, 'index'])->name('comissoes.index');
     Route::redirect('/royalties', '/comissoes');
+    Route::get('/comissoes/meu-plano', [ComissaoMeuPlanoController::class, 'index'])->name('comissoes.meu-plano');
     Route::resource('comissoes/configuracoes', ComissaoConfiguracaoController::class)
         ->parameters(['configuracoes' => 'configuracao'])
         ->names('comissoes.configuracoes');

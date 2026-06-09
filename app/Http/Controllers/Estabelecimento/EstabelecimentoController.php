@@ -15,6 +15,7 @@ use App\Services\HierarquiaService;
 use App\Services\KycDocumentoSyncService;
 use App\Services\KycInicializacaoService;
 use App\Services\LogService;
+use App\Services\MarketplacePlanoService;
 use App\Services\NotificacaoEmailService;
 use App\Services\RoyaltyCalculadorService;
 use App\Support\KycDocumentosObrigatorios;
@@ -29,6 +30,7 @@ use Illuminate\Validation\Rule;
 
 class EstabelecimentoController extends Controller
 {
+    public function __construct(private MarketplacePlanoService $marketplacePlano) {}
     public function index(Request $request)
     {
         $query = Estabelecimento::query()->with('marketplace')->latest();
@@ -55,7 +57,7 @@ class EstabelecimentoController extends Controller
             'masters' => $this->usuariosPorTipo('master'),
             'marketplaces' => $this->usuariosPorTipo('marketplace'),
             'revendas' => $this->usuariosPorTipo('revenda'),
-            'planos' => Plano::where('ativo', true)->orderBy('nome')->get(['id', 'nome']),
+            'planos' => $this->marketplacePlano->planosDisponiveis()->map(fn (Plano $p) => ['id' => $p->id, 'nome' => $p->nome]),
             'segmentos' => Segmento::where('ativo', true)->orderBy('nome')->get(['id', 'nome']),
         ]);
     }
@@ -77,7 +79,7 @@ class EstabelecimentoController extends Controller
 
         return view('estabelecimento.form', [
             'estabelecimento' => $estabelecimento,
-            'planos' => Plano::where('ativo', true)->orderBy('nome')->get(),
+            'planos' => $this->planosParaFormulario($request),
             'segmentos' => Segmento::where('ativo', true)->orderBy('nome')->get(),
             'prefillDocumento' => in_array(strlen($digits), [11, 14], true),
             ...$this->opcoesFormulario(),
@@ -131,13 +133,13 @@ class EstabelecimentoController extends Controller
         return $redirect;
     }
 
-    public function edit(Estabelecimento $estabelecimento)
+    public function edit(Request $request, Estabelecimento $estabelecimento)
     {
         $this->autorizarMutacaoEstabelecimento();
 
         return view('estabelecimento.form', [
             'estabelecimento' => $estabelecimento,
-            'planos' => Plano::where('ativo', true)->orderBy('nome')->get(),
+            'planos' => $this->planosParaFormulario($request, $estabelecimento),
             'segmentos' => Segmento::where('ativo', true)->orderBy('nome')->get(),
             ...$this->opcoesFormulario(),
         ]);
@@ -333,6 +335,20 @@ class EstabelecimentoController extends Controller
 
         unset($dados['sem_numero']);
 
+        if (filled($dados['plano_id'] ?? null)) {
+            $marketplaceId = filled($request->input('marketplace_id'))
+                ? $request->integer('marketplace_id')
+                : ($dados['marketplace_id']
+                    ?? $request->route('estabelecimento')?->marketplace_id
+                    ?? $this->marketplacePlano->marketplaceDoUsuario($request->user())?->id);
+
+            abort_unless(
+                $this->marketplacePlano->planoPermitido((int) $dados['plano_id'], $request->user(), $marketplaceId),
+                422,
+                'Plano não disponível para este marketplace.'
+            );
+        }
+
         return $dados;
     }
 
@@ -354,6 +370,18 @@ class EstabelecimentoController extends Controller
             'representantes' => Usuario::where('tipo', 'marketplace')->where('ativo', true)->orderBy('nome_fantasia')->orderBy('razao_social')->orderBy('nome_completo')->get(),
             'revendas' => Usuario::where('tipo', 'revenda')->where('ativo', true)->orderBy('nome_fantasia')->orderBy('razao_social')->orderBy('nome_completo')->get(),
         ];
+    }
+
+    private function planosParaFormulario(Request $request, ?Estabelecimento $estabelecimento = null)
+    {
+        $marketplaceId = $request->integer('marketplace_id')
+            ?: $estabelecimento?->marketplace_id
+            ?: old('marketplace_id');
+
+        return $this->marketplacePlano->planosDisponiveis(
+            $request->user(),
+            $marketplaceId ?: null,
+        );
     }
 
     private function hierarquiaSelecionada(array $dados): array

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Plano;
 use App\Http\Controllers\Controller;
 use App\Models\Plano;
 use App\Models\PlanoTaxa;
+use App\Support\UsuarioComercial;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -12,6 +13,7 @@ class PlanoTaxaController extends Controller
 {
     public function create(Plano $plano)
     {
+        $this->autorizarGestao();
         return view('plano.taxas.form', [
             'plano' => $plano,
             'taxa' => new PlanoTaxa,
@@ -20,6 +22,8 @@ class PlanoTaxaController extends Controller
 
     public function store(Request $request, Plano $plano)
     {
+        $this->autorizarGestao();
+
         $plano->taxas()->create($this->validar($request));
 
         return redirect()->route('planos.show', $plano)->with('status', 'Taxa criada.');
@@ -27,6 +31,7 @@ class PlanoTaxaController extends Controller
 
     public function edit(Plano $plano, PlanoTaxa $taxa)
     {
+        $this->autorizarGestao();
         $this->garantirTaxaDoPlano($plano, $taxa);
 
         return view('plano.taxas.form', compact('plano', 'taxa'));
@@ -34,6 +39,7 @@ class PlanoTaxaController extends Controller
 
     public function update(Request $request, Plano $plano, PlanoTaxa $taxa)
     {
+        $this->autorizarGestao();
         $this->garantirTaxaDoPlano($plano, $taxa);
         $taxa->update($this->validar($request));
 
@@ -42,6 +48,7 @@ class PlanoTaxaController extends Controller
 
     public function destroy(Plano $plano, PlanoTaxa $taxa)
     {
+        $this->autorizarGestao();
         $this->garantirTaxaDoPlano($plano, $taxa);
         $taxa->delete();
 
@@ -65,5 +72,10 @@ class PlanoTaxaController extends Controller
     private function garantirTaxaDoPlano(Plano $plano, PlanoTaxa $taxa): void
     {
         abort_unless($taxa->plano_id === $plano->id, 404);
+    }
+
+    private function autorizarGestao(): void
+    {
+        abort_unless(UsuarioComercial::ehAdmin(), 403);
     }
 }

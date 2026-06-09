@@ -4,13 +4,20 @@
 
 @section('content')
 @php
+    $podeGerirPlanos = $podeGerirPlanos ?? \App\Support\UsuarioComercial::ehAdmin();
     $inputClass = 'w-full rounded border border-gray-200 bg-white px-2 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
     $taxaInput = $inputClass.' text-right';
     $percentInput = 'w-24 rounded border border-gray-200 bg-white px-2 py-2 text-right text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+    $percentInput .= $podeGerirPlanos ? '' : ' bg-gray-50';
+    $campoBloqueado = $podeGerirPlanos ? '' : 'readonly disabled';
 @endphp
 
+@if ($podeGerirPlanos)
 <form method="POST" action="{{ route('planos.grade-taxas.salvar', $plano) }}" data-grade-form class="space-y-5">
     @csrf
+@else
+<div class="space-y-5">
+@endif
 
     <section class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div class="grid gap-4 xl:grid-cols-[1fr_2fr_auto] xl:items-end">
@@ -22,7 +29,9 @@
                 <span class="text-xs font-bold uppercase tracking-wide text-gray-500">Descrição</span>
                 <input value="{{ $plano->descricao }}" readonly class="{{ $inputClass }} bg-gray-50">
             </label>
-            <a href="{{ route('planos.edit', $plano) }}" class="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 shadow-sm hover:bg-gray-50">Editar Plano</a>
+            @if ($podeGerirPlanos)
+                <a href="{{ route('planos.edit', $plano) }}" class="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 shadow-sm hover:bg-gray-50">Editar Plano</a>
+            @endif
         </div>
     </section>
 
@@ -65,13 +74,15 @@
                                     $linha = $grade['debito'][$grupo];
                                 @endphp
                                 <td class="px-3 py-3">
-                                    <input data-taxa-input data-debito-taxa="{{ $grupo }}" name="grade[debito][{{ $grupo }}][taxa]" value="{{ $linha['taxa'] }}" type="number" step="0.01" min="0" max="100" class="{{ $percentInput }}" title="{{ $linha['arranjo'] }}">
+                                    <input data-taxa-input data-debito-taxa="{{ $grupo }}" name="grade[debito][{{ $grupo }}][taxa]" value="{{ $linha['taxa'] }}" type="number" step="0.01" min="0" max="100" class="{{ $percentInput }}" title="{{ $linha['arranjo'] }}" {{ $campoBloqueado }}>
                                 </td>
                             @endforeach
-                            <td class="px-3 py-3"><input data-comissao-input name="grade[debito][comissao]" value="{{ $debitoComissao }}" type="number" step="0.01" min="0" max="100" class="{{ $percentInput }}"></td>
+                            <td class="px-3 py-3"><input data-comissao-input name="grade[debito][comissao]" value="{{ $debitoComissao }}" type="number" step="0.01" min="0" max="100" class="{{ $percentInput }}" {{ $campoBloqueado }}></td>
                             <td class="px-3 py-3 text-center">
-                                <input type="hidden" name="grade[debito][ativo]" value="0">
-                                <input type="checkbox" name="grade[debito][ativo]" value="1" @checked($debitoAtivo) class="h-5 w-5 rounded accent-blue-600">
+                                @if ($podeGerirPlanos)
+                                    <input type="hidden" name="grade[debito][ativo]" value="0">
+                                @endif
+                                <input type="checkbox" name="grade[debito][ativo]" value="1" @checked($debitoAtivo) class="h-5 w-5 rounded accent-blue-600" {{ $campoBloqueado }}>
                             </td>
                         </tr>
                     </tbody>
@@ -82,7 +93,7 @@
         <div data-tab-panel="credito" class="hidden p-5">
             <div class="mb-4 flex items-center justify-between gap-3">
                 <h3 class="text-sm font-bold text-gray-700">Crédito · 1x até 18x</h3>
-                <p class="text-xs text-gray-400">Use “Replicar” para preencher as bandeiras vazias à direita na mesma parcela.</p>
+                <p class="text-xs text-gray-400">@if ($podeGerirPlanos)Use “Replicar” para preencher as bandeiras vazias à direita na mesma parcela.@else Visualização somente leitura.@endif</p>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full min-w-[980px] text-sm">
@@ -105,20 +116,24 @@
                             <tr class="border-t border-gray-100">
                                 <td class="px-3 py-2 font-semibold text-gray-800">
                                     {{ $parcelas }}x
-                                    <button type="button" data-replicar-parcela="{{ $parcelas }}" class="ml-2 rounded bg-gray-100 px-2 py-1 text-[11px] font-bold text-gray-500 hover:bg-blue-50 hover:text-blue-600">Replicar</button>
+                                    @if ($podeGerirPlanos)
+                                        <button type="button" data-replicar-parcela="{{ $parcelas }}" class="ml-2 rounded bg-gray-100 px-2 py-1 text-[11px] font-bold text-gray-500 hover:bg-blue-50 hover:text-blue-600">Replicar</button>
+                                    @endif
                                 </td>
                                 @foreach ($creditoGrupos as $grupo => $config)
                                     @php
                                         $linha = $grade['credito'][$parcelas][$grupo];
                                     @endphp
                                     <td class="px-3 py-2">
-                                        <input data-taxa-input data-credito-taxa="{{ $grupo }}" data-parcela="{{ $parcelas }}" name="grade[credito][{{ $parcelas }}][{{ $grupo }}][taxa]" value="{{ $linha['taxa'] }}" type="number" step="0.01" min="0" max="100" class="{{ $percentInput }}" title="{{ $linha['arranjo'] }}">
+                                        <input data-taxa-input data-credito-taxa="{{ $grupo }}" data-parcela="{{ $parcelas }}" name="grade[credito][{{ $parcelas }}][{{ $grupo }}][taxa]" value="{{ $linha['taxa'] }}" type="number" step="0.01" min="0" max="100" class="{{ $percentInput }}" title="{{ $linha['arranjo'] }}" {{ $campoBloqueado }}>
                                     </td>
                                 @endforeach
-                                <td class="px-3 py-2"><input data-comissao-input data-credito-comissao data-parcela="{{ $parcelas }}" name="grade[credito][{{ $parcelas }}][comissao]" value="{{ $creditoComissao }}" type="number" step="0.01" min="0" max="100" class="{{ $percentInput }}"></td>
+                                <td class="px-3 py-2"><input data-comissao-input data-credito-comissao data-parcela="{{ $parcelas }}" name="grade[credito][{{ $parcelas }}][comissao]" value="{{ $creditoComissao }}" type="number" step="0.01" min="0" max="100" class="{{ $percentInput }}" {{ $campoBloqueado }}></td>
                                 <td class="px-3 py-2 text-center">
-                                    <input type="hidden" name="grade[credito][{{ $parcelas }}][ativo]" value="0">
-                                    <input data-credito-ativo data-parcela="{{ $parcelas }}" type="checkbox" name="grade[credito][{{ $parcelas }}][ativo]" value="1" @checked($creditoAtivo) class="h-5 w-5 rounded accent-blue-600">
+                                    @if ($podeGerirPlanos)
+                                        <input type="hidden" name="grade[credito][{{ $parcelas }}][ativo]" value="0">
+                                    @endif
+                                    <input data-credito-ativo data-parcela="{{ $parcelas }}" type="checkbox" name="grade[credito][{{ $parcelas }}][ativo]" value="1" @checked($creditoAtivo) class="h-5 w-5 rounded accent-blue-600" {{ $campoBloqueado }}>
                                 </td>
                             </tr>
                         @endfor
@@ -150,11 +165,13 @@
                         <tr class="border-t border-gray-100">
                             <td class="px-3 py-3 font-semibold text-gray-800">BACEN</td>
                             <td class="px-3 py-3 text-gray-600">1x</td>
-                            <td class="px-3 py-3"><input data-taxa-input name="grade[pix][bacen][taxa]" value="{{ $linha['taxa'] }}" type="number" step="0.01" min="0" max="100" class="{{ $percentInput }}"></td>
-                            <td class="px-3 py-3"><input data-comissao-input name="grade[pix][bacen][comissao]" value="{{ $linha['comissao'] }}" type="number" step="0.01" min="0" max="100" class="{{ $percentInput }}"></td>
+                            <td class="px-3 py-3"><input data-taxa-input name="grade[pix][bacen][taxa]" value="{{ $linha['taxa'] }}" type="number" step="0.01" min="0" max="100" class="{{ $percentInput }}" {{ $campoBloqueado }}></td>
+                            <td class="px-3 py-3"><input data-comissao-input name="grade[pix][bacen][comissao]" value="{{ $linha['comissao'] }}" type="number" step="0.01" min="0" max="100" class="{{ $percentInput }}" {{ $campoBloqueado }}></td>
                             <td class="px-3 py-3 text-center">
-                                <input type="hidden" name="grade[pix][bacen][ativo]" value="0">
-                                <input type="checkbox" name="grade[pix][bacen][ativo]" value="1" @checked($linha['ativo'] && $linha['existe']) class="h-5 w-5 rounded accent-blue-600">
+                                @if ($podeGerirPlanos)
+                                    <input type="hidden" name="grade[pix][bacen][ativo]" value="0">
+                                @endif
+                                <input type="checkbox" name="grade[pix][bacen][ativo]" value="1" @checked($linha['ativo'] && $linha['existe']) class="h-5 w-5 rounded accent-blue-600" {{ $campoBloqueado }}>
                             </td>
                         </tr>
                     </tbody>
@@ -171,10 +188,16 @@
         </div>
         <div class="flex items-center justify-end gap-3">
             <a href="{{ route('planos.index') }}" class="rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 shadow-sm hover:bg-gray-50">Voltar</a>
-            <button class="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">Salvar Grade de Taxas</button>
+            @if ($podeGerirPlanos)
+                <button class="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">Salvar Grade de Taxas</button>
+            @endif
         </div>
     </section>
+@if ($podeGerirPlanos)
 </form>
+@else
+</div>
+@endif
 @endsection
 
 @section('scripts')
@@ -246,7 +269,8 @@
         document.querySelectorAll('[data-taxa-input]').forEach((input) => input.addEventListener('input', atualizarPreview));
         document.querySelectorAll('[data-comissao-input]').forEach((input) => input.addEventListener('input', atualizarPreview));
 
-        document.querySelector('[data-grade-form]').addEventListener('submit', (event) => {
+        const gradeForm = document.querySelector('[data-grade-form]');
+        gradeForm?.addEventListener('submit', (event) => {
             const zeros = Array.from(document.querySelectorAll('[data-taxa-input]')).filter((input) => input.value !== '' && Number(input.value) === 0);
             if (zeros.length && !confirm('Existem taxas 0,00 preenchidas. Deseja salvar mesmo assim?')) {
                 event.preventDefault();

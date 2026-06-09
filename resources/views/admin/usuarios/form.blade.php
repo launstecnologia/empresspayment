@@ -273,6 +273,30 @@
         </label>
     </div>
 
+    @if ($tipoAtual === 'marketplace' && \App\Support\UsuarioComercial::ehAdmin() && ($todosPlanos ?? collect())->isNotEmpty())
+        @php
+            $planosSelecionados = collect(old('planos_habilitados', $usuario->exists ? $usuario->planosHabilitados->pluck('id')->all() : []))->map(fn ($id) => (int) $id);
+        @endphp
+        <h2 class="{{ $sectionTitleClass }}">Planos e taxas disponíveis</h2>
+        <div class="px-3 py-4">
+            <p class="mb-3 text-[11px] text-slate-500">Selecione quais planos este marketplace poderá usar ao cadastrar estabelecimentos. Apenas os marcados aparecerão no acesso dele.</p>
+            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach ($todosPlanos as $plano)
+                    <label class="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+                        <input
+                            type="checkbox"
+                            name="planos_habilitados[]"
+                            value="{{ $plano->id }}"
+                            class="h-4 w-4 rounded accent-blue-600"
+                            @checked($planosSelecionados->contains($plano->id))
+                        >
+                        {{ $plano->nome }}
+                    </label>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     <div class="flex justify-end gap-3 px-3 pb-3 pt-4">
         <a href="{{ $usuario->exists ? route('usuarios.show', $usuario) : route('usuarios.index', $tipoFixo ? ['tipo' => $tipoFixo] : []) }}" class="rounded border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50">Cancelar</a>
         <button class="rounded bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700">

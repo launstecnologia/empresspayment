@@ -34,6 +34,21 @@ class UsuarioComercial
         return self::tipo() === 'marketplace';
     }
 
+    public static function ehRevenda(): bool
+    {
+        return self::tipo() === 'revenda';
+    }
+
+    public static function ehMarketplaceOuRevenda(): bool
+    {
+        return in_array(self::tipo(), ['marketplace', 'revenda'], true);
+    }
+
+    public static function podeGerirPlanos(): bool
+    {
+        return self::ehAdmin();
+    }
+
     public static function podeCadastrarEstabelecimento(): bool
     {
         return in_array(self::tipo(), ['admin', 'marketplace', 'revenda'], true);

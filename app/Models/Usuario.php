@@ -78,6 +78,11 @@ class Usuario extends Authenticatable
         return $this->hasOne(MarketplaceBranding::class, 'marketplace_id');
     }
 
+    public function planosHabilitados()
+    {
+        return $this->belongsToMany(Plano::class, 'marketplace_plano', 'marketplace_id', 'plano_id');
+    }
+
     public function subUsuarios()
     {
         return $this->hasMany(SubUsuario::class, 'dono_id');

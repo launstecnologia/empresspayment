@@ -17,4 +17,9 @@ class Plano extends Model
     {
         return $this->hasMany(PlanoTaxa::class);
     }
+
+    public function marketplaces()
+    {
+        return $this->belongsToMany(Usuario::class, 'marketplace_plano', 'plano_id', 'marketplace_id');
+    }
 }

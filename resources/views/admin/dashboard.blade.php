@@ -58,7 +58,11 @@
         </div>
         <span class="inline-flex w-fit items-center gap-2 rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
             <i class="fa-solid fa-layer-group"></i>
-            Planos ativos
+            @if (\App\Support\UsuarioComercial::ehMarketplaceOuRevenda())
+                Meus planos
+            @else
+                Planos ativos
+            @endif
         </span>
     </div>
 

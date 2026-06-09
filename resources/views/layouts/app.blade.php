@@ -124,6 +124,7 @@
         $userTipo = $principal?->tipo ?? $user?->tipo ?? 'admin';
         $ehAdmin = $userTipo === 'admin';
         $ehMarketplace = $userTipo === 'marketplace';
+        $ehRevenda = $userTipo === 'revenda';
         $ehMaster = $userTipo === 'master';
         $userName = $user?->nomeExibicao() ?? $user?->nome ?? 'Administrador';
         $userRole = strtoupper($userTipo);

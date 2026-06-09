@@ -25,10 +25,12 @@
             <i class="fa-solid fa-hand-holding-dollar w-5 text-center text-[15px]"></i>
             <span>Comissão</span>
         </a>
-        <a href="{{ route('comissoes.configuracoes.index') }}" class="{{ $navClass('comissoes.configuracoes.*') }}">
-            <i class="fa-solid fa-sliders w-5 text-center text-[15px]"></i>
-            <span>Config. Comissão</span>
-        </a>
+        @if (\App\Support\UsuarioComercial::ehAdmin() || $ehMaster)
+            <a href="{{ route('comissoes.configuracoes.index') }}" class="{{ $navClass('comissoes.configuracoes.*') }}">
+                <i class="fa-solid fa-sliders w-5 text-center text-[15px]"></i>
+                <span>Config. Comissão</span>
+            </a>
+        @endif
         <a href="{{ route($ehAdmin ? 'admin.chamados.index' : 'chamados.index') }}" class="{{ request()->routeIs('admin.chamados.*') || request()->routeIs('chamados.*') ? 'flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-blue-600 bg-blue-50 rounded-lg mx-2 dark:bg-blue-950/50 dark:text-blue-400' : 'flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 rounded-lg mx-2 hover:bg-gray-100 hover:text-gray-900 transition-colors dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100' }}">
             <i class="fa-solid fa-ticket w-5 text-center text-[15px]"></i>
             <span>Chamados</span>
@@ -48,10 +50,17 @@
                 <span>Pesquisar Doc.</span>
             </a>
         @endif
-        <a href="{{ route('planos.index') }}" class="{{ $navClass('planos.*') }}">
-            <i class="fa-solid fa-credit-card w-5 text-center text-[15px]"></i>
-            <span>Planos e Taxas</span>
-        </a>
+        @if (\App\Support\UsuarioComercial::ehMarketplaceOuRevenda())
+            <a href="{{ route('comissoes.meu-plano') }}" class="{{ $navClass('comissoes.meu-plano') }}">
+                <i class="fa-solid fa-credit-card w-5 text-center text-[15px]"></i>
+                <span>Planos e Taxas</span>
+            </a>
+        @elseif (\App\Support\UsuarioComercial::podeGerirPlanos() || $ehMaster)
+            <a href="{{ route('planos.index') }}" class="{{ $navClass('planos.*') }}">
+                <i class="fa-solid fa-credit-card w-5 text-center text-[15px]"></i>
+                <span>Planos e Taxas</span>
+            </a>
+        @endif
 
         <p class="mb-1 mt-6 px-4 text-xs font-semibold uppercase tracking-widest text-gray-400">Administração</p>
         @if ($ehMarketplace && $principal)

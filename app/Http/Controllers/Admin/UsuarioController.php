@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Plano;
 use App\Models\Segmento;
 use App\Models\Usuario;
 use App\Services\HierarquiaService;
 use App\Services\MarketplaceBrandingService;
+use App\Services\MarketplacePlanoService;
 use App\Services\NotificacaoEmailService;
 use App\Support\NotificacaoVars;
 use App\Support\UsuarioComercial;
@@ -91,10 +93,13 @@ class UsuarioController extends Controller
             'tipoFixo' => $tipo && ! $paiSelecionado ? $tipo : null,
             'paiSelecionado' => $paiSelecionado,
             'segmentos' => Segmento::where('ativo', true)->orderBy('nome')->get(),
+            'todosPlanos' => $tipo === 'marketplace' && UsuarioComercial::ehAdmin()
+                ? Plano::where('ativo', true)->orderBy('nome')->get()
+                : collect(),
         ]);
     }
 
-    public function store(Request $request, HierarquiaService $hierarquia)
+    public function store(Request $request, HierarquiaService $hierarquia, MarketplacePlanoService $marketplacePlano)
     {
         $dados = $this->validar($request);
         $dados['password'] = '123456';
@@ -112,6 +117,10 @@ class UsuarioController extends Controller
 
         if ($usuario->tipo === 'marketplace') {
             app(MarketplaceBrandingService::class)->criarPara($usuario, $request->input('marketplace_slug'));
+
+            if (UsuarioComercial::ehAdmin()) {
+                $marketplacePlano->sincronizar($usuario, $request->input('planos_habilitados', []));
+            }
         }
 
         app(NotificacaoEmailService::class)->enfileirar(
@@ -134,6 +143,7 @@ class UsuarioController extends Controller
             'subUsuarios.perfil',
             'estabelecimentos',
             'marketplaceBranding',
+            'planosHabilitados',
         ]);
 
         $whitelabel = null;
@@ -159,12 +169,15 @@ class UsuarioController extends Controller
         abort_unless(UsuarioComercial::podeGerenciar($usuario), 403);
 
         return view('admin.usuarios.form', [
-            'usuario' => $usuario,
+            'usuario' => $usuario->load('planosHabilitados'),
             'pais' => $this->paisParaTipo($usuario->tipo, $usuario->id),
             'niveis' => $hierarquia::ORDEM,
             'tipoFixo' => $usuario->tipo,
             'paiSelecionado' => $usuario->hierarquia?->pai?->usuario,
             'segmentos' => Segmento::where('ativo', true)->orderBy('nome')->get(),
+            'todosPlanos' => $usuario->tipo === 'marketplace' && UsuarioComercial::ehAdmin()
+                ? Plano::where('ativo', true)->orderBy('nome')->get()
+                : collect(),
         ]);
     }
 
@@ -181,7 +194,7 @@ class UsuarioController extends Controller
             ->with('status', 'Senha resetada para 123456. O usuário deverá criar uma nova senha no próximo acesso.');
     }
 
-    public function update(Request $request, Usuario $usuario, HierarquiaService $hierarquia)
+    public function update(Request $request, Usuario $usuario, HierarquiaService $hierarquia, MarketplacePlanoService $marketplacePlano)
     {
         abort_unless(UsuarioComercial::podeGerenciar($usuario), 403);
 
@@ -194,6 +207,10 @@ class UsuarioController extends Controller
         }
 
         $hierarquia->criarNo($usuario, $pai);
+
+        if ($usuario->tipo === 'marketplace' && UsuarioComercial::ehAdmin()) {
+            $marketplacePlano->sincronizar($usuario, $request->input('planos_habilitados', []));
+        }
 
         return redirect()->route('usuarios.show', $usuario)->with('status', 'Usuário atualizado.');
     }
@@ -240,6 +257,8 @@ class UsuarioController extends Controller
                 'min:0',
                 'max:100',
             ],
+            'planos_habilitados' => ['nullable', 'array'],
+            'planos_habilitados.*' => ['integer', Rule::exists('planos', 'id')->where('ativo', true)],
         ]);
 
         if (! UsuarioComercial::podeDefinirRetencaoPai((string) $dados['tipo'])) {

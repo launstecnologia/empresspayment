@@ -126,7 +126,7 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
         Route::post('planos', [PlanoController::class, 'store'])->name('planos.store');
         Route::get('planos/{plano}/edit', [PlanoController::class, 'edit'])->name('planos.edit');
         Route::put('planos/{plano}', [PlanoController::class, 'update'])->name('planos.update');
-        Route::delete('planos/{plano}', [PlanoController::class, 'destroy'])->name('planos.destroy');
+        Route::post('planos/{plano}/inativar', [PlanoController::class, 'inativar'])->name('planos.inativar');
         Route::post('planos/{plano}/grade-taxas', [PlanoController::class, 'salvarGrade'])->name('planos.grade-taxas.salvar');
         Route::prefix('planos/{plano}')->name('planos.')->group(function () {
             Route::get('taxas/create', [PlanoTaxaController::class, 'create'])->name('taxas.create');

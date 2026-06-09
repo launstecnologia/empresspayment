@@ -7,6 +7,7 @@ use App\Services\AutomacaoLogService;
 use App\Services\AutomacaoPagBankService;
 use App\Services\EmailPlataformaService;
 use App\Services\NotificacaoEmailService;
+use App\Support\AutomacaoSchema;
 use App\Support\NotificacaoVars;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -115,17 +116,18 @@ class AutomacaoRetentarEmailJob implements ShouldQueue
             } elseif (in_array($statusFinal, ['erro', 'erro_email', 'erro_proposta'], true)) {
                 $erro = $status['erro'] ?? 'Erro na retentativa de e-mail';
 
-                $update = [
-                    'fv_status' => $statusFinal === 'erro_proposta' ? 'erro_proposta' : 'erro_email',
-                    'fv_erro'   => $erro,
-                ];
-
                 if ($statusFinal === 'erro_proposta') {
-                    $update['fv_proposta_status'] = 'erro';
-                    $update['fv_proposta_erro'] = $erro;
+                    $update = AutomacaoSchema::atualizacaoErroProposta($estab, $erro);
+                } else {
+                    $update = [
+                        'fv_status' => 'erro_email',
+                        'fv_erro'   => $erro,
+                    ];
                 }
 
-                $estab->update($update);
+                if ($update !== []) {
+                    $estab->update($update);
+                }
 
                 $automacaoLog->registrarErro($estab->id, $erro, $jobId, $statusFinal);
 

@@ -163,6 +163,13 @@ cmd_status() {
         else
             warn "API Automação: não respondeu (pode estar iniciando)"
         fi
+
+        ACEITAR=$($COMPOSE exec -T automacao curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8001/aceitar-proposta 2>/dev/null || echo "000")
+        if [ "$ACEITAR" = "404" ]; then
+            warn "Endpoint /aceitar-proposta não encontrado — rode: docker compose build automacao && docker compose up -d automacao"
+        elif [ "$ACEITAR" = "401" ] || [ "$ACEITAR" = "422" ]; then
+            ok "API Automação: endpoint /aceitar-proposta disponível"
+        fi
     fi
 }
 

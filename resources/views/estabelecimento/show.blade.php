@@ -179,17 +179,21 @@
 @php
     $fvStatus   = $estabelecimento->fv_status;
     $fvEhAdmin  = auth()->user()?->tipo === 'admin';
-    $fvCores = match($fvStatus) {
-        'concluido'    => ['bg-emerald-100 text-emerald-800 border-emerald-200', 'fa-circle-check',       'Concluído'],
-        'em_andamento' => ['bg-blue-100 text-blue-800 border-blue-200',          'fa-spinner fa-spin',    'Em andamento'],
-        'pendente'     => ['bg-amber-100 text-amber-800 border-amber-200',       'fa-clock',              'Aguardando fila'],
-        'erro'         => ['bg-red-100 text-red-800 border-red-200',             'fa-circle-exclamation', 'Erro'],
-        'erro_email'   => ['bg-red-100 text-red-800 border-red-200',             'fa-circle-exclamation', 'Erro no e-mail'],
-        'erro_proposta'=> ['bg-orange-100 text-orange-800 border-orange-200',   'fa-file-circle-xmark',  'Erro na proposta'],
-        'timeout'      => ['bg-orange-100 text-orange-800 border-orange-200',    'fa-hourglass-end',      'Timeout'],
-        default        => ['bg-gray-100 text-gray-500 border-gray-200',          'fa-circle-minus',       'Não iniciada'],
+    $fvCadastroConcluido = filled($estabelecimento->fv_concluido_em);
+    $fvPropostaComErro = ($estabelecimento->fv_proposta_status ?? null) === 'erro'
+        || ($fvCadastroConcluido && $fvStatus === 'erro_proposta');
+    $fvCores = match(true) {
+        $fvCadastroConcluido && $fvPropostaComErro => ['bg-orange-100 text-orange-800 border-orange-200', 'fa-file-circle-xmark', 'Erro na proposta'],
+        $fvStatus === 'concluido' || $fvCadastroConcluido => ['bg-emerald-100 text-emerald-800 border-emerald-200', 'fa-circle-check', 'Concluído'],
+        $fvStatus === 'em_andamento' => ['bg-blue-100 text-blue-800 border-blue-200', 'fa-spinner fa-spin', 'Em andamento'],
+        $fvStatus === 'pendente' => ['bg-amber-100 text-amber-800 border-amber-200', 'fa-clock', 'Aguardando fila'],
+        $fvStatus === 'erro' => ['bg-red-100 text-red-800 border-red-200', 'fa-circle-exclamation', 'Erro'],
+        $fvStatus === 'erro_email' => ['bg-red-100 text-red-800 border-red-200', 'fa-circle-exclamation', 'Erro no e-mail'],
+        $fvStatus === 'erro_proposta' => ['bg-orange-100 text-orange-800 border-orange-200', 'fa-file-circle-xmark', 'Erro na proposta'],
+        $fvStatus === 'timeout' => ['bg-orange-100 text-orange-800 border-orange-200', 'fa-hourglass-end', 'Timeout'],
+        default => ['bg-gray-100 text-gray-500 border-gray-200', 'fa-circle-minus', 'Não iniciada'],
     };
-    $fvPodeIniciar = $fvEhAdmin && ! in_array($fvStatus, ['em_andamento', 'concluido']);
+    $fvPodeIniciar = $fvEhAdmin && ! in_array($fvStatus, ['em_andamento', 'concluido']) && ! $fvCadastroConcluido;
 @endphp
 <section id="automacao" data-tab-panel="automacao" class="mt-8 hidden overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
     <div class="border-b border-gray-100 bg-gray-50/80 px-6 py-4">
@@ -231,6 +235,15 @@
                     </span>
                     <span class="inline-flex items-center gap-2 rounded-full border border-orange-300 bg-orange-50 px-3 py-1.5 text-sm font-bold text-orange-700">
                         <i class="fa-solid fa-circle-exclamation"></i> E-mail / Senha: Erro
+                    </span>
+                </div>
+            @elseif ($fvCadastroConcluido && $fvPropostaComErro)
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-700">
+                        <i class="fa-solid fa-circle-check"></i> Cadastro PagBank: Concluído
+                    </span>
+                    <span class="inline-flex items-center gap-2 rounded-full border border-orange-300 bg-orange-50 px-3 py-1.5 text-sm font-bold text-orange-700">
+                        <i class="fa-solid fa-circle-exclamation"></i> Proposta comercial: Erro
                     </span>
                 </div>
             @else
@@ -292,14 +305,7 @@
                         <i class="fa-solid fa-robot"></i>
                         {{ in_array($fvStatus, ['erro','timeout']) ? 'Retentar Automação' : 'Iniciar Automação' }}
                     </button>
-                @elseif ($fvStatus === 'concluido' && $fvEhAdmin)
-                    <button type="button"
-                            data-modal-open="automacao-confirmar"
-                            data-automacao-label="Confirmar e reexecutar"
-                            class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                        <i class="fa-solid fa-rotate-right"></i> Reexecutar
-                    </button>
-                @elseif ($fvStatus === 'erro_proposta' && $fvEhAdmin)
+                @elseif ($fvPropostaComErro && $fvEhAdmin)
                     <form method="POST"
                           action="{{ route('admin.estabelecimentos.automacao.aceitar-proposta', $estabelecimento) }}"
                           onsubmit="return confirm('Retentar aceite da proposta comercial no PagBank?')">
@@ -309,6 +315,13 @@
                             <i class="fa-solid fa-file-signature"></i> Retentar Proposta
                         </button>
                     </form>
+                @elseif (($fvStatus === 'concluido' || $fvCadastroConcluido) && $fvEhAdmin)
+                    <button type="button"
+                            data-modal-open="automacao-confirmar"
+                            data-automacao-label="Confirmar e reexecutar"
+                            class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                        <i class="fa-solid fa-rotate-right"></i> Reexecutar
+                    </button>
                 @endif
 
                 @php
@@ -317,7 +330,8 @@
                         && filled($estabelecimento->fv_senha_6)
                         && ($estabelecimento->fv_proposta_status ?? null) !== 'concluido'
                         && ! $propostaEmAndamento
-                        && $fvStatus === 'concluido'
+                        && ! $fvPropostaComErro
+                        && $fvCadastroConcluido
                         && \App\Support\AutomacaoSchema::temColunasProposta();
                 @endphp
                 @if ($podeAceitarProposta)
@@ -331,7 +345,7 @@
                             <span>Aceitar Proposta</span>
                         </button>
                     </form>
-                @elseif ($fvEhAdmin && $fvStatus === 'concluido' && ! \App\Support\AutomacaoSchema::temColunasProposta())
+                @elseif ($fvEhAdmin && $fvCadastroConcluido && ! \App\Support\AutomacaoSchema::temColunasProposta())
                     <p class="text-sm text-amber-700">
                         <i class="fa-solid fa-triangle-exclamation mr-1"></i>
                         Execute <code class="rounded bg-amber-100 px-1">docker compose exec app php artisan migrate --force</code> para habilitar o aceite de proposta.
@@ -357,13 +371,13 @@
                     {{ $estabelecimento->fv_concluido_em?->format('d/m/Y H:i:s') ?: '—' }}
                 </dd>
             </div>
-            @if ($fvStatus === 'concluido' && filled($emailPagBank))
+            @if ($fvCadastroConcluido && filled($emailPagBank))
                 <div class="rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
                     <dt class="text-xs font-semibold uppercase tracking-wide text-emerald-600">E-mail PagBank</dt>
                     <dd class="mt-1 break-all text-sm font-medium text-gray-900">{{ $emailPagBank }}</dd>
                 </div>
             @endif
-            @if ($fvStatus === 'concluido' && filled($estabelecimento->fv_senha_6))
+            @if ($fvCadastroConcluido && filled($estabelecimento->fv_senha_6))
                 <div class="rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
                     <dt class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Senha PagBank (6 dígitos)</dt>
                     <dd x-data="{ mostrar: false }" class="mt-1 flex flex-wrap items-center gap-2">
@@ -376,7 +390,7 @@
                     </dd>
                 </div>
             @endif
-            @if (in_array($fvStatus, ['concluido', 'erro_email'], true))
+            @if ($fvCadastroConcluido)
                 @php
                     $safepayBuscando = session('safepay_buscando') && blank($estabelecimento->token_pagseguro);
                 @endphp
@@ -437,8 +451,8 @@
             </div>
         </dl>
 
-        {{-- Erro --}}
-        @if ($estabelecimento->fv_erro)
+        {{-- Erro do cadastro (não confundir com erro só da proposta) --}}
+        @if ($estabelecimento->fv_erro && ! $fvPropostaComErro)
             <div class="rounded-lg border border-red-200 bg-red-50 p-4">
                 <p class="mb-1 text-xs font-bold uppercase tracking-wide text-red-600">
                     <i class="fa-solid fa-triangle-exclamation mr-1"></i> Retorno de Erro
@@ -447,8 +461,24 @@
             </div>
         @endif
 
+        @if ($fvPropostaComErro && filled($estabelecimento->fv_proposta_erro))
+            <div class="rounded-lg border border-orange-200 bg-orange-50 p-4">
+                <p class="mb-1 text-xs font-bold uppercase tracking-wide text-orange-700">
+                    <i class="fa-solid fa-triangle-exclamation mr-1"></i> Erro na proposta comercial
+                </p>
+                <pre class="whitespace-pre-wrap break-all font-mono text-xs text-orange-900">{{ $estabelecimento->fv_proposta_erro }}</pre>
+            </div>
+        @elseif ($fvPropostaComErro && filled($estabelecimento->fv_erro))
+            <div class="rounded-lg border border-orange-200 bg-orange-50 p-4">
+                <p class="mb-1 text-xs font-bold uppercase tracking-wide text-orange-700">
+                    <i class="fa-solid fa-triangle-exclamation mr-1"></i> Erro na proposta comercial
+                </p>
+                <pre class="whitespace-pre-wrap break-all font-mono text-xs text-orange-900">{{ $estabelecimento->fv_erro }}</pre>
+            </div>
+        @endif
+
         {{-- Sucesso --}}
-        @if ($fvStatus === 'concluido')
+        @if ($fvCadastroConcluido)
             <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                 <p class="text-sm font-bold text-emerald-800">
                     <i class="fa-solid fa-circle-check mr-1"></i> Cadastro concluído com sucesso no portal PagBank Força de Vendas.

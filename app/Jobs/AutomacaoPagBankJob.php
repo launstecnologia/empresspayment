@@ -6,6 +6,7 @@ use App\Models\Estabelecimento;
 use App\Services\AutomacaoLogService;
 use App\Services\AutomacaoPagBankService;
 use App\Services\NotificacaoEmailService;
+use App\Support\AutomacaoSchema;
 use App\Support\NotificacaoVars;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -141,18 +142,21 @@ class AutomacaoPagBankJob implements ShouldQueue
             } elseif (in_array($statusFinal, ['erro', 'erro_email', 'erro_proposta'], true)) {
                 $erro = $status['erro'] ?? 'Erro desconhecido na automação';
 
-                $update = [
-                    'fv_status' => $statusFinal,
-                    'fv_erro'   => $erro,
-                ];
-
                 if ($statusFinal === 'erro_proposta') {
-                    $update['fv_senha_6'] = $this->senha6;
-                    $update['fv_proposta_status'] = 'erro';
-                    $update['fv_proposta_erro'] = $erro;
+                    $update = array_merge(
+                        AutomacaoSchema::atualizacaoErroProposta($estab, $erro),
+                        ['fv_senha_6' => $this->senha6],
+                    );
+                } else {
+                    $update = [
+                        'fv_status' => $statusFinal,
+                        'fv_erro'   => $erro,
+                    ];
                 }
 
-                $estab->update($update);
+                if ($update !== []) {
+                    $estab->update($update);
+                }
 
                 $automacaoLog->registrarErro(
                     $estab->id,

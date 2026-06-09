@@ -205,6 +205,13 @@ class AutomacaoPagBankService
                 'headless' => config('automacao.headless', true),
             ]);
 
+        if ($response->status() === 404) {
+            throw new RuntimeException(
+                'Endpoint /aceitar-proposta não encontrado na API Python. '
+                . 'Reconstrua o serviço: docker compose build automacao && docker compose up -d --force-recreate automacao'
+            );
+        }
+
         if (! $response->successful()) {
             throw new RuntimeException(
                 'Falha ao iniciar aceite de proposta: '.$response->status().' — '.$response->body()

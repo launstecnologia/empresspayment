@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Estabelecimento;
 use Illuminate\Support\Facades\Schema;
 
 class AutomacaoSchema
@@ -36,5 +37,22 @@ class AutomacaoSchema
         }
 
         return $dados;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function atualizacaoErroProposta(Estabelecimento $estab, string $erro): array
+    {
+        $update = self::atualizacaoProposta('erro', $erro);
+
+        if (filled($estab->fv_concluido_em)) {
+            return $update;
+        }
+
+        return array_merge($update, [
+            'fv_status' => 'erro_proposta',
+            'fv_erro' => $erro,
+        ]);
     }
 }

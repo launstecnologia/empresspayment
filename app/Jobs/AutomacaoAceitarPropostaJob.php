@@ -64,13 +64,12 @@ class AutomacaoAceitarPropostaJob implements ShouldQueue
             }
 
             if ($statusFinal === 'concluido') {
-                $update = array_merge(
-                    AutomacaoSchema::atualizacaoProposta('concluido'),
-                    [
-                        'fv_status' => $estab->fv_status === 'erro_proposta' ? 'concluido' : $estab->fv_status,
-                        'fv_erro' => $estab->fv_status === 'erro_proposta' ? null : $estab->fv_erro,
-                    ],
-                );
+                $update = AutomacaoSchema::atualizacaoProposta('concluido');
+
+                if (filled($estab->fv_concluido_em)) {
+                    $update['fv_status'] = 'concluido';
+                    $update['fv_erro'] = null;
+                }
 
                 if ($update !== []) {
                     $estab->update($update);
@@ -86,18 +85,7 @@ class AutomacaoAceitarPropostaJob implements ShouldQueue
             }
 
             $erro = $status['erro'] ?? 'Timeout ou erro ao aceitar proposta';
-
-            $update = array_merge(
-                AutomacaoSchema::atualizacaoProposta('erro', $erro),
-                [
-                    'fv_status' => 'erro_proposta',
-                    'fv_erro' => $erro,
-                ],
-            );
-
-            if ($update !== []) {
-                $estab->update($update);
-            }
+            $estab->update(AutomacaoSchema::atualizacaoErroProposta($estab, $erro));
 
             $automacaoLog->registrarErro($estab->id, $erro, $jobId ?? null, 'erro_proposta');
 
@@ -107,17 +95,7 @@ class AutomacaoAceitarPropostaJob implements ShouldQueue
                 'erro' => $erro,
             ]);
         } catch (\Throwable $e) {
-            $update = array_merge(
-                AutomacaoSchema::atualizacaoProposta('erro', $e->getMessage()),
-                [
-                    'fv_status' => 'erro_proposta',
-                    'fv_erro' => $e->getMessage(),
-                ],
-            );
-
-            if ($update !== []) {
-                $estab->update($update);
-            }
+            $estab->update(AutomacaoSchema::atualizacaoErroProposta($estab, $e->getMessage()));
 
             $automacaoLog->registrarErro($estab->id, $e->getMessage(), $estab->fv_job_id ?? null, 'excecao');
 

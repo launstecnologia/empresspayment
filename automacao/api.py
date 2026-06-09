@@ -319,20 +319,8 @@ def _executar_somente_email(job_id: str, req: dict) -> None:
         }
 
         if email_resultado.get('sucesso'):
-            proposta_resultado = _executar_etapa_proposta(job_id, req, screenshot_dir)
-            resultado_final['etapa_proposta'] = proposta_resultado
-
-            if not proposta_resultado.get('sucesso'):
-                _update_job(
-                    job_id, 'erro_proposta',
-                    resultado=resultado_final,
-                    erro=proposta_resultado.get('erro', 'Erro ao aceitar proposta'),
-                    etapa_atual='Erro ao aceitar proposta',
-                )
-                return
-
             _update_job(job_id, 'concluido', resultado=resultado_final, etapa_atual='Concluído com sucesso')
-            log.info(f'[{job_id}] Email + proposta concluídos com sucesso!')
+            log.info(f'[{job_id}] E-mail concluído com sucesso (proposta comercial fica para ação manual)')
         else:
             _update_job(
                 job_id, 'erro_email',
@@ -506,18 +494,6 @@ def _executar_job(job_id: str, req: dict) -> None:
         }
 
         if email_resultado.get('sucesso'):
-            proposta_resultado = _executar_etapa_proposta(job_id, req, screenshot_dir)
-            resultado_final['etapa_proposta'] = proposta_resultado
-
-            if not proposta_resultado.get('sucesso'):
-                _update_job(
-                    job_id, 'erro_proposta',
-                    resultado=resultado_final,
-                    erro=proposta_resultado.get('erro', 'Erro ao aceitar proposta'),
-                    etapa_atual='Erro ao aceitar proposta',
-                )
-                return
-
             _set_etapa(job_id, 'Buscando Safepay ID no portal FV...')
             from main import buscar_safepay_id_fv
 
@@ -539,7 +515,7 @@ def _executar_job(job_id: str, req: dict) -> None:
                 log.warning(f'[{job_id}] Safepay ID não encontrado: {safepay_resultado.get("erro")}')
 
             _update_job(job_id, 'concluido', resultado=resultado_final, etapa_atual='Concluído com sucesso')
-            log.info(f'[{job_id}] Job concluído com sucesso!')
+            log.info(f'[{job_id}] Cadastro concluído (proposta comercial fica para ação manual)')
         else:
             _update_job(
                 job_id, 'erro_email',

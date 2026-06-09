@@ -82,9 +82,6 @@ class AutomacaoRetentarEmailJob implements ShouldQueue
                     'fv_senha_6'      => $this->senha6,
                     'fv_concluido_em' => now(),
                     'fv_erro'         => null,
-                    'fv_proposta_status' => 'concluido',
-                    'fv_proposta_concluido_em' => now(),
-                    'fv_proposta_erro' => null,
                     'status'          => $estab->status === 'em_cadastro' ? 'habilitado' : $estab->status,
                 ]);
 

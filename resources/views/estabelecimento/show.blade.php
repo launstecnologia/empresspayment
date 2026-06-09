@@ -1274,7 +1274,7 @@
         @if ($errors->has('senha_admin') || $errors->has('confirmacao') || session('abrir_modal_inativar'))
             document.querySelector('[data-modal="inativar-sistema"]')?.classList.add('is-open');
         @endif
-        @if ($errors->has('automacao') || session('proposta_aceitando') || window.location.hash === '#automacao')
+        @if ($errors->has('automacao') || session('proposta_aceitando'))
             showTab('automacao');
         @endif
 

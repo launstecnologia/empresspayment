@@ -138,11 +138,42 @@ class ChamadoService
             return true;
         }
 
-        if ($usuario instanceof SubUsuario) {
-            return $chamado->aberto_por_tipo === 'sub_usuario' && (int) $chamado->aberto_por_id === (int) $usuario->id;
+        return $this->queryVisiveisPara($usuario)
+            ->whereKey($chamado->id)
+            ->exists();
+    }
+
+    public function queryVisiveisPara(Usuario|SubUsuario $autor)
+    {
+        if ($autor instanceof SubUsuario) {
+            return Chamado::query()
+                ->where('aberto_por_tipo', 'sub_usuario')
+                ->where('aberto_por_id', $autor->id);
         }
 
-        return $chamado->aberto_por_tipo === 'usuario' && (int) $chamado->aberto_por_id === (int) $usuario->id;
+        if ($autor->tipo === 'marketplace') {
+            $subIds = SubUsuario::query()
+                ->where('dono_id', $autor->id)
+                ->pluck('id');
+
+            return Chamado::query()->where(function ($query) use ($autor, $subIds) {
+                $query->where(function ($query) use ($autor) {
+                    $query->where('aberto_por_tipo', 'usuario')
+                        ->where('aberto_por_id', $autor->id);
+                });
+
+                if ($subIds->isNotEmpty()) {
+                    $query->orWhere(function ($query) use ($subIds) {
+                        $query->where('aberto_por_tipo', 'sub_usuario')
+                            ->whereIn('aberto_por_id', $subIds);
+                    });
+                }
+            });
+        }
+
+        return Chamado::query()
+            ->where('aberto_por_tipo', 'usuario')
+            ->where('aberto_por_id', $autor->id);
     }
 
     private function criarMensagem(Chamado $chamado, Usuario|SubUsuario $autor, string $mensagem, bool $interno): ChamadoMensagem

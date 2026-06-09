@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Chamado;
 use App\Http\Controllers\Controller;
 use App\Models\Chamado;
 use App\Models\ChamadoAnexo;
+use App\Models\Usuario;
 use App\Services\ChamadoNotificacaoService;
 use App\Services\ChamadoService;
 use Illuminate\Http\Request;
@@ -13,19 +14,18 @@ use Illuminate\Validation\Rule;
 
 class ChamadoController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, ChamadoService $service)
     {
         $usuario = $request->user();
 
-        if ($usuario?->tipo === 'admin') {
+        if ($usuario instanceof Usuario && $usuario->tipo === 'admin') {
             return redirect()->route('admin.chamados.index');
         }
 
-        $chamados = Chamado::with('mensagens')
-            ->where('aberto_por_tipo', 'usuario')
-            ->where('aberto_por_id', $usuario->id)
-            ->when($request->status, fn ($query, $status) => $query->where('status', $status))
-            ->when($request->categoria, fn ($query, $categoria) => $query->where('categoria', $categoria))
+        $chamados = $service->queryVisiveisPara($usuario)
+            ->with('mensagens')
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+            ->when($request->filled('categoria'), fn ($query) => $query->where('categoria', $request->string('categoria')))
             ->latest('updated_at')
             ->paginate(20)
             ->withQueryString();
@@ -42,7 +42,7 @@ class ChamadoController extends Controller
 
     public function store(Request $request, ChamadoService $service)
     {
-        abort_if($request->user()?->tipo === 'admin', 404);
+        abort_if($request->user() instanceof Usuario && $request->user()->tipo === 'admin', 404);
 
         $dados = $request->validate([
             'titulo' => ['required', 'string', 'min:10', 'max:200'],

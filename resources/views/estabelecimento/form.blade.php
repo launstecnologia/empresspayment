@@ -181,10 +181,33 @@
             <span class="{{ $labelTextClass }}">Endereço</span>
             <input data-autofill="endereco" name="endereco" value="{{ old('endereco', $estabelecimento->endereco) }}" placeholder="Endereço" class="{{ $inputClass }}">
         </label>
-        <label class="{{ $labelClass }} md:col-span-2">
+        <div class="{{ $labelClass }} md:col-span-2">
+            @php
+                $semNumero = (bool) old('sem_numero', in_array(strtoupper(trim((string) ($estabelecimento->numero ?? ''))), ['00', 'S/N', 'SN'], true));
+            @endphp
             <span class="{{ $labelTextClass }}">Número</span>
-            <input data-autofill="numero" name="numero" value="{{ old('numero', $estabelecimento->numero) }}" placeholder="Número" class="{{ $inputClass }}">
-        </label>
+            <div class="flex items-center gap-2">
+                <input
+                    data-autofill="numero"
+                    name="numero"
+                    value="{{ old('numero', $semNumero ? '' : $estabelecimento->numero) }}"
+                    placeholder="Número"
+                    class="{{ $inputClass }} min-w-0 flex-1"
+                    @disabled($semNumero)
+                >
+                <label class="flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap text-[11px] font-medium text-slate-500">
+                    <input
+                        type="checkbox"
+                        name="sem_numero"
+                        value="1"
+                        data-sem-numero
+                        class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        @checked($semNumero)
+                    >
+                    S/N
+                </label>
+            </div>
+        </div>
         <label class="{{ $labelClass }} md:col-span-4">
             <span class="{{ $labelTextClass }}">Complemento</span>
             <input data-autofill="complemento" name="complemento" value="{{ old('complemento', $estabelecimento->complemento) }}" placeholder="Complemento" class="{{ $inputClass }}">
@@ -222,8 +245,8 @@
     <h2 class="{{ $sectionTitleClass }}">Configurações</h2>
     <div class="grid gap-x-5 gap-y-3 px-3 py-4 md:grid-cols-12">
         <label class="{{ $labelClass }} md:col-span-8">
-            <span class="{{ $labelTextClass }}">Token PagSeguro</span>
-            <input name="token_pagseguro" value="{{ old('token_pagseguro', $estabelecimento->token_pagseguro) }}" placeholder="Token PagSeguro" class="{{ $inputClass }}">
+            <span class="{{ $labelTextClass }}">ID PagSeguro</span>
+            <input name="token_pagseguro" value="{{ old('token_pagseguro', $estabelecimento->token_pagseguro) }}" placeholder="ID PagSeguro" class="{{ $inputClass }}">
         </label>
         <label class="{{ $labelClass }} md:col-span-4">
             <span class="{{ $labelTextClass }}">Plano</span>
@@ -326,6 +349,14 @@
             element.value = value;
             element.dispatchEvent(new Event('input', { bubbles: true }));
             element.dispatchEvent(new Event('change', { bubbles: true }));
+
+            if (name === 'numero' && value) {
+                const semNumeroCheckbox = document.querySelector('[data-sem-numero]');
+                if (semNumeroCheckbox?.checked) {
+                    semNumeroCheckbox.checked = false;
+                    syncSemNumero?.();
+                }
+            }
         };
 
         const normalizeDate = (value) => {
@@ -427,6 +458,31 @@
 
         document.querySelector('[data-action="buscar-cep"]')?.addEventListener('click', () => buscarCep(true));
         document.querySelector('[data-action="buscar-cnpj"]')?.addEventListener('click', () => buscarCnpj(true));
+
+        const semNumeroCheckbox = document.querySelector('[data-sem-numero]');
+        const numeroInput = field('numero');
+
+        const syncSemNumero = () => {
+            const sem = !!semNumeroCheckbox?.checked;
+            if (!numeroInput) return;
+            numeroInput.disabled = sem;
+            if (sem) {
+                numeroInput.value = '';
+                numeroInput.placeholder = 'Sem número';
+            } else {
+                numeroInput.placeholder = 'Número';
+            }
+        };
+
+        semNumeroCheckbox?.addEventListener('change', syncSemNumero);
+        syncSemNumero();
+
+        document.querySelector('form')?.addEventListener('submit', () => {
+            if (semNumeroCheckbox?.checked && numeroInput) {
+                numeroInput.disabled = false;
+                numeroInput.value = '';
+            }
+        });
 
         const syncPessoaTipo = (value) => {
             document.querySelectorAll('[data-pessoa-toggle]').forEach((label) => {

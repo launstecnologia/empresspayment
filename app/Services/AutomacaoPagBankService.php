@@ -297,7 +297,7 @@ class AutomacaoPagBankService
             'cep'             => preg_replace('/\D/', '', $estab->cep ?? ''),
             'endereco'        => $estab->endereco ?? '',
             'bairro'          => $estab->bairro ?? '',
-            'numero'          => $estab->numero ?? 'S/N',
+            'numero'          => $this->numeroAutomacao($estab),
             'complemento'     => $estab->complemento ?? '',
             'estado'          => $estab->uf ?? '',
             'segmento'        => $this->mapearSegmento($estab),
@@ -367,6 +367,17 @@ class AutomacaoPagBankService
         // Os segmentos agora são cadastrados com os nomes exatos do portal PagBank FV
         // Retorna direto o campo segmento, com fallback para "Outras atividades empresariais"
         return filled($estab->segmento) ? $estab->segmento : 'Outras atividades empresariais';
+    }
+
+    private function numeroAutomacao(Estabelecimento $estab): string
+    {
+        $numero = trim((string) ($estab->numero ?? ''));
+
+        if ($numero === '' || in_array(strtoupper($numero), ['00', 'S/N', 'SN', 'S N'], true)) {
+            return '00';
+        }
+
+        return $numero;
     }
 
     private function formatarTelefone(?string $numero): string

@@ -58,7 +58,7 @@ return [
         'segmento' => 'segmento',
         'subdominio' => 'subdomínio',
         'telefone' => 'telefone',
-        'token_pagseguro' => 'token PagSeguro',
+        'token_pagseguro' => 'ID PagSeguro',
         'uf' => 'UF',
     ],
 ];

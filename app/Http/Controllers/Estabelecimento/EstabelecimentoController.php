@@ -283,7 +283,7 @@ class EstabelecimentoController extends Controller
 
     private function validar(Request $request): array
     {
-        return $request->validate([
+        $dados = $request->validate([
             'pessoa_tipo' => ['required', 'in:juridica,fisica'],
             'cnpj' => ['nullable', 'string', 'max:18'],
             'cpf' => ['nullable', 'string', 'max:14'],
@@ -304,6 +304,7 @@ class EstabelecimentoController extends Controller
             'cep' => ['nullable', 'string', 'max:9'],
             'endereco' => ['nullable', 'string', 'max:200'],
             'numero' => ['nullable', 'string', 'max:10'],
+            'sem_numero' => ['nullable', 'boolean'],
             'complemento' => ['nullable', 'string', 'max:100'],
             'bairro' => ['nullable', 'string', 'max:100'],
             'cidade' => ['nullable', 'string', 'max:100'],
@@ -325,6 +326,14 @@ class EstabelecimentoController extends Controller
             'anotacoes_interno' => ['nullable', 'string'],
             'ativo' => ['nullable', 'boolean'],
         ]);
+
+        if ($request->boolean('sem_numero')) {
+            $dados['numero'] = '00';
+        }
+
+        unset($dados['sem_numero']);
+
+        return $dados;
     }
 
     private function ipCadastro(Request $request, ?Estabelecimento $estabelecimento = null): array

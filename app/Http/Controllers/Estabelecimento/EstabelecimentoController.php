@@ -9,6 +9,7 @@ use App\Services\AutomacaoLogService;
 use App\Models\Plano;
 use App\Models\Segmento;
 use App\Models\Usuario;
+use App\Support\EstabelecimentoEtapaListagem;
 use App\Support\UsuarioComercial;
 use App\Services\AutomacaoPagBankService;
 use App\Services\EmailPlataformaService;
@@ -34,7 +35,7 @@ class EstabelecimentoController extends Controller
     public function __construct(private MarketplacePlanoService $marketplacePlano) {}
     public function index(Request $request)
     {
-        $query = Estabelecimento::query()->with('marketplace')->latest();
+        $query = Estabelecimento::query()->with(['marketplace', 'kycAnalise'])->latest();
 
         $this->aplicarFiltrosIndex($query, $request);
 
@@ -43,6 +44,7 @@ class EstabelecimentoController extends Controller
             'marketplace_id',
             'revenda_id',
             'status',
+            'pagbank',
             'risco',
             'plano_id',
             'segmento',
@@ -488,8 +490,12 @@ class EstabelecimentoController extends Controller
             $query->where('revenda_id', $request->integer('revenda_id'));
         }
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->string('status'));
+        if ($request->filled('status') && in_array($request->string('status'), ['pendente', 'aprovado', 'negado'], true)) {
+            EstabelecimentoEtapaListagem::aplicarFiltroStatus($query, $request->string('status'));
+        }
+
+        if ($request->filled('pagbank') && in_array($request->string('pagbank'), ['pendente', 'aprovado', 'negado'], true)) {
+            EstabelecimentoEtapaListagem::aplicarFiltroPagBank($query, $request->string('pagbank'));
         }
 
         if ($request->filled('risco')) {

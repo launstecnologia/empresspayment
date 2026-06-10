@@ -4,7 +4,7 @@
 
 @section('content')
 @php
-    use App\Support\PagBankEstabelecimentoStatus;
+    use App\Support\EstabelecimentoEtapaListagem;
     use App\Support\UsuarioComercial;
 
     $filtrosAtivos = collect($filtros ?? [])->filter(fn ($v) => $v !== null && $v !== '')->count();
@@ -39,12 +39,13 @@
             </div>
         </div>
         <div class="overflow-x-auto">
-        <table class="w-full min-w-[720px] text-sm">
+        <table class="w-full min-w-[820px] text-sm">
             <thead>
                 <tr class="border-b border-gray-100 bg-gray-50">
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Código</th>
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Nome</th>
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Documento</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Cadastro</th>
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">PagBank</th>
                     <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Ações</th>
@@ -53,14 +54,10 @@
             <tbody>
                 @forelse ($estabelecimentos as $estabelecimento)
                     @php
-                    $statusClass = match ($estabelecimento->status) {
-                        'habilitado' => 'bg-green-100 text-green-700',
-                        'desabilitado' => 'bg-red-100 text-red-600',
-                        'em_analise', 'qualidade' => 'bg-yellow-100 text-yellow-700',
-                        'em_cadastro' => 'bg-sky-100 text-sky-700',
-                        default => 'bg-blue-100 text-blue-700',
-                    };
-                    [$pagbankClass, $pagbankLabel] = PagBankEstabelecimentoStatus::badge($estabelecimento);
+                    $statusKyc = EstabelecimentoEtapaListagem::statusKyc($estabelecimento);
+                    [$statusClass, $statusLabel] = EstabelecimentoEtapaListagem::badge($statusKyc);
+                    $statusPagBank = EstabelecimentoEtapaListagem::statusPagBank($estabelecimento);
+                    [$pagbankClass, $pagbankLabel] = EstabelecimentoEtapaListagem::badge($statusPagBank);
                     @endphp
                     <tr class="border-b border-gray-50 transition-colors hover:bg-gray-50">
                         <td class="px-5 py-4 font-semibold text-gray-800">#{{ str_pad($estabelecimento->id, 4, '0', STR_PAD_LEFT) }}</td>
@@ -69,8 +66,9 @@
                             <p class="text-xs text-gray-400">{{ $estabelecimento->marketplace?->nomeExibicao() ?: 'Sem marketplace' }}</p>
                         </td>
                         <td class="px-5 py-4 text-gray-600">{{ $estabelecimento->cnpj ?: $estabelecimento->cpf ?: '—' }}</td>
+                        <td class="px-5 py-4 text-gray-600">{{ $estabelecimento->created_at?->format('d/m/Y') ?: '—' }}</td>
                         <td class="px-5 py-4">
-                            <span class="rounded-full px-2.5 py-1 text-xs font-medium {{ $statusClass }}">{{ str_replace('_', ' ', ucfirst($estabelecimento->status)) }}</span>
+                            <span class="rounded-full px-2.5 py-1 text-xs font-medium {{ $statusClass }}">{{ $statusLabel }}</span>
                         </td>
                         <td class="px-5 py-4">
                             <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium {{ $pagbankClass }}">{{ $pagbankLabel }}</span>
@@ -87,7 +85,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-5 py-10 text-center text-sm text-gray-500">Nenhum estabelecimento encontrado para o filtro atual.</td>
+                        <td colspan="7" class="px-5 py-10 text-center text-sm text-gray-500">Nenhum estabelecimento encontrado para o filtro atual.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -154,11 +152,21 @@
                     </div>
 
                     <div>
-                        <label for="filtro-status" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Status</label>
+                        <label for="filtro-status" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Status (KYC)</label>
                         <select id="filtro-status" name="status" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Todos</option>
-                            @foreach (['habilitado', 'desabilitado', 'em_analise', 'pendente', 'qualidade'] as $statusOpcao)
-                                <option value="{{ $statusOpcao }}" @selected(($filtros['status'] ?? '') === $statusOpcao)>{{ str_replace('_', ' ', ucfirst($statusOpcao)) }}</option>
+                            @foreach (['pendente' => 'Pendente', 'aprovado' => 'Aprovado', 'negado' => 'Negado'] as $valor => $rotulo)
+                                <option value="{{ $valor }}" @selected(($filtros['status'] ?? '') === $valor)>{{ $rotulo }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="filtro-pagbank" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">PagBank</label>
+                        <select id="filtro-pagbank" name="pagbank" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Todos</option>
+                            @foreach (['pendente' => 'Pendente', 'aprovado' => 'Aprovado', 'negado' => 'Negado'] as $valor => $rotulo)
+                                <option value="{{ $valor }}" @selected(($filtros['pagbank'] ?? '') === $valor)>{{ $rotulo }}</option>
                             @endforeach
                         </select>
                     </div>

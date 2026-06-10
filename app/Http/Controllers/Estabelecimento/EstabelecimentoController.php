@@ -10,6 +10,7 @@ use App\Models\Plano;
 use App\Models\Segmento;
 use App\Models\Usuario;
 use App\Support\EstabelecimentoEtapaListagem;
+use App\Support\EstabelecimentoSchema;
 use App\Support\UsuarioComercial;
 use App\Services\AutomacaoPagBankService;
 use App\Services\EmailPlataformaService;
@@ -224,14 +225,28 @@ class EstabelecimentoController extends Controller
         ]);
 
         $anterior = $estabelecimento->status;
-        $pagbankManualAnterior = $estabelecimento->pagbank_status_manual;
+        $pagbankManualAnterior = EstabelecimentoSchema::temPagbankStatusManual()
+            ? $estabelecimento->pagbank_status_manual
+            : null;
         $pagbankManual = $dados['pagbank_status_manual'] ?? null;
 
-        $estabelecimento->update([
+        $update = [
             'status' => $dados['status'],
-            'pagbank_status_manual' => $pagbankManual,
             'anotacoes_interno' => trim(($estabelecimento->anotacoes_interno ? $estabelecimento->anotacoes_interno.PHP_EOL.PHP_EOL : '').($dados['observacao'] ?? '')),
-        ]);
+        ];
+
+        if (EstabelecimentoSchema::temPagbankStatusManual()) {
+            $update['pagbank_status_manual'] = $pagbankManual;
+        }
+
+        $estabelecimento->update($update);
+
+        $redirect = redirect()->route('estabelecimentos.show', $estabelecimento)
+            ->with('status', 'Status alterado com sucesso.');
+
+        if (! EstabelecimentoSchema::temPagbankStatusManual() && filled($pagbankManual)) {
+            $redirect->with('aviso', 'Status operacional salvo. O override manual do PagBank exige a migration pendente no servidor (php artisan migrate --force).');
+        }
 
         $log->registrar(
             'Estabelecimento',
@@ -249,7 +264,7 @@ class EstabelecimentoController extends Controller
             ],
         );
 
-        return redirect()->route('estabelecimentos.show', $estabelecimento)->with('status', 'Status alterado com sucesso.');
+        return $redirect;
     }
 
     public function inativarSistema(Request $request, Estabelecimento $estabelecimento, LogService $log)

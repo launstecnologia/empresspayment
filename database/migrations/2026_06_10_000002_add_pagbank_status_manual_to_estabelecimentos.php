@@ -15,8 +15,7 @@ return new class extends Migration
         Schema::table('estabelecimentos', function (Blueprint $table) {
             if (! Schema::hasColumn('estabelecimentos', 'pagbank_status_manual')) {
                 $table->enum('pagbank_status_manual', ['pendente', 'aprovado', 'negado'])
-                    ->nullable()
-                    ->after('pagbank_edi_ativo');
+                    ->nullable();
             }
         });
     }

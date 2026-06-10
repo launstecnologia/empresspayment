@@ -29,7 +29,10 @@ class EstabelecimentoEtapaListagem
 
     public static function statusPagBank(Estabelecimento $estabelecimento): string
     {
-        if (filled($estabelecimento->pagbank_status_manual)) {
+        if (
+            EstabelecimentoSchema::temPagbankStatusManual()
+            && filled($estabelecimento->pagbank_status_manual)
+        ) {
             return self::normalizarStatus($estabelecimento->pagbank_status_manual);
         }
 
@@ -83,28 +86,39 @@ class EstabelecimentoEtapaListagem
     {
         $etapa = self::normalizarStatus($etapa);
 
+        if (! EstabelecimentoSchema::temPagbankStatusManual()) {
+            self::aplicarFiltroPagBankAutomatico($query, $etapa);
+
+            return;
+        }
+
         $query->where(function (Builder $q) use ($etapa) {
             $q->where('pagbank_status_manual', $etapa)
                 ->orWhere(function (Builder $auto) use ($etapa) {
                     $auto->whereNull('pagbank_status_manual');
-                    match ($etapa) {
-                        self::APROVADO => $auto->where(function (Builder $q) {
-                            $q->where('fv_status', 'concluido')
-                                ->orWhereNotNull('pagbank_account_id')
-                                ->orWhere(function (Builder $email) {
-                                    $email->where('fv_status', 'erro_email')
-                                        ->whereNotNull('pagbank_account_id');
-                                });
-                        }),
-                        self::NEGADO => $auto->whereIn('fv_status', ['erro', 'timeout']),
-                        default => $auto->where(function (Builder $q) {
-                            $q->where(function (Builder $pendente) {
-                                $pendente->whereNull('fv_status')
-                                    ->orWhereIn('fv_status', ['pendente', 'em_andamento']);
-                            })->whereNull('pagbank_account_id');
-                        }),
-                    };
+                    self::aplicarFiltroPagBankAutomatico($auto, $etapa);
                 });
         });
+    }
+
+    private static function aplicarFiltroPagBankAutomatico(Builder $query, string $etapa): void
+    {
+        match ($etapa) {
+            self::APROVADO => $query->where(function (Builder $q) {
+                $q->where('fv_status', 'concluido')
+                    ->orWhereNotNull('pagbank_account_id')
+                    ->orWhere(function (Builder $email) {
+                        $email->where('fv_status', 'erro_email')
+                            ->whereNotNull('pagbank_account_id');
+                    });
+            }),
+            self::NEGADO => $query->whereIn('fv_status', ['erro', 'timeout']),
+            default => $query->where(function (Builder $q) {
+                $q->where(function (Builder $pendente) {
+                    $pendente->whereNull('fv_status')
+                        ->orWhereIn('fv_status', ['pendente', 'em_andamento']);
+                })->whereNull('pagbank_account_id');
+            }),
+        };
     }
 }

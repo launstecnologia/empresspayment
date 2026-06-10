@@ -12,6 +12,7 @@
     [$pagbankAutoClass, $pagbankAutoLabel] = \App\Support\EstabelecimentoEtapaListagem::badge($pagbankAutomatico);
     $pagbankEfetivo = \App\Support\EstabelecimentoEtapaListagem::statusPagBank($estabelecimento);
     [$pagbankClass, $pagbankLabel] = \App\Support\EstabelecimentoEtapaListagem::badge($pagbankEfetivo);
+    $pagbankStatusManualDisponivel = \App\Support\EstabelecimentoSchema::temPagbankStatusManual();
     $riscoClass = match ($estabelecimento->risco) {
         'bloqueado' => 'bg-red-500 text-white',
         'atencao' => 'bg-amber-500 text-white',
@@ -1167,6 +1168,7 @@
                         @endforeach
                     </select>
                 </label>
+                @if ($pagbankStatusManualDisponivel)
                 <label class="block space-y-1">
                     <span class="text-sm font-bold text-gray-800">Status PagBank</span>
                     <select name="pagbank_status_manual" class="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700">
@@ -1183,6 +1185,12 @@
                         @endif
                     </p>
                 </label>
+                @else
+                <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    Status PagBank na listagem: <strong>{{ $pagbankLabel }}</strong> (automático).
+                    Para override manual, execute <code class="rounded bg-amber-100 px-1">php artisan migrate --force</code> no servidor.
+                </div>
+                @endif
                 <label class="block space-y-1">
                     <span class="text-sm font-bold text-gray-800">Observação</span>
                     <textarea name="observacao" rows="4" placeholder="Observação de status..." class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700"></textarea>

@@ -12,6 +12,12 @@ return new class extends Migration
             return;
         }
 
+        if ($this->enumJaSimplificado()) {
+            return;
+        }
+
+        DB::statement("ALTER TABLE estabelecimentos MODIFY COLUMN status VARCHAR(30) NOT NULL DEFAULT 'pendente'");
+
         DB::table('estabelecimentos')
             ->where('status', 'habilitado')
             ->update(['status' => 'aprovado']);
@@ -33,6 +39,12 @@ return new class extends Migration
             return;
         }
 
+        if (! $this->enumJaSimplificado()) {
+            return;
+        }
+
+        DB::statement("ALTER TABLE estabelecimentos MODIFY COLUMN status VARCHAR(30) NOT NULL DEFAULT 'pendente'");
+
         DB::table('estabelecimentos')
             ->where('status', 'aprovado')
             ->update(['status' => 'habilitado']);
@@ -50,5 +62,12 @@ return new class extends Migration
             'em_cadastro',
             'inativo_sistema'
         ) NOT NULL DEFAULT 'pendente'");
+    }
+
+    private function enumJaSimplificado(): bool
+    {
+        $column = DB::selectOne("SHOW COLUMNS FROM estabelecimentos WHERE Field = 'status'");
+
+        return str_contains(strtolower($column->Type ?? ''), 'aprovado');
     }
 };

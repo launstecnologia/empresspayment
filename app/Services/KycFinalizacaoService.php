@@ -7,6 +7,7 @@ use App\Models\KycAnalise;
 use App\Models\KycDocumento;
 use App\Models\Usuario;
 use App\Support\EstabelecimentoEtapaListagem;
+use App\Support\EstabelecimentoSchema;
 use App\Support\KycDocumentosObrigatorios;
 use App\Support\NotificacaoVars;
 use App\Support\PlatformSettings;
@@ -35,7 +36,7 @@ class KycFinalizacaoService
         $reprovados = $obrigatorios->filter(fn (KycDocumento $doc) => $doc->statusEfetivo() === 'reprovado');
         if ($reprovados->isNotEmpty()) {
             $kyc->update(['status' => 'reprovado']);
-            $estab->update(['status' => EstabelecimentoEtapaListagem::NEGADO, 'risco' => 'bloqueado']);
+            $estab->update(['status' => EstabelecimentoSchema::statusParaBanco(EstabelecimentoEtapaListagem::NEGADO), 'risco' => 'bloqueado']);
             $this->historico->registrar($kyc, 'reprovado_automatico', 'Documento reprovado pela análise automática');
             $this->notificarKyc($kyc->fresh(), 'kyc.reprovado', 'Documento reprovado pela análise automática.');
 
@@ -67,7 +68,7 @@ class KycFinalizacaoService
         ]);
 
         $estab = $kyc->estabelecimento;
-        $estab->update(['status' => EstabelecimentoEtapaListagem::PENDENTE]);
+        $estab->update(['status' => EstabelecimentoSchema::statusParaBanco(EstabelecimentoEtapaListagem::PENDENTE)]);
 
         // Job PagBank API (cria conta via REST)
         $this->pagBankCadastro->enfileirar($estab->fresh());
@@ -105,7 +106,7 @@ class KycFinalizacaoService
         ]);
 
         $kyc->estabelecimento->update([
-            'status' => EstabelecimentoEtapaListagem::NEGADO,
+            'status' => EstabelecimentoSchema::statusParaBanco(EstabelecimentoEtapaListagem::NEGADO),
             'risco' => 'bloqueado',
         ]);
 

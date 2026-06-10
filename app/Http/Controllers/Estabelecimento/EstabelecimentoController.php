@@ -231,7 +231,7 @@ class EstabelecimentoController extends Controller
         $pagbankManual = $dados['pagbank_status_manual'] ?? null;
 
         $update = [
-            'status' => $dados['status'],
+            'status' => EstabelecimentoSchema::statusParaBanco($dados['status']),
             'anotacoes_interno' => trim(($estabelecimento->anotacoes_interno ? $estabelecimento->anotacoes_interno.PHP_EOL.PHP_EOL : '').($dados['observacao'] ?? '')),
         ];
 
@@ -295,7 +295,7 @@ class EstabelecimentoController extends Controller
         $statusAnterior = $estabelecimento->status;
 
         $estabelecimento->update([
-            'status' => 'negado',
+            'status' => EstabelecimentoSchema::statusParaBanco(EstabelecimentoEtapaListagem::NEGADO),
             'ativo'  => false,
         ]);
 

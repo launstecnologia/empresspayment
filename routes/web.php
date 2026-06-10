@@ -82,6 +82,7 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
     Route::get('usuarios/{usuario}/subusuarios/{subUsuario}/senha', [SubUsuarioController::class, 'editPassword'])->name('usuarios.subusuarios.password.edit');
     Route::put('usuarios/{usuario}/subusuarios/{subUsuario}/senha', [SubUsuarioController::class, 'updatePassword'])->name('usuarios.subusuarios.password.update');
     Route::post('usuarios/{usuario}/subusuarios/{subUsuario}/resetar-senha', [SubUsuarioController::class, 'resetarSenha'])->name('usuarios.subusuarios.resetar-senha');
+    Route::delete('usuarios/{usuario}/subusuarios/{subUsuario}', [SubUsuarioController::class, 'destroy'])->name('usuarios.subusuarios.destroy');
     Route::post('usuarios/{usuario}/resetar-senha', [UsuarioController::class, 'resetarSenha'])->name('usuarios.resetar-senha');
     Route::resource('usuarios', UsuarioController::class)->except(['destroy']);
     Route::resource('segmentos', SegmentoController::class)->except(['show'])->middleware('nivel:admin');

@@ -138,7 +138,7 @@ class UsuarioController extends Controller
         abort_unless(UsuarioComercial::podeGerenciar($usuario), 403);
 
         $usuario->load([
-            'hierarquia.pai.usuario',
+            'hierarquia.pai.usuario.marketplaceBranding',
             'hierarquia.filhos.usuario',
             'subUsuarios.perfil',
             'estabelecimentos',
@@ -147,20 +147,37 @@ class UsuarioController extends Controller
         ]);
 
         $whitelabel = null;
+        $urlAcessoOperacional = null;
 
-        if ($usuario->tipo === 'marketplace' && auth()->user()?->tipo === 'admin') {
-            $branding = $usuario->marketplaceBranding ?? $brandingService->criarPara($usuario);
-            $whitelabel = [
-                'branding' => $branding,
-                'urlsAcesso' => $brandingService->urlsAcesso($branding),
-                ...$brandingService->urlsPreview($branding),
-            ];
+        if ($usuario->tipo === 'marketplace') {
+            $branding = $usuario->marketplaceBranding;
+
+            if (auth()->user()?->tipo === 'admin') {
+                $branding = $branding ?? $brandingService->criarPara($usuario);
+                $whitelabel = [
+                    'branding' => $branding,
+                    'urlsAcesso' => $brandingService->urlsAcesso($branding),
+                    ...$brandingService->urlsPreview($branding),
+                ];
+            }
+
+            if ($branding) {
+                $urlAcessoOperacional = $brandingService->urlsAcesso($branding)['atual'];
+            }
+        } elseif ($usuario->tipo === 'revenda') {
+            $marketplace = $usuario->hierarquia?->pai?->usuario;
+            $branding = $marketplace?->marketplaceBranding;
+
+            if ($branding) {
+                $urlAcessoOperacional = $brandingService->urlsAcesso($branding)['atual'];
+            }
         }
 
         return view('admin.usuarios.show', [
             'usuario' => $usuario,
             'proximosNiveis' => $hierarquia->proximosNiveisPermitidos($usuario),
             'whitelabel' => $whitelabel,
+            'urlAcessoOperacional' => $urlAcessoOperacional,
         ]);
     }
 

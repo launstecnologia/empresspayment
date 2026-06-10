@@ -11,13 +11,17 @@ class SubUsuario extends Authenticatable
 
     protected $table = 'sub_usuarios';
 
-    protected $fillable = ['dono_id', 'dono_tipo', 'nome', 'email', 'avatar_path', 'password', 'perfil_id', 'ativo'];
+    protected $fillable = ['dono_id', 'dono_tipo', 'nome', 'email', 'avatar_path', 'password', 'must_change_password', 'perfil_id', 'ativo'];
 
     protected $hidden = ['password'];
 
     protected function casts(): array
     {
-        return ['password' => 'hashed', 'ativo' => 'boolean'];
+        return [
+            'password' => 'hashed',
+            'must_change_password' => 'boolean',
+            'ativo' => 'boolean',
+        ];
     }
 
     public function getAuthIdentifier()

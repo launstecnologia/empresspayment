@@ -4,10 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\SubUsuario;
 use App\Models\Usuario;
+use App\Rules\EmailUnicoAutenticacao;
 use App\Support\AvatarUsuario;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 
 class PerfilController extends Controller
 {
@@ -36,7 +36,7 @@ class PerfilController extends Controller
             'nome_completo' => ['nullable', 'string', 'max:200'],
             'telefone' => ['nullable', 'string', 'max:15'],
             'celular' => ['nullable', 'string', 'max:15'],
-            'email' => ['required', 'email', 'max:150', Rule::unique('usuarios', 'email')->ignore($usuario->id)],
+            'email' => ['required', 'email', 'max:150', new EmailUnicoAutenticacao(ignoreUsuarioId: $usuario->id)],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
             'avatar' => ['nullable', 'image', 'max:2048'],
             'remover_avatar' => ['boolean'],
@@ -66,7 +66,7 @@ class PerfilController extends Controller
     {
         $dados = $request->validate([
             'nome' => ['required', 'string', 'max:200'],
-            'email' => ['required', 'email', 'max:150', Rule::unique('sub_usuarios', 'email')->ignore($usuario->id)],
+            'email' => ['required', 'email', 'max:150', new EmailUnicoAutenticacao(ignoreSubUsuarioId: $usuario->id)],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
             'avatar' => ['nullable', 'image', 'max:2048'],
             'remover_avatar' => ['boolean'],

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Plano;
 use App\Models\Segmento;
 use App\Models\Usuario;
+use App\Rules\EmailUnicoAutenticacao;
 use App\Services\HierarquiaService;
 use App\Services\MarketplaceBrandingService;
 use App\Services\MarketplacePlanoService;
@@ -267,7 +268,7 @@ class UsuarioController extends Controller
             'uf' => ['nullable', 'string', 'size:2'],
             'telefone' => ['nullable', 'string', 'max:15'],
             'celular' => ['nullable', 'string', 'max:15'],
-            'email' => ['required', 'email', 'max:150', Rule::unique('usuarios', 'email')->ignore($usuario)],
+            'email' => ['required', 'email', 'max:150', new EmailUnicoAutenticacao(ignoreUsuarioId: $usuario?->id)],
             'ativo' => ['boolean'],
             'percentual_retencao_pai' => [
                 Rule::requiredIf($exigeRetencao && ! $usuario),

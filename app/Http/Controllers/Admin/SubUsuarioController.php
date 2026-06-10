@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PerfilPermissao;
 use App\Models\SubUsuario;
 use App\Models\Usuario;
+use App\Rules\EmailUnicoAutenticacao;
 use App\Support\UsuarioComercial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -33,17 +34,11 @@ class SubUsuarioController extends Controller
 
         $dados = $request->validate([
             'nome' => ['required', 'string', 'max:200'],
-            'email' => ['required', 'email', 'max:150', Rule::unique('sub_usuarios', 'email')],
+            'email' => ['required', 'email', 'max:150', new EmailUnicoAutenticacao],
             'password' => ['required', 'string', 'min:8'],
             'perfil_id' => ['nullable', Rule::exists('perfis_permissao', 'id')->where('dono_id', $usuario->id)],
             'ativo' => ['boolean'],
         ]);
-
-        if (Usuario::query()->whereRaw('LOWER(email) = ?', [strtolower($dados['email'])])->exists()) {
-            return back()
-                ->withInput()
-                ->withErrors(['email' => 'Este e-mail já é usado pela conta comercial de login. Use outro e-mail ou resete a senha comercial no topo da página.']);
-        }
 
         $dados['dono_id'] = $usuario->id;
         $dados['dono_tipo'] = $usuario->tipo;

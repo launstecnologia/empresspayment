@@ -269,7 +269,6 @@
 
         <form id="form-excluir-subusuario" method="POST" action="" class="space-y-4">
             @csrf
-            @method('DELETE')
             <p class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
                 Usuário: <strong id="excluir-subusuario-nome">—</strong>
             </p>

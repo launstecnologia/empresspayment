@@ -83,6 +83,14 @@ class SubUsuarioController extends Controller
             ->with('status', 'Senha resetada para 123456. O usuário deverá criar uma nova senha no próximo acesso.');
     }
 
+    public function redirectShow(Usuario $usuario, SubUsuario $subUsuario)
+    {
+        abort_unless(UsuarioComercial::podeGerenciar($usuario), 403);
+        $this->validarDono($usuario, $subUsuario);
+
+        return redirect()->route('usuarios.show', $usuario);
+    }
+
     public function destroy(Request $request, Usuario $usuario, SubUsuario $subUsuario)
     {
         abort_unless(UsuarioComercial::podeGerenciar($usuario), 403);

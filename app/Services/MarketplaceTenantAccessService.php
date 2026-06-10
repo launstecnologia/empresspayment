@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\SubUsuario;
 use App\Models\Usuario;
 use App\Support\TenantBranding;
+use App\Support\TenantContext;
+use Illuminate\Http\Request;
 
 class MarketplaceTenantAccessService
 {
@@ -60,15 +62,60 @@ class MarketplaceTenantAccessService
 
     public function validarSessaoAtual(): void
     {
-        $marketplaceId = TenantBranding::marketplaceId();
-
-        if (! $marketplaceId) {
-            return;
-        }
-
-        if (! $this->usuarioPodeAcessarTenant(auth()->user(), $marketplaceId)) {
+        if (! $this->sessaoAutenticadaCompativelComHost()) {
             auth()->logout();
             abort(403, 'Você não tem permissão para acessar este marketplace.');
         }
+    }
+
+    public function sessaoAutenticadaCompativelComHost(): bool
+    {
+        if (! auth()->check()) {
+            return true;
+        }
+
+        if (TenantBranding::scope() !== 'host' || ! TenantBranding::current()) {
+            return true;
+        }
+
+        $hostMarketplaceId = TenantBranding::marketplaceId();
+
+        if (! $hostMarketplaceId) {
+            return true;
+        }
+
+        if (TenantContext::usuarioEhAdmin()) {
+            return true;
+        }
+
+        if (! $this->usuarioPodeAcessarTenant(auth()->user(), $hostMarketplaceId)) {
+            return false;
+        }
+
+        $escopoLogin = session('auth_tenant_marketplace_id');
+
+        if ($escopoLogin !== null && (int) $escopoLogin !== (int) $hostMarketplaceId) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public function gravarEscopoAutenticacao(Request $request): void
+    {
+        $marketplaceId = TenantBranding::scope() === 'host' ? TenantBranding::marketplaceId() : null;
+
+        $request->session()->put('auth_tenant_marketplace_id', $marketplaceId);
+
+        if ($marketplaceId && TenantBranding::current()) {
+            $request->session()->put('tenant_slug', TenantBranding::current()->slug);
+        }
+    }
+
+    public function encerrarSessaoIncompativel(Request $request): void
+    {
+        auth()->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
     }
 }

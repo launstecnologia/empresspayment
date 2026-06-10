@@ -29,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(append: [
             ResolveMarketplaceTenant::class,
+            EnsureMarketplaceTenantAccess::class,
         ]);
 
         $middleware->priority([
@@ -37,6 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
             StartSession::class,
             ShareErrorsFromSession::class,
             ResolveMarketplaceTenant::class,
+            EnsureMarketplaceTenantAccess::class,
         ]);
 
         $middleware->alias([

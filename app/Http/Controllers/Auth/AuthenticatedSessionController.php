@@ -17,13 +17,19 @@ class AuthenticatedSessionController extends Controller
 {
     public function create(Request $request)
     {
+        $tenantAccess = app(MarketplaceTenantAccessService::class);
+
         if (auth()->check() && ! TenantContext::slugNaRequisicao($request)) {
-            return redirect()->to(
-                TenantUrl::aplicarTenant(route('dashboard'), TenantUrl::slugAtual($request))
-            );
+            if ($tenantAccess->sessaoAutenticadaCompativelComHost()) {
+                return redirect()->to(
+                    TenantUrl::aplicarTenant(route('dashboard'), TenantUrl::slugAtual($request))
+                );
+            }
+
+            $tenantAccess->encerrarSessaoIncompativel($request);
         }
 
-        $slugLogin = TenantBranding::porSlugAtivo(TenantContext::slugNaRequisicao($request))?->slug;
+        $slugLogin = $this->tenantSlugAtual($request);
 
         if (auth()->check() && $slugLogin) {
             return response()
@@ -63,7 +69,7 @@ class AuthenticatedSessionController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $tenantSlug = TenantBranding::porSlugAtivo(TenantContext::slugNaRequisicao($request))?->slug;
+        $tenantSlug = $this->tenantSlugAtual($request);
 
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
             return $this->erroLogin($request, 'E-mail ou senha incorretos.', $tenantSlug);
@@ -77,7 +83,7 @@ class AuthenticatedSessionController extends Controller
             $branding = TenantBranding::porSlugAtivo($tenantSlug);
 
             if ($branding) {
-                TenantBranding::set($branding, 'preview');
+                TenantBranding::set($branding, TenantBranding::scope() === 'host' ? 'host' : 'preview');
             } else {
                 $tenantSlug = null;
             }
@@ -93,13 +99,15 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        app(MarketplaceTenantAccessService::class)->gravarEscopoAutenticacao($request);
+
         if (TenantContext::usuarioEhAdmin($user)) {
             TenantContext::limparSessaoLocal($request);
 
             return $this->redirectPosLogin($request, null);
         }
 
-        if ($tenantSlug && (TenantContext::usuarioEhMarketplace($user) || $user instanceof SubUsuario)) {
+        if ($tenantSlug) {
             $request->session()->put('tenant_slug', $tenantSlug);
 
             return $this->redirectPosLogin($request, $tenantSlug);
@@ -175,5 +183,14 @@ class AuthenticatedSessionController extends Controller
             ->where('marketplace_id', $marketplaceId)
             ->where('whitelabel_ativo', true)
             ->value('slug');
+    }
+
+    private function tenantSlugAtual(Request $request): ?string
+    {
+        if (TenantBranding::scope() === 'host' && TenantBranding::current()) {
+            return TenantBranding::current()->slug;
+        }
+
+        return TenantBranding::porSlugAtivo(TenantContext::slugNaRequisicao($request))?->slug;
     }
 }

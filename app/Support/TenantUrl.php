@@ -15,6 +15,10 @@ class TenantUrl
     {
         $request ??= request();
 
+        if (TenantBranding::scope() === 'host' && TenantBranding::current()) {
+            return TenantBranding::current()->slug;
+        }
+
         $slug = TenantBranding::porSlugAtivo(TenantContext::slugNaRequisicao($request))?->slug;
 
         if ($slug) {
@@ -31,7 +35,7 @@ class TenantUrl
             return TenantBranding::porSlugAtivo(is_string($slug) ? $slug : null)?->slug;
         }
 
-        return TenantBranding::deveExibirMarcaTenant() ? TenantBranding::current()?->slug : null;
+        return null;
     }
 
     public static function aplicarTenant(string $url, ?string $slug = null): string

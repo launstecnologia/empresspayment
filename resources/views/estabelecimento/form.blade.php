@@ -4,6 +4,8 @@
 
 @section('content')
 @php
+    use App\Support\UsuarioComercial;
+
     $inputClass = 'w-full rounded border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
     $selectClass = 'w-full rounded border border-slate-300 bg-white px-3 pr-8 text-xs text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
     $labelClass = 'space-y-1';
@@ -12,6 +14,9 @@
     $dateValue = fn (string $field) => old($field, optional($estabelecimento->{$field})->format('Y-m-d'));
     $pessoaTipo = old('pessoa_tipo', $estabelecimento->pessoa_tipo ?: 'juridica');
     $segmentoSelecionado = old('segmento', $estabelecimento->segmento);
+    $mostrarMaster = UsuarioComercial::ehAdmin();
+    $mostrarMarketplace = UsuarioComercial::ehAdmin();
+    $mostrarRevenda = UsuarioComercial::ehAdmin() || UsuarioComercial::ehMarketplace();
 @endphp
 
 <form method="POST" action="{{ $estabelecimento->exists ? route('estabelecimentos.update', $estabelecimento) : route('estabelecimentos.store') }}" class="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm">
@@ -257,6 +262,7 @@
                 @endforeach
             </select>
         </label>
+        @if ($mostrarMaster)
         <label class="{{ $labelClass }} md:col-span-4">
             <span class="{{ $labelTextClass }}">Master</span>
             <select name="master_id" class="{{ $selectClass }}">
@@ -266,6 +272,8 @@
                 @endforeach
             </select>
         </label>
+        @endif
+        @if ($mostrarMarketplace)
         <label class="{{ $labelClass }} md:col-span-4">
             <span class="{{ $labelTextClass }}">Marketplace</span>
             <select name="marketplace_id" class="{{ $selectClass }}">
@@ -275,6 +283,8 @@
                 @endforeach
             </select>
         </label>
+        @endif
+        @if ($mostrarRevenda)
         <label class="{{ $labelClass }} md:col-span-4">
             <span class="{{ $labelTextClass }}">Revenda</span>
             <select name="revenda_id" class="{{ $selectClass }}">
@@ -284,6 +294,7 @@
                 @endforeach
             </select>
         </label>
+        @endif
     </div>
 
     <h2 class="{{ $sectionTitleClass }}">Anotações</h2>

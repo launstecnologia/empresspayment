@@ -95,10 +95,11 @@ class EstabelecimentoController extends Controller
         $usuario = $request->user();
         $dados = array_merge(
             $dados,
-            $hierarquia->cadeiaParaEstabelecimento($usuario),
+            $hierarquia->cadeiaParaEstabelecimento(UsuarioComercial::principal() ?? $usuario),
             $this->hierarquiaSelecionada($dados),
             $this->ipCadastro($request),
         );
+        $dados = $this->aplicarHierarquiaPorPerfil($dados);
 
         $estabelecimento = Estabelecimento::create($dados);
         $royalties->fixarCadeia($estabelecimento->load('plano.taxas.royalties'));
@@ -151,7 +152,7 @@ class EstabelecimentoController extends Controller
         $this->autorizarMutacaoEstabelecimento();
 
         $estabelecimento->update(array_merge(
-            $this->validar($request),
+            $this->aplicarHierarquiaPorPerfil($this->validar($request)),
             $this->ipCadastro($request, $estabelecimento),
         ));
 
@@ -371,11 +372,85 @@ class EstabelecimentoController extends Controller
 
     private function opcoesFormulario(): array
     {
+        if (UsuarioComercial::ehRevenda()) {
+            return [
+                'gestores' => collect(),
+                'representantes' => collect(),
+                'revendas' => collect(),
+            ];
+        }
+
+        if (UsuarioComercial::ehMarketplace()) {
+            $marketplace = UsuarioComercial::principal();
+
+            return [
+                'gestores' => collect(),
+                'representantes' => collect(),
+                'revendas' => $marketplace
+                    ? UsuarioComercial::revendasDo($marketplace)
+                        ->where('ativo', true)
+                        ->orderBy('nome_fantasia')
+                        ->orderBy('razao_social')
+                        ->orderBy('nome_completo')
+                        ->get()
+                    : collect(),
+            ];
+        }
+
         return [
             'gestores' => Usuario::where('tipo', 'master')->where('ativo', true)->orderBy('nome_fantasia')->orderBy('razao_social')->orderBy('nome_completo')->get(),
             'representantes' => Usuario::where('tipo', 'marketplace')->where('ativo', true)->orderBy('nome_fantasia')->orderBy('razao_social')->orderBy('nome_completo')->get(),
             'revendas' => Usuario::where('tipo', 'revenda')->where('ativo', true)->orderBy('nome_fantasia')->orderBy('razao_social')->orderBy('nome_completo')->get(),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $dados
+     * @return array<string, mixed>
+     */
+    private function aplicarHierarquiaPorPerfil(array $dados): array
+    {
+        if (UsuarioComercial::ehAdmin()) {
+            return $dados;
+        }
+
+        $cadeia = app(HierarquiaService::class)->cadeiaParaEstabelecimento(UsuarioComercial::principal());
+
+        if (UsuarioComercial::ehRevenda()) {
+            unset($dados['master_id'], $dados['marketplace_id'], $dados['revenda_id']);
+
+            return array_merge($dados, array_filter([
+                'master_id' => $cadeia['master_id'],
+                'marketplace_id' => $cadeia['marketplace_id'],
+                'revenda_id' => $cadeia['revenda_id'],
+            ]));
+        }
+
+        if (UsuarioComercial::ehMarketplace()) {
+            unset($dados['master_id'], $dados['marketplace_id']);
+
+            $dados['master_id'] = $cadeia['master_id'];
+            $dados['marketplace_id'] = $cadeia['marketplace_id'];
+
+            if (filled($dados['revenda_id'] ?? null)) {
+                $this->validarRevendaDoMarketplace((int) $dados['revenda_id']);
+            } else {
+                unset($dados['revenda_id']);
+            }
+        }
+
+        return $dados;
+    }
+
+    private function validarRevendaDoMarketplace(int $revendaId): void
+    {
+        $marketplace = UsuarioComercial::principal();
+
+        abort_unless(
+            $marketplace && UsuarioComercial::revendasDo($marketplace)->whereKey($revendaId)->exists(),
+            422,
+            'Revenda não pertence a este marketplace.'
+        );
     }
 
     private function planosParaFormulario(Request $request, ?Estabelecimento $estabelecimento = null)

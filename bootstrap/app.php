@@ -14,6 +14,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Session\TokenMismatchException;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -24,6 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->trustProxies(at: '*');
+
         $middleware->web(append: [
             ResolveMarketplaceTenant::class,
         ]);
@@ -53,6 +56,16 @@ return Application::configure(basePath: dirname(__DIR__))
         });
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->render(function (TokenMismatchException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Sessão expirada. Atualize a página e tente novamente.'], 419);
+            }
+
+            $loginUrl = TenantUrl::aplicarTenant(route('login'), TenantUrl::slugAtual($request));
+
+            return redirect()
+                ->to($loginUrl)
+                ->withErrors(['email' => 'Sua sessão expirou. Atualize a página e faça login novamente.']);
+        });
     })
     ->create();

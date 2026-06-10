@@ -26,12 +26,15 @@ class AuthenticatedSessionController extends Controller
         $slugLogin = TenantBranding::porSlugAtivo(TenantContext::slugNaRequisicao($request))?->slug;
 
         if (auth()->check() && $slugLogin) {
-            return view('auth.login', [
-                'tenantSlug' => $slugLogin,
-                'tenantParam' => TenantUrl::parametro(),
-                'sessaoAtiva' => true,
-                'usuarioLogado' => auth()->user(),
-            ]);
+            return response()
+                ->view('auth.login', [
+                    'tenantSlug' => $slugLogin,
+                    'tenantParam' => TenantUrl::parametro(),
+                    'sessaoAtiva' => true,
+                    'usuarioLogado' => auth()->user(),
+                ])
+                ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                ->header('Pragma', 'no-cache');
         }
 
         $tenantSlug = TenantBranding::porSlugAtivo(
@@ -39,11 +42,14 @@ class AuthenticatedSessionController extends Controller
                 ?? (TenantContext::usuarioEhAdmin() ? null : session('tenant_slug'))
         )?->slug;
 
-        return view('auth.login', [
-            'tenantSlug' => $tenantSlug,
-            'tenantParam' => TenantUrl::parametro(),
-            'sessaoAtiva' => false,
-        ]);
+        return response()
+            ->view('auth.login', [
+                'tenantSlug' => $tenantSlug,
+                'tenantParam' => TenantUrl::parametro(),
+                'sessaoAtiva' => false,
+            ])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache');
     }
 
     public function store(Request $request)

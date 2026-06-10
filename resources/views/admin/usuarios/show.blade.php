@@ -102,11 +102,11 @@
         <a href="{{ route('usuarios.edit', $usuario) }}" class="rounded-lg bg-indigo-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-800">
             <i class="fa-solid fa-pen mr-1"></i> Editar
         </a>
-        @if ($usuario->tipo === 'admin')
-            <form method="POST" action="{{ route('usuarios.resetar-senha', $usuario) }}" onsubmit="return confirm('Resetar a senha para 123456?')">
+        @if ($usuario->tipo === 'admin' || in_array($usuario->tipo, ['master', 'marketplace', 'revenda'], true))
+            <form method="POST" action="{{ route('usuarios.resetar-senha', $usuario) }}" onsubmit="return confirm('Resetar a senha de login{{ $usuario->tipo !== 'admin' ? ' comercial' : '' }} para 123456? No próximo acesso será obrigatório criar uma nova senha.')">
                 @csrf
                 <button type="submit" class="rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-semibold text-orange-700 shadow-sm hover:bg-orange-100">
-                    <i class="fa-solid fa-rotate-left mr-1"></i> Resetar senha
+                    <i class="fa-solid fa-rotate-left mr-1"></i> Resetar senha{{ $usuario->tipo !== 'admin' ? ' comercial' : '' }}
                 </button>
             </form>
         @endif
@@ -222,7 +222,12 @@
                 <tr class="border-t border-gray-50 hover:bg-gray-50">
                     <td class="px-5 py-4 font-semibold text-gray-800">#{{ str_pad($subUsuario->id, 4, '0', STR_PAD_LEFT) }}</td>
                     <td class="px-5 py-4 font-semibold text-gray-800">{{ $subUsuario->nome }}</td>
-                    <td class="px-5 py-4 text-gray-600">{{ $subUsuario->email }}</td>
+                    <td class="px-5 py-4 text-gray-600">
+                        {{ $subUsuario->email }}
+                        @if (strtolower($subUsuario->email) === strtolower($usuario->email))
+                            <span class="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-800">mesmo e-mail comercial</span>
+                        @endif
+                    </td>
                     <td class="px-5 py-4 text-gray-600">{{ $subUsuario->perfil?->nome ?: '-' }}</td>
                     <td class="px-5 py-4 text-gray-600">{{ $subUsuario->ativo ? 'Ativo' : 'Inativo' }}</td>
                     <td class="px-5 py-4 text-right">
@@ -235,7 +240,7 @@
                             <form method="POST" action="{{ route('usuarios.subusuarios.resetar-senha', [$usuario, $subUsuario]) }}" onsubmit="return confirm('Resetar a senha de {{ $subUsuario->nome }} para 123456? No próximo acesso será obrigatório criar uma nova senha.')">
                                 @csrf
                                 <button type="submit" class="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-bold text-orange-700 hover:bg-orange-100">
-                                    <i class="fa-solid fa-rotate-left mr-1"></i> Resetar senha
+                                    <i class="fa-solid fa-rotate-left mr-1"></i> Resetar senha operacional
                                 </button>
                             </form>
                             <button type="button"

@@ -39,6 +39,12 @@ class SubUsuarioController extends Controller
             'ativo' => ['boolean'],
         ]);
 
+        if (Usuario::query()->whereRaw('LOWER(email) = ?', [strtolower($dados['email'])])->exists()) {
+            return back()
+                ->withInput()
+                ->withErrors(['email' => 'Este e-mail já é usado pela conta comercial de login. Use outro e-mail ou resete a senha comercial no topo da página.']);
+        }
+
         $dados['dono_id'] = $usuario->id;
         $dados['dono_tipo'] = $usuario->tipo;
 
@@ -80,7 +86,9 @@ class SubUsuarioController extends Controller
         ]);
 
         return redirect()->route('usuarios.show', $usuario)
-            ->with('status', 'Senha resetada para 123456. O usuário deverá criar uma nova senha no próximo acesso.');
+            ->with('status', strtolower($subUsuario->email) === strtolower($usuario->email)
+                ? 'Senha operacional resetada para 123456. Como o e-mail é o mesmo da conta comercial, use "Resetar senha comercial" no topo para alterar o login principal.'
+                : 'Senha operacional resetada para 123456. O usuário deverá criar uma nova senha no próximo acesso.');
     }
 
     public function redirectShow(Usuario $usuario, SubUsuario $subUsuario)

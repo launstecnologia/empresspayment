@@ -208,7 +208,9 @@ class UsuarioController extends Controller
         ]);
 
         return redirect()->route('usuarios.show', $usuario)
-            ->with('status', 'Senha resetada para 123456. O usuário deverá criar uma nova senha no próximo acesso.');
+            ->with('status', $usuario->tipo === 'admin'
+                ? 'Senha resetada para 123456. O usuário deverá criar uma nova senha no próximo acesso.'
+                : 'Senha comercial resetada para 123456. O usuário deverá criar uma nova senha no próximo acesso.');
     }
 
     public function update(Request $request, Usuario $usuario, HierarquiaService $hierarquia, MarketplacePlanoService $marketplacePlano)

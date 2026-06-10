@@ -33,14 +33,35 @@ class MultiUserProvider implements UserProvider
 
     public function retrieveByCredentials(array $credentials): ?Authenticatable
     {
-        $email = $credentials['email'] ?? null;
+        $email = isset($credentials['email'])
+            ? strtolower(trim((string) $credentials['email']))
+            : null;
 
         if (! $email) {
             return null;
         }
 
-        return Usuario::where('email', $email)->first()
-            ?: SubUsuario::with('dono')->where('email', $email)->first();
+        $usuario = Usuario::query()
+            ->whereRaw('LOWER(email) = ?', [$email])
+            ->first();
+
+        $subUsuario = SubUsuario::with('dono')
+            ->whereRaw('LOWER(email) = ?', [$email])
+            ->first();
+
+        if (! array_key_exists('password', $credentials)) {
+            return $usuario ?: $subUsuario;
+        }
+
+        if ($usuario && $this->validateCredentials($usuario, $credentials)) {
+            return $usuario;
+        }
+
+        if ($subUsuario && $this->validateCredentials($subUsuario, $credentials)) {
+            return $subUsuario;
+        }
+
+        return null;
     }
 
     public function validateCredentials(Authenticatable $user, array $credentials): bool

@@ -54,8 +54,8 @@
             <tbody>
                 @forelse ($estabelecimentos as $estabelecimento)
                     @php
-                    $statusKyc = EstabelecimentoEtapaListagem::statusKyc($estabelecimento);
-                    [$statusClass, $statusLabel] = EstabelecimentoEtapaListagem::badge($statusKyc);
+                    $statusEtapa = EstabelecimentoEtapaListagem::statusEstabelecimento($estabelecimento);
+                    [$statusClass, $statusLabel] = EstabelecimentoEtapaListagem::badge($statusEtapa);
                     $statusPagBank = EstabelecimentoEtapaListagem::statusPagBank($estabelecimento);
                     [$pagbankClass, $pagbankLabel] = EstabelecimentoEtapaListagem::badge($statusPagBank);
                     @endphp
@@ -152,7 +152,7 @@
                     </div>
 
                     <div>
-                        <label for="filtro-status" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Status (KYC)</label>
+                        <label for="filtro-status" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Status</label>
                         <select id="filtro-status" name="status" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Todos</option>
                             @foreach (['pendente' => 'Pendente', 'aprovado' => 'Aprovado', 'negado' => 'Negado'] as $valor => $rotulo)

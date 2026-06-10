@@ -13,11 +13,11 @@ class EstabelecimentoEtapaListagem
 
     public const NEGADO = 'negado';
 
-    public static function statusKyc(Estabelecimento $estabelecimento): string
+    public static function statusEstabelecimento(Estabelecimento $estabelecimento): string
     {
-        return match ($estabelecimento->kycAnalise?->status) {
-            'aprovado' => self::APROVADO,
-            'reprovado' => self::NEGADO,
+        return match ($estabelecimento->status) {
+            'habilitado' => self::APROVADO,
+            'desabilitado', 'inativo_sistema' => self::NEGADO,
             default => self::PENDENTE,
         };
     }
@@ -63,21 +63,9 @@ class EstabelecimentoEtapaListagem
     public static function aplicarFiltroStatus(Builder $query, string $etapa): void
     {
         match ($etapa) {
-            self::APROVADO => $query->whereHas(
-                'kycAnalise',
-                fn (Builder $kyc) => $kyc->where('status', 'aprovado')
-            ),
-            self::NEGADO => $query->whereHas(
-                'kycAnalise',
-                fn (Builder $kyc) => $kyc->where('status', 'reprovado')
-            ),
-            default => $query->where(function (Builder $q) {
-                $q->whereDoesntHave('kycAnalise')
-                    ->orWhereHas(
-                        'kycAnalise',
-                        fn (Builder $kyc) => $kyc->whereIn('status', ['pendente', 'em_analise', 'revisao_manual'])
-                    );
-            }),
+            self::APROVADO => $query->where('status', 'habilitado'),
+            self::NEGADO => $query->whereIn('status', ['desabilitado', 'inativo_sistema']),
+            default => $query->whereIn('status', ['pendente', 'em_analise', 'qualidade', 'em_cadastro']),
         };
     }
 

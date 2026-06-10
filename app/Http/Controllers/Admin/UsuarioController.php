@@ -38,6 +38,8 @@ class UsuarioController extends Controller
 
             if ($principal->tipo === 'master' && $tipo) {
                 $query = $this->usuariosVisiveisAoMaster($principal, $tipo);
+            } elseif (UsuarioComercial::ehAdmin() && $tipo === null) {
+                $query = Usuario::query();
             } else {
                 $query = Usuario::query()->where('tipo', $tipo ?: 'admin');
             }
@@ -51,6 +53,8 @@ class UsuarioController extends Controller
             'master_id',
             'marketplace_id',
             'revenda_id',
+            'nivel',
+            'email',
             'ativo',
             'pessoa_tipo',
             'segmento',
@@ -61,6 +65,7 @@ class UsuarioController extends Controller
         return view('admin.usuarios.index', [
             'usuarios' => $query->latest()->paginate(20)->withQueryString(),
             'tipoAtual' => $tipo,
+            'listaTodosUsuarios' => UsuarioComercial::ehAdmin() && $tipo === null,
             'filtros' => $filtros,
             ...$this->opcoesFiltros($tipo, $principal),
         ]);
@@ -335,7 +340,23 @@ class UsuarioController extends Controller
 
     private function aplicarFiltrosIndex(Builder $query, Request $request, ?string $tipo): void
     {
-        if ($request->filled('master_id') && in_array($tipo, ['marketplace', 'revenda'], true)) {
+        if ($request->filled('email')) {
+            $termo = '%'.strtolower(trim($request->string('email'))).'%';
+            $query->whereRaw('LOWER(email) LIKE ?', [$termo]);
+        }
+
+        if (! $tipo && UsuarioComercial::ehAdmin() && $request->filled('nivel')) {
+            $nivel = $request->string('nivel');
+
+            if (in_array($nivel, ['admin', 'master', 'marketplace', 'revenda'], true)) {
+                $query->where('tipo', $nivel);
+            }
+        }
+
+        $aplicaFiltroHierarquia = in_array($tipo, ['marketplace', 'revenda'], true)
+            || (! $tipo && UsuarioComercial::ehAdmin());
+
+        if ($request->filled('master_id') && $aplicaFiltroHierarquia) {
             $masterId = $request->integer('master_id');
 
             $query->where(function (Builder $q) use ($masterId) {
@@ -344,15 +365,20 @@ class UsuarioController extends Controller
             });
         }
 
-        if ($request->filled('marketplace_id') && $tipo === 'revenda') {
+        if ($request->filled('marketplace_id') && ($tipo === 'revenda' || (! $tipo && UsuarioComercial::ehAdmin()))) {
             $marketplaceId = $request->integer('marketplace_id');
 
-            $query->whereHas('hierarquia.pai.usuario', fn (Builder $pai) => $pai
-                ->where('tipo', 'marketplace')
-                ->whereKey($marketplaceId));
+            $query->where(function (Builder $q) use ($marketplaceId) {
+                $q->where(fn (Builder $self) => $self
+                    ->where('tipo', 'marketplace')
+                    ->whereKey($marketplaceId))
+                    ->orWhereHas('hierarquia.pai.usuario', fn (Builder $pai) => $pai
+                        ->where('tipo', 'marketplace')
+                        ->whereKey($marketplaceId));
+            });
         }
 
-        if ($request->filled('revenda_id') && $tipo === 'revenda') {
+        if ($request->filled('revenda_id') && ($tipo === 'revenda' || (! $tipo && UsuarioComercial::ehAdmin()))) {
             $query->whereKey($request->integer('revenda_id'));
         }
 

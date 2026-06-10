@@ -5,7 +5,11 @@
         'marketplace' => 'Refine a listagem de marketplaces',
         'revenda' => 'Refine a listagem de revendas',
     ];
-    $subtituloDrawer = $tipoAtual ? ($subtitulos[$tipoAtual] ?? 'Refine a listagem') : 'Refine a listagem de administradores';
+    $subtituloDrawer = match (true) {
+        ($listaTodosUsuarios ?? false) => 'Refine a listagem de todos os usuários',
+        filled($tipoAtual) => $subtitulos[$tipoAtual] ?? 'Refine a listagem',
+        default => 'Refine a listagem de administradores',
+    };
 @endphp
 
 <div x-show="filtrosAberto" x-cloak class="fixed inset-0 z-50" @keydown.escape.window="filtrosAberto = false">
@@ -33,6 +37,67 @@
 
         <form method="GET" action="{{ route('usuarios.index', $indexParams) }}" class="flex min-h-0 flex-1 flex-col">
             <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+                <div>
+                    <label for="filtro-email" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">E-mail</label>
+                    <input
+                        id="filtro-email"
+                        name="email"
+                        type="text"
+                        value="{{ $filtros['email'] ?? '' }}"
+                        placeholder="Buscar por e-mail..."
+                        class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                </div>
+
+                @if ($listaTodosUsuarios ?? false)
+                    <div>
+                        <label for="filtro-nivel" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Nível</label>
+                        <select id="filtro-nivel" name="nivel" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Todos</option>
+                            <option value="admin" @selected(($filtros['nivel'] ?? '') === 'admin')>Admin</option>
+                            <option value="master" @selected(($filtros['nivel'] ?? '') === 'master')>Master</option>
+                            <option value="marketplace" @selected(($filtros['nivel'] ?? '') === 'marketplace')>Marketplace</option>
+                            <option value="revenda" @selected(($filtros['nivel'] ?? '') === 'revenda')>Revenda</option>
+                        </select>
+                    </div>
+
+                    @if ($masters->isNotEmpty())
+                        <div>
+                            <label for="filtro-master-todos" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Master</label>
+                            <select id="filtro-master-todos" name="master_id" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Todos</option>
+                                @foreach ($masters as $master)
+                                    <option value="{{ $master['id'] }}" @selected(($filtros['master_id'] ?? '') == $master['id'])>{{ $master['nome'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
+
+                    @if ($marketplaces->isNotEmpty())
+                        <div>
+                            <label for="filtro-marketplace-todos" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Marketplace</label>
+                            <select id="filtro-marketplace-todos" name="marketplace_id" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Todos</option>
+                                @foreach ($marketplaces as $marketplace)
+                                    <option value="{{ $marketplace['id'] }}" @selected(($filtros['marketplace_id'] ?? '') == $marketplace['id'])>{{ $marketplace['nome'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
+
+                    @if ($revendas->isNotEmpty())
+                        <div>
+                            <label for="filtro-revenda-todos" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Revenda</label>
+                            <select id="filtro-revenda-todos" name="revenda_id" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Todas</option>
+                                @foreach ($revendas as $revenda)
+                                    <option value="{{ $revenda['id'] }}" @selected(($filtros['revenda_id'] ?? '') == $revenda['id'])>{{ $revenda['nome'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
+                @endif
+
                 @if ($tipoAtual === 'marketplace' && $masters->isNotEmpty())
                     <div>
                         <label for="filtro-master" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Master</label>

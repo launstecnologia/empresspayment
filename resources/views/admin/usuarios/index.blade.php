@@ -11,12 +11,32 @@
         'marketplace' => 'Marketplace',
         'revenda' => 'Revenda',
     ];
-    $tituloLista = $tipoAtual ? ($tipoLabel[$tipoAtual] ?? 'Usuários') : 'Usuários Admin';
+    $tituloLista = ($listaTodosUsuarios ?? false)
+        ? 'Todos os Usuários'
+        : ($tipoAtual ? ($tipoLabel[$tipoAtual] ?? 'Usuários') : 'Usuários Admin');
     $rotuloNovo = $tipoAtual ? 'Novo '.($tipoSingular[$tipoAtual] ?? 'Usuário') : 'Novo Admin';
     $filtrosAtivos = collect($filtros ?? [])->filter(fn ($v) => $v !== null && $v !== '')->count();
     $indexParams = $tipoAtual ? ['tipo' => $tipoAtual] : [];
+    $tipoBadge = [
+        'admin' => ['label' => 'Admin', 'class' => 'bg-sky-100 text-sky-700'],
+        'master' => ['label' => 'Master', 'class' => 'bg-purple-100 text-purple-700'],
+        'marketplace' => ['label' => 'Marketplace', 'class' => 'bg-indigo-100 text-indigo-700'],
+        'revenda' => ['label' => 'Revenda', 'class' => 'bg-emerald-100 text-emerald-700'],
+    ];
 
-    $subtituloNome = function ($usuario) use ($tipoAtual) {
+    $subtituloNome = function ($usuario) use ($tipoAtual, $listaTodosUsuarios) {
+        if ($listaTodosUsuarios ?? false) {
+            return match ($usuario->tipo) {
+                'admin' => 'Administrador da plataforma',
+                'master' => $usuario->segmento ?: 'Master',
+                'marketplace' => $usuario->hierarquia?->pai?->usuario?->nomeExibicao() ?: 'Sem master',
+                'revenda' => ($pai = $usuario->hierarquia?->pai?->usuario) && $pai->tipo === 'marketplace'
+                    ? $pai->nomeExibicao()
+                    : 'Sem marketplace',
+                default => $usuario->email,
+            };
+        }
+
         if ($tipoAtual === 'marketplace') {
             return $usuario->hierarquia?->pai?->usuario?->nomeExibicao() ?: 'Sem master';
         }
@@ -44,10 +64,19 @@
                 <p class="text-xs text-gray-400">{{ $usuarios->total() }} resultado(s)</p>
             </div>
             <div class="flex items-center gap-2">
-                <a href="{{ route('usuarios.create', $indexParams) }}" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700">
-                    <i class="fa-solid fa-plus text-xs"></i>
-                    {{ $rotuloNovo }}
-                </a>
+                @if ($tipoAtual || filled($filtros['nivel'] ?? null))
+                    @php
+                        $tipoCreate = $tipoAtual ?: ($filtros['nivel'] ?? null);
+                        $paramsCreate = in_array($tipoCreate, ['master', 'marketplace', 'revenda'], true) ? ['tipo' => $tipoCreate] : [];
+                        $rotuloCreate = $tipoCreate === 'admin' || $tipoCreate === null
+                            ? 'Novo Admin'
+                            : 'Novo '.($tipoSingular[$tipoCreate] ?? 'Usuário');
+                    @endphp
+                    <a href="{{ route('usuarios.create', $paramsCreate) }}" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700">
+                        <i class="fa-solid fa-plus text-xs"></i>
+                        {{ $rotuloCreate }}
+                    </a>
+                @endif
                 <button
                     type="button"
                     @click="filtrosAberto = true"
@@ -67,13 +96,11 @@
                 <tr class="border-b border-gray-100 bg-gray-50">
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Código</th>
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Nome</th>
-                    @if (! $tipoAtual)
+                    @if ($listaTodosUsuarios ?? false || ! $tipoAtual)
                         <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">E-mail</th>
+                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Nível</th>
                     @else
                         <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Documento</th>
-                    @endif
-                    @if (! $tipoAtual)
-                        <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Nível</th>
                     @endif
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
                     <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Ações</th>
@@ -87,10 +114,15 @@
                             <p class="font-semibold text-gray-800">{{ $usuario->nomeExibicao() }}</p>
                             <p class="text-xs text-gray-400">{{ $subtituloNome($usuario) }}</p>
                         </td>
-                        @if (! $tipoAtual)
+                        @if ($listaTodosUsuarios ?? false || ! $tipoAtual)
                             <td class="px-5 py-4 text-gray-600">{{ $usuario->email }}</td>
                             <td class="px-5 py-4">
-                                <span class="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-700">ADMIN</span>
+                                @if ($listaTodosUsuarios ?? false)
+                                    @php $badge = $tipoBadge[$usuario->tipo] ?? ['label' => strtoupper($usuario->tipo), 'class' => 'bg-gray-100 text-gray-700']; @endphp
+                                    <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $badge['class'] }}">{{ $badge['label'] }}</span>
+                                @else
+                                    <span class="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-700">ADMIN</span>
+                                @endif
                             </td>
                         @else
                             <td class="px-5 py-4 text-gray-600">
@@ -116,7 +148,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ $tipoAtual ? 5 : 6 }}" class="px-5 py-10 text-center text-sm text-gray-500">Nenhum usuário encontrado para o filtro atual.</td>
+                        <td colspan="{{ ($listaTodosUsuarios ?? false) || ! $tipoAtual ? 6 : 5 }}" class="px-5 py-10 text-center text-sm text-gray-500">Nenhum usuário encontrado para o filtro atual.</td>
                     </tr>
                 @endforelse
             </tbody>

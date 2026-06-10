@@ -155,7 +155,7 @@
                         <label for="filtro-status" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Status</label>
                         <select id="filtro-status" name="status" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Todos</option>
-                            @foreach (['pendente' => 'Pendente', 'aprovado' => 'Aprovado', 'negado' => 'Negado'] as $valor => $rotulo)
+                            @foreach (['pendente' => 'PENDENTE', 'aprovado' => 'APROVADO', 'negado' => 'NEGADO'] as $valor => $rotulo)
                                 <option value="{{ $valor }}" @selected(($filtros['status'] ?? '') === $valor)>{{ $rotulo }}</option>
                             @endforeach
                         </select>
@@ -165,7 +165,7 @@
                         <label for="filtro-pagbank" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">PagBank</label>
                         <select id="filtro-pagbank" name="pagbank" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Todos</option>
-                            @foreach (['pendente' => 'Pendente', 'aprovado' => 'Aprovado', 'negado' => 'Negado'] as $valor => $rotulo)
+                            @foreach (['pendente' => 'PENDENTE', 'aprovado' => 'APROVADO', 'negado' => 'NEGADO'] as $valor => $rotulo)
                                 <option value="{{ $valor }}" @selected(($filtros['pagbank'] ?? '') === $valor)>{{ $rotulo }}</option>
                             @endforeach
                         </select>

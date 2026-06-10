@@ -218,14 +218,18 @@ class EstabelecimentoController extends Controller
     public function updateStatus(Request $request, Estabelecimento $estabelecimento, LogService $log)
     {
         $dados = $request->validate([
-            'status' => ['required', 'in:habilitado,desabilitado,em_analise,pendente,qualidade,em_cadastro'],
+            'status' => ['required', 'in:pendente,aprovado,negado'],
+            'pagbank_status_manual' => ['nullable', 'in:pendente,aprovado,negado'],
             'observacao' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $anterior = $estabelecimento->status;
+        $pagbankManualAnterior = $estabelecimento->pagbank_status_manual;
+        $pagbankManual = $dados['pagbank_status_manual'] ?? null;
 
         $estabelecimento->update([
             'status' => $dados['status'],
+            'pagbank_status_manual' => $pagbankManual,
             'anotacoes_interno' => trim(($estabelecimento->anotacoes_interno ? $estabelecimento->anotacoes_interno.PHP_EOL.PHP_EOL : '').($dados['observacao'] ?? '')),
         ]);
 
@@ -234,8 +238,15 @@ class EstabelecimentoController extends Controller
             $estabelecimento->id,
             'update_status',
             'Status alterado com sucesso',
-            ['status' => $anterior],
-            ['status' => $dados['status'], 'observacao' => $dados['observacao'] ?? null],
+            [
+                'status' => $anterior,
+                'pagbank_status_manual' => $pagbankManualAnterior,
+            ],
+            [
+                'status' => $dados['status'],
+                'pagbank_status_manual' => $pagbankManual,
+                'observacao' => $dados['observacao'] ?? null,
+            ],
         );
 
         return redirect()->route('estabelecimentos.show', $estabelecimento)->with('status', 'Status alterado com sucesso.');
@@ -245,7 +256,7 @@ class EstabelecimentoController extends Controller
     {
         abort_unless($request->user()?->tipo === 'admin', 403);
 
-        if ($estabelecimento->status === 'inativo_sistema') {
+        if (! $estabelecimento->ativo) {
             return redirect()
                 ->route('estabelecimentos.index')
                 ->with('aviso', 'Este cadastro já está inativo no sistema.');
@@ -269,7 +280,7 @@ class EstabelecimentoController extends Controller
         $statusAnterior = $estabelecimento->status;
 
         $estabelecimento->update([
-            'status' => 'inativo_sistema',
+            'status' => 'negado',
             'ativo'  => false,
         ]);
 
@@ -279,7 +290,7 @@ class EstabelecimentoController extends Controller
             'inativar_sistema',
             'Cadastro inativado no sistema (soft delete)',
             ['status' => $statusAnterior, 'ativo' => true],
-            ['status' => 'inativo_sistema', 'ativo' => false],
+            ['status' => 'negado', 'ativo' => false],
         );
 
         return redirect()
@@ -331,7 +342,7 @@ class EstabelecimentoController extends Controller
                 'max:100',
                 Rule::unique('estabelecimentos', 'subdominio')->ignore($request->route('estabelecimento')),
             ],
-            'status' => ['nullable', 'in:habilitado,desabilitado,em_analise,pendente,qualidade,em_cadastro'],
+            'status' => ['nullable', 'in:pendente,aprovado,negado'],
             'risco' => ['nullable', 'in:confiavel,atencao,bloqueado'],
             'anotacoes' => ['nullable', 'string'],
             'anotacoes_interno' => ['nullable', 'string'],

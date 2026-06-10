@@ -22,7 +22,7 @@ class PagBankEstabelecimentoStatus
                 : self::AGUARDANDO_EDI;
         }
 
-        if ($estabelecimento->status === 'em_cadastro') {
+        if (EstabelecimentoEtapaListagem::normalizarStatus($estabelecimento->status) === EstabelecimentoEtapaListagem::PENDENTE) {
             return self::AGUARDANDO_CADASTRO;
         }
 

@@ -7,6 +7,7 @@ use App\Services\AutomacaoLogService;
 use App\Services\AutomacaoPagBankService;
 use App\Services\NotificacaoEmailService;
 use App\Support\AutomacaoSchema;
+use App\Support\EstabelecimentoEtapaListagem;
 use App\Support\NotificacaoVars;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -104,7 +105,7 @@ class AutomacaoPagBankJob implements ShouldQueue
                 'fv_senha_6'      => $this->senha6,
                 'fv_concluido_em' => now(),
                 'fv_erro'         => null,
-                'status'          => $estab->status === 'em_cadastro' ? 'habilitado' : $estab->status,
+                'status'          => EstabelecimentoEtapaListagem::APROVADO,
             ];
 
             if (filled($safepayId)) {

@@ -6,14 +6,12 @@
 @php
     $nome = $estabelecimento->nome_fantasia ?: $estabelecimento->razao_social ?: $estabelecimento->nome_completo ?: 'Estabelecimento';
     $documento = $estabelecimento->cnpj ?: $estabelecimento->cpf ?: '-';
-    $statusClass = match ($estabelecimento->status) {
-        'habilitado' => 'bg-emerald-500 text-white',
-        'desabilitado' => 'bg-red-500 text-white',
-        'em_analise', 'qualidade' => 'bg-amber-500 text-white',
-        'em_cadastro' => 'bg-sky-500 text-white',
-        'inativo_sistema' => 'bg-gray-500 text-white',
-        default => 'bg-blue-500 text-white',
-    };
+    $statusEtapa = \App\Support\EstabelecimentoEtapaListagem::statusEstabelecimento($estabelecimento);
+    [$statusClass, $statusLabel] = \App\Support\EstabelecimentoEtapaListagem::badge($statusEtapa);
+    $pagbankAutomatico = \App\Support\EstabelecimentoEtapaListagem::statusPagBankAutomatico($estabelecimento);
+    [$pagbankAutoClass, $pagbankAutoLabel] = \App\Support\EstabelecimentoEtapaListagem::badge($pagbankAutomatico);
+    $pagbankEfetivo = \App\Support\EstabelecimentoEtapaListagem::statusPagBank($estabelecimento);
+    [$pagbankClass, $pagbankLabel] = \App\Support\EstabelecimentoEtapaListagem::badge($pagbankEfetivo);
     $riscoClass = match ($estabelecimento->risco) {
         'bloqueado' => 'bg-red-500 text-white',
         'atencao' => 'bg-amber-500 text-white',
@@ -87,7 +85,7 @@
         <button type="button" data-modal-open="status" class="{{ $navActionClass }} bg-sky-500 text-white hover:bg-sky-600">
             <i class="fa-solid fa-sliders"></i> Alterar status
         </button>
-        @if (auth()->user()?->tipo === 'admin' && $estabelecimento->status !== 'inativo_sistema')
+        @if (auth()->user()?->tipo === 'admin' && $estabelecimento->ativo)
             <button type="button" data-modal-open="inativar-sistema" class="{{ $navActionClass }} border border-red-200 bg-white text-red-700 hover:bg-red-50">
                 <i class="fa-solid fa-trash-can"></i> Inativar cadastro
             </button>
@@ -166,7 +164,8 @@
             <div class="rounded-lg border border-gray-100 bg-gray-50 p-4">
                 <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Operação</p>
                 <div class="mt-3 flex flex-wrap gap-2">
-                    <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold {{ $statusClass }}">{{ ucfirst(str_replace('_', ' ', $estabelecimento->status ?: 'pendente')) }}</span>
+                    <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold {{ $statusClass }}">{{ $statusLabel }}</span>
+                    <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold {{ $pagbankClass }}">PagBank: {{ $pagbankLabel }}</span>
                     <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold {{ $riscoClass }}">{{ ucfirst($estabelecimento->risco ?: 'confiavel') }}</span>
                 </div>
                 <p class="mt-3 text-sm text-gray-800"><span class="font-semibold text-gray-600">Plano:</span> {{ $estabelecimento->plano?->nome ?: '-' }}</p>
@@ -1161,15 +1160,28 @@
                 @csrf
                 @method('PATCH')
                 <label class="block space-y-1">
-                    <span class="text-sm font-bold text-gray-800">Novo Status</span>
-                    <select name="status" class="w-full rounded border border-gray-300 bg-white px-3 text-sm text-gray-700">
-                        <option value="">Selecione</option>
-                        <option value="habilitado" @selected($estabelecimento->status === 'habilitado')>Habilitado</option>
-                        <option value="desabilitado" @selected($estabelecimento->status === 'desabilitado')>Desabilitado</option>
-                        <option value="em_analise" @selected($estabelecimento->status === 'em_analise')>Em Análise</option>
-                        <option value="pendente" @selected($estabelecimento->status === 'pendente')>Pendente</option>
-                        <option value="qualidade" @selected($estabelecimento->status === 'qualidade')>Qualidade</option>
+                    <span class="text-sm font-bold text-gray-800">Status operacional</span>
+                    <select name="status" required class="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700">
+                        @foreach (['pendente' => 'PENDENTE', 'aprovado' => 'APROVADO', 'negado' => 'NEGADO'] as $valor => $rotulo)
+                            <option value="{{ $valor }}" @selected(\App\Support\EstabelecimentoEtapaListagem::normalizarStatus($estabelecimento->status) === $valor)>{{ $rotulo }}</option>
+                        @endforeach
                     </select>
+                </label>
+                <label class="block space-y-1">
+                    <span class="text-sm font-bold text-gray-800">Status PagBank</span>
+                    <select name="pagbank_status_manual" class="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700">
+                        <option value="">Automático — {{ $pagbankAutoLabel }} (conforme automação)</option>
+                        @foreach (['pendente' => 'PENDENTE', 'aprovado' => 'APROVADO', 'negado' => 'NEGADO'] as $valor => $rotulo)
+                            <option value="{{ $valor }}" @selected($estabelecimento->pagbank_status_manual === $valor)>{{ $rotulo }} (manual)</option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-gray-500">
+                        Exibido na listagem:
+                        <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {{ $pagbankClass }}">{{ $pagbankLabel }}</span>
+                        @if (filled($estabelecimento->pagbank_status_manual))
+                            <span class="text-amber-600">· override manual ativo</span>
+                        @endif
+                    </p>
                 </label>
                 <label class="block space-y-1">
                     <span class="text-sm font-bold text-gray-800">Observação</span>
@@ -1183,7 +1195,7 @@
         </div>
     </div>
 
-    @if (auth()->user()?->tipo === 'admin' && $estabelecimento->status !== 'inativo_sistema')
+    @if (auth()->user()?->tipo === 'admin' && $estabelecimento->ativo)
     <div data-modal="inativar-sistema" class="modal-overlay fixed inset-0 z-[100] items-center justify-center bg-black/40 px-4">
         <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
             <div class="mb-5 flex items-start justify-between">
@@ -1197,7 +1209,7 @@
             <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
                 <p class="font-semibold">O que acontece:</p>
                 <ul class="mt-2 list-inside list-disc space-y-1">
-                    <li>O status será alterado para <strong>inativo_sistema</strong></li>
+                    <li>O status será alterado para <strong>NEGADO</strong> e o cadastro ficará oculto das listagens</li>
                     <li>O cadastro deixa de aparecer nas listagens e buscas</li>
                     <li>Os dados permanecem salvos para histórico e auditoria</li>
                 </ul>

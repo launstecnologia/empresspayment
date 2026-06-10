@@ -121,7 +121,7 @@
                             <i class="fa-solid fa-inbox mr-1"></i> Criar e abrir caixa
                         </button>
                     </form>
-                    @if ($estabelecimento->status === 'habilitado')
+                    @if ($estabelecimento->status === 'aprovado' || $estabelecimento->status === 'habilitado')
                         <form method="POST" action="{{ route('estabelecimentos.emails.provisionar', $estabelecimento) }}" class="mt-2">
                             @csrf
                             <button class="w-full rounded-lg border border-indigo-200 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-50">Criar via DirectAdmin</button>

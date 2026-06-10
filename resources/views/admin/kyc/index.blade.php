@@ -71,7 +71,7 @@
                             <p class="text-xs text-gray-400">
                                 @if ($estab)
                                     {{ $estab->marketplace?->nomeExibicao() ?: '—' }}
-                                    @if ($estab->status === 'inativo_sistema')
+                                    @if (! $estab->ativo)
                                         <span class="ml-1 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-600">Inativo</span>
                                     @endif
                                 @else

@@ -42,6 +42,7 @@ class Estabelecimento extends Model
         'pagbank_token_expira',
         'pagbank_cadastrado_em',
         'pagbank_edi_ativo',
+        'pagbank_status_manual',
         'ip_cadastro',
         'fv_job_id',
         'fv_status',

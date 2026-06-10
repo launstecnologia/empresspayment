@@ -31,7 +31,7 @@ class PagBankTokenServiceTest extends TestCase
 
         $estab = Estabelecimento::withoutGlobalScopes()->create([
             'pessoa_tipo' => 'fisica',
-            'status' => 'em_cadastro',
+            'status' => 'aprovado',
             'pagbank_account_id' => 'ACCO_TEST',
             'pagbank_refresh_token' => 'refresh-antigo',
         ]);
@@ -69,7 +69,7 @@ class PagBankTokenServiceTest extends TestCase
 
         $estab = Estabelecimento::withoutGlobalScopes()->create([
             'pessoa_tipo' => 'fisica',
-            'status' => 'em_cadastro',
+            'status' => 'aprovado',
             'pagbank_account_id' => 'ACCO_TEST',
             'pagbank_refresh_token' => 'refresh-invalido',
         ]);

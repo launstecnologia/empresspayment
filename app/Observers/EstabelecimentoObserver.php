@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Jobs\CriarEmailEstabelecimentoJob;
 use App\Models\Estabelecimento;
 use App\Services\KycInicializacaoService;
+use App\Support\EstabelecimentoEtapaListagem;
 
 class EstabelecimentoObserver
 {
@@ -19,7 +20,7 @@ class EstabelecimentoObserver
             return;
         }
 
-        if ($estabelecimento->status !== 'habilitado') {
+        if ($estabelecimento->status !== EstabelecimentoEtapaListagem::APROVADO) {
             return;
         }
 

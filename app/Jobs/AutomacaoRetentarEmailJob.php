@@ -8,6 +8,7 @@ use App\Services\AutomacaoPagBankService;
 use App\Services\EmailPlataformaService;
 use App\Services\NotificacaoEmailService;
 use App\Support\AutomacaoSchema;
+use App\Support\EstabelecimentoEtapaListagem;
 use App\Support\NotificacaoVars;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -82,7 +83,7 @@ class AutomacaoRetentarEmailJob implements ShouldQueue
                     'fv_senha_6'      => $this->senha6,
                     'fv_concluido_em' => now(),
                     'fv_erro'         => null,
-                    'status'          => $estab->status === 'em_cadastro' ? 'habilitado' : $estab->status,
+                    'status'          => EstabelecimentoEtapaListagem::APROVADO,
                 ]);
 
                 $automacaoLog->registrarConclusao($estab->id, 'Retentativa de e-mail concluída com sucesso', $jobId);

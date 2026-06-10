@@ -22,7 +22,7 @@
         <p class="text-sm text-gray-500">
             @if ($estabelecimento)
                 {{ $estabelecimento->pessoa_tipo === 'fisica' ? 'CPF' : 'CNPJ' }} {{ $documento }}
-                @if ($estabelecimento->status === 'inativo_sistema')
+                @if (! $estabelecimento->ativo)
                     <span class="ml-2 rounded bg-gray-200 px-2 py-0.5 text-xs font-semibold text-gray-600">Cadastro inativo</span>
                 @endif
             @else

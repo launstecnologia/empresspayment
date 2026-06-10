@@ -10,6 +10,6 @@ class ExcluirInativoSistemaScope implements Scope
 {
     public function apply(Builder $builder, Model $model): void
     {
-        $builder->where('estabelecimentos.status', '!=', 'inativo_sistema');
+        $builder->where('estabelecimentos.ativo', true);
     }
 }

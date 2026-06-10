@@ -27,6 +27,7 @@
 <meta name="application-name" content="{{ $appName }}">
 <meta name="theme-color" content="{{ $themeColor }}">
 <link rel="canonical" href="{{ $canonical }}">
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ $favicon32 }}">
 <link rel="icon" type="image/png" sizes="16x16" href="{{ $favicon16 }}">

@@ -27,6 +27,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->trustProxies(at: '*');
 
+        $middleware->validateCsrfTokens(except: [
+            'logout',
+        ]);
+
         $middleware->web(append: [
             ResolveMarketplaceTenant::class,
             EnsureMarketplaceTenantAccess::class,
@@ -64,6 +68,10 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             $loginUrl = TenantUrl::aplicarTenant(route('login'), TenantUrl::slugAtual($request));
+
+            if ($request->is('logout') || $request->routeIs('logout')) {
+                return redirect()->to($loginUrl);
+            }
 
             return redirect()
                 ->to($loginUrl)

@@ -47,9 +47,7 @@ Route::post('/password/forgot', [PasswordResetController::class, 'store'])->name
 Route::get('/password/reset/{token}', [PasswordResetController::class, 'edit'])->name('password.reset');
 Route::post('/password/reset', [PasswordResetController::class, 'update'])->name('password.update');
 
-Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
-    ->middleware('auth')
-    ->name('logout');
+Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
 Route::middleware('auth')->group(function () {
     Route::get('/senha/criar', [TrocaSenhaObrigatoriaController::class, 'create'])->name('senha.trocar');

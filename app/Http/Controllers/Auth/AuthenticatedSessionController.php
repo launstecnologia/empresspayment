@@ -126,9 +126,14 @@ class AuthenticatedSessionController extends Controller
                 ?? session('tenant_slug')
         )?->slug;
 
-        Auth::guard('web')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        if (auth()->check()) {
+            Auth::guard('web')->logout();
+        }
+
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return redirect()->to(TenantUrl::aplicarTenant(route('login'), is_string($tenantSlug) ? $tenantSlug : null));
     }

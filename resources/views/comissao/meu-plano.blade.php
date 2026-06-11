@@ -58,18 +58,21 @@
                                 <th class="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Parcelas</th>
                                 @foreach ($debitoGrupos as $config)
                                     <th class="{{ $headClass }}">{{ $config['label'] }} · Taxa</th>
-                                    <th class="{{ $headClass }}">Comissão</th>
                                 @endforeach
+                                <th class="{{ $headClass }}">Minha comissão</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr class="border-t border-gray-100">
                                 <td class="px-3 py-2.5 font-semibold text-gray-800">1x</td>
+                                @php
+                                    $debitoMinhaComissao = collect($grade['debito'])->first(fn ($linha) => filled($linha['minha_comissao'] ?? null))['minha_comissao'] ?? null;
+                                @endphp
                                 @foreach ($debitoGrupos as $grupo => $config)
                                     @php $linha = $grade['debito'][$grupo]; @endphp
                                     <td class="{{ $cellClass }}">{{ ($linha['ativo'] ?? false) ? $fmt($linha['taxa']) : '—' }}</td>
-                                    <td class="{{ $cellClass }} font-semibold text-blue-600">{{ ($linha['ativo'] ?? false) ? $fmt($linha['minha_comissao'] ?? null) : '—' }}</td>
                                 @endforeach
+                                <td class="{{ $cellClass }} font-semibold text-blue-600">{{ $debitoMinhaComissao !== null ? $fmt($debitoMinhaComissao) : '—' }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -86,14 +89,15 @@
                             <th class="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Parcelas</th>
                             @foreach ($creditoGrupos as $config)
                                 <th class="{{ $headClass }}">{{ $config['label'] }} · Taxa</th>
-                                <th class="{{ $headClass }}">Comissão</th>
                             @endforeach
+                            <th class="{{ $headClass }}">Minha comissão</th>
                         </tr>
                     </thead>
                     <tbody>
                         @for ($parcelas = 1; $parcelas <= 18; $parcelas++)
                             @php
                                 $parcelaAtiva = collect($grade['credito'][$parcelas])->contains(fn ($linha) => ($linha['ativo'] ?? false) && ($linha['existe'] ?? false));
+                                $creditoMinhaComissao = collect($grade['credito'][$parcelas])->first(fn ($linha) => filled($linha['minha_comissao'] ?? null))['minha_comissao'] ?? null;
                             @endphp
                             @continue(! $parcelaAtiva)
                             <tr class="border-t border-gray-100">
@@ -101,8 +105,8 @@
                                 @foreach ($creditoGrupos as $grupo => $config)
                                     @php $linha = $grade['credito'][$parcelas][$grupo]; @endphp
                                     <td class="{{ $cellClass }}">{{ ($linha['ativo'] ?? false) ? $fmt($linha['taxa']) : '—' }}</td>
-                                    <td class="{{ $cellClass }} font-semibold text-blue-600">{{ ($linha['ativo'] ?? false) ? $fmt($linha['minha_comissao'] ?? null) : '—' }}</td>
                                 @endforeach
+                                <td class="{{ $cellClass }} font-semibold text-blue-600">{{ $creditoMinhaComissao !== null ? $fmt($creditoMinhaComissao) : '—' }}</td>
                             </tr>
                         @endfor
                     </tbody>

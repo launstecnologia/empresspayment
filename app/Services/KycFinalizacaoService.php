@@ -70,19 +70,8 @@ class KycFinalizacaoService
         $estab = $kyc->estabelecimento;
         $estab->update(['status' => EstabelecimentoSchema::statusParaBanco(EstabelecimentoEtapaListagem::PENDENTE)]);
 
-        // Job PagBank API (cria conta via REST)
         $this->pagBankCadastro->enfileirar($estab->fresh());
-
-        // Job automação Força de Vendas (Selenium) — só dispara se API configurada
-        if (PlatformSettings::automacaoConfigurado()) {
-            $senha6 = $this->gerarSenha6();
-
-            AutomacaoPagBankJob::dispatch($estab->id, $senha6)
-                ->onQueue('automacao')
-                ->delay(now()->addSeconds(10));
-
-            $estab->update(['fv_status' => 'pendente']);
-        }
+        $this->dispararAutomacaoFv($estab->fresh());
 
         $this->historico->registrar(
             $kyc,
@@ -93,6 +82,63 @@ class KycFinalizacaoService
         );
 
         $this->notificarKyc($kyc->fresh(), 'kyc.aprovado', $motivo);
+    }
+
+    public function aprovarAutomaticoNoCadastro(Estabelecimento $estab, ?Usuario $usuario = null): bool
+    {
+        $kyc = KycAnalise::firstOrCreate(
+            ['estabelecimento_id' => $estab->id],
+            ['status' => 'pendente'],
+        );
+
+        if ($kyc->status === 'aprovado') {
+            return $this->dispararAutomacaoFv($estab->fresh(), exigirWebmail: true);
+        }
+
+        $kyc->update([
+            'status' => 'aprovado',
+            'admin_id' => $usuario?->id,
+            'admin_decisao' => 'aprovado',
+            'admin_motivo' => 'Aprovado automaticamente no cadastro',
+            'admin_decidido_em' => now(),
+        ]);
+
+        $estab->update(['status' => EstabelecimentoSchema::statusParaBanco(EstabelecimentoEtapaListagem::PENDENTE)]);
+
+        $this->historico->registrar(
+            $kyc,
+            'aprovado_automatico_cadastro',
+            'KYC aprovado automaticamente no cadastro — documentos dispensados',
+            null,
+            $usuario,
+        );
+
+        return $this->dispararAutomacaoFv($estab->fresh(), exigirWebmail: true);
+    }
+
+    private function dispararAutomacaoFv(Estabelecimento $estab, bool $exigirWebmail = false): bool
+    {
+        if ($exigirWebmail && (! filled($estab->webmail_email) || ! filled($estab->webmail_senha))) {
+            return false;
+        }
+
+        if (! PlatformSettings::automacaoConfigurado()) {
+            return false;
+        }
+
+        if (in_array($estab->fv_status, ['em_andamento', 'concluido'], true)) {
+            return false;
+        }
+
+        $senha6 = $this->gerarSenha6();
+
+        AutomacaoPagBankJob::dispatch($estab->id, $senha6)
+            ->onQueue('automacao')
+            ->delay(now()->addSeconds(10));
+
+        $estab->update(['fv_status' => 'pendente']);
+
+        return true;
     }
 
     public function reprovar(KycAnalise $kyc, int $adminId, string $motivo): void

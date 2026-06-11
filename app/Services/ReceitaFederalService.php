@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Estabelecimento;
 use App\Models\KycAnalise;
+use App\Support\DocumentoBrasil;
 use App\Support\PlatformSettings;
 use Illuminate\Support\Facades\Http;
 
@@ -31,6 +32,11 @@ class ReceitaFederalService
             'valido' => $this->validarDigitosCpf($cpf),
             'cpf' => $cpf,
         ];
+    }
+
+    public function validarDigitosCpf(string $cpf): bool
+    {
+        return DocumentoBrasil::cpfValido($cpf);
     }
 
     public function aplicarConsulta(KycAnalise $kyc, Estabelecimento $estabelecimento): void
@@ -91,25 +97,5 @@ class ReceitaFederalService
         }
 
         return $divergencias;
-    }
-
-    private function validarDigitosCpf(string $cpf): bool
-    {
-        if (strlen($cpf) !== 11 || preg_match('/(\d)\1{10}/', $cpf)) {
-            return false;
-        }
-
-        for ($t = 9; $t < 11; $t++) {
-            $sum = 0;
-            for ($i = 0; $i < $t; $i++) {
-                $sum += (int) $cpf[$i] * ($t + 1 - $i);
-            }
-            $rem = (10 * $sum) % 11 % 10;
-            if ((int) $cpf[$t] !== $rem) {
-                return false;
-            }
-        }
-
-        return true;
     }
 }

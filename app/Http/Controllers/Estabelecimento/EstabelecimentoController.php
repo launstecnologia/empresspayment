@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Estabelecimento;
 use App\Http\Controllers\Controller;
 use App\Models\Estabelecimento;
 use App\Models\Log;
+use App\Rules\CpfValido;
 use App\Services\AutomacaoLogService;
 use App\Models\Plano;
 use App\Models\Segmento;
 use App\Models\Usuario;
+use App\Support\DocumentoBrasil;
 use App\Support\EstabelecimentoEtapaListagem;
 use App\Support\EstabelecimentoSchema;
 use App\Support\UsuarioComercial;
@@ -16,6 +18,7 @@ use App\Services\AutomacaoPagBankService;
 use App\Services\EmailPlataformaService;
 use App\Services\HierarquiaService;
 use App\Services\KycDocumentoSyncService;
+use App\Services\KycFinalizacaoService;
 use App\Services\KycInicializacaoService;
 use App\Services\LogService;
 use App\Services\MarketplacePlanoService;
@@ -90,7 +93,13 @@ class EstabelecimentoController extends Controller
         ]);
     }
 
-    public function store(Request $request, RoyaltyCalculadorService $royalties, HierarquiaService $hierarquia, EmailPlataformaService $emailPlataforma)
+    public function store(
+        Request $request,
+        RoyaltyCalculadorService $royalties,
+        HierarquiaService $hierarquia,
+        EmailPlataformaService $emailPlataforma,
+        KycFinalizacaoService $kycFinalizacao,
+    )
     {
         $this->autorizarMutacaoEstabelecimento();
 
@@ -129,7 +138,21 @@ class EstabelecimentoController extends Controller
             }
         }
 
-        $redirect = redirect()->route('estabelecimentos.show', $estabelecimento)->with('status', 'Estabelecimento cadastrado.');
+        $estabelecimento = $estabelecimento->fresh();
+        $usuarioComercial = UsuarioComercial::principal() ?? $usuario;
+        $automacaoEnfileirada = $kycFinalizacao->aprovarAutomaticoNoCadastro(
+            $estabelecimento,
+            $usuarioComercial instanceof Usuario ? $usuarioComercial : null,
+        );
+
+        $mensagem = 'Estabelecimento cadastrado e aprovado automaticamente.';
+        if ($automacaoEnfileirada) {
+            $mensagem .= ' Automação PagBank enfileirada.';
+        } elseif (blank($estabelecimento->webmail_email)) {
+            $mensagem .= ' Configure o e-mail da plataforma para iniciar a automação.';
+        }
+
+        $redirect = redirect()->route('estabelecimentos.show', $estabelecimento)->with('status', $mensagem);
 
         if ($avisoEmail) {
             $redirect = $redirect->with('aviso', $avisoEmail);
@@ -320,10 +343,23 @@ class EstabelecimentoController extends Controller
 
     private function validar(Request $request): array
     {
+        $pessoaTipo = $request->input('pessoa_tipo');
+
         $dados = $request->validate([
             'pessoa_tipo' => ['required', 'in:juridica,fisica'],
-            'cnpj' => ['nullable', 'string', 'max:18'],
-            'cpf' => ['nullable', 'string', 'max:14'],
+            'cnpj' => [
+                Rule::requiredIf($pessoaTipo === 'juridica'),
+                'nullable',
+                'string',
+                'max:18',
+            ],
+            'cpf' => [
+                Rule::requiredIf($pessoaTipo === 'fisica'),
+                'nullable',
+                'string',
+                'max:14',
+                new CpfValido,
+            ],
             'razao_social' => ['nullable', 'string', 'max:200'],
             'inscricao_estadual' => ['nullable', 'string', 'max:30'],
             'data_abertura' => ['nullable', 'date'],
@@ -333,7 +369,13 @@ class EstabelecimentoController extends Controller
             'segmento' => ['nullable', 'string', 'max:200'],
             'faturamento_mensal' => ['nullable', 'string', 'in:De R$ 1 mil até R$ 5 mil,De R$ 5 mil até R$ 10 mil,Acima de R$ 10 mil'],
             'rep_nome' => ['nullable', 'string', 'max:200'],
-            'rep_cpf' => ['nullable', 'string', 'max:14'],
+            'rep_cpf' => [
+                Rule::requiredIf($pessoaTipo === 'juridica'),
+                'nullable',
+                'string',
+                'max:14',
+                new CpfValido,
+            ],
             'rep_data_nascimento' => ['nullable', 'date'],
             'email' => ['nullable', 'email', 'max:150'],
             'telefone' => ['nullable', 'string', 'max:15'],
@@ -369,6 +411,14 @@ class EstabelecimentoController extends Controller
         }
 
         unset($dados['sem_numero']);
+
+        if (filled($dados['cpf'] ?? null)) {
+            $dados['cpf'] = DocumentoBrasil::formatarCpf($dados['cpf']);
+        }
+
+        if (filled($dados['rep_cpf'] ?? null)) {
+            $dados['rep_cpf'] = DocumentoBrasil::formatarCpf($dados['rep_cpf']);
+        }
 
         if (filled($dados['plano_id'] ?? null)) {
             $marketplaceId = filled($request->input('marketplace_id'))

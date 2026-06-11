@@ -44,4 +44,50 @@ class DocumentoBrasil
             .substr($n, 6, 3).'-'
             .substr($n, 9, 2);
     }
+
+    public static function cnpjValido(?string $cnpj): bool
+    {
+        $cnpj = self::apenasDigitos($cnpj);
+
+        if (strlen($cnpj) !== 14 || preg_match('/(\d)\1{13}/', $cnpj)) {
+            return false;
+        }
+
+        $pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+        $pesos2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+
+        for ($t = 0; $t < 2; $t++) {
+            $sum = 0;
+            $pesos = $t === 0 ? $pesos1 : $pesos2;
+            $limite = $t === 0 ? 12 : 13;
+
+            for ($i = 0; $i < $limite; $i++) {
+                $sum += (int) $cnpj[$i] * $pesos[$i];
+            }
+
+            $rem = $sum % 11;
+            $digito = $rem < 2 ? 0 : 11 - $rem;
+
+            if ((int) $cnpj[12 + $t] !== $digito) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public static function formatarCnpj(?string $cnpj): string
+    {
+        $n = self::apenasDigitos($cnpj);
+
+        if (strlen($n) !== 14) {
+            return (string) $cnpj;
+        }
+
+        return substr($n, 0, 2).'.'
+            .substr($n, 2, 3).'.'
+            .substr($n, 5, 3).'/'
+            .substr($n, 8, 4).'-'
+            .substr($n, 12, 2);
+    }
 }

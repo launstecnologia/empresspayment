@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\AutomacaoPagBankJob;
+use App\Models\Estabelecimento;
 use App\Models\KycAnalise;
 use App\Models\KycDocumento;
 use App\Models\Usuario;

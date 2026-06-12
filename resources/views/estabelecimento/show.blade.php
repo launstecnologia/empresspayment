@@ -1672,22 +1672,79 @@
                 alvo.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1 text-amber-600"></i> ${mensagem}`;
             };
 
+            const blobUrls = new Set();
+
+            const carregarImagemAutenticada = async (url) => {
+                const resp = await fetch(url, {
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'image/png' },
+                });
+
+                if (!resp.ok) {
+                    throw new Error(`Imagem indisponível (HTTP ${resp.status})`);
+                }
+
+                const blob = await resp.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                blobUrls.add(objectUrl);
+                return objectUrl;
+            };
+
+            const aplicarImagensAutenticadas = (root) => {
+                if (!root) return;
+
+                root.querySelectorAll('[data-screenshot-src]').forEach((img) => {
+                    const url = img.dataset.screenshotSrc;
+                    carregarImagemAutenticada(url)
+                        .then((objectUrl) => {
+                            img.src = objectUrl;
+                            img.classList.remove('opacity-30');
+                        })
+                        .catch(() => {
+                            img.alt = 'Falha ao carregar imagem';
+                            img.classList.add('opacity-30');
+                        });
+                });
+
+                root.querySelectorAll('[data-screenshot-link]').forEach((link) => {
+                    const url = link.dataset.screenshotLink;
+                    carregarImagemAutenticada(url)
+                        .then((objectUrl) => {
+                            link.href = objectUrl;
+                        })
+                        .catch(() => {
+                            link.classList.add('pointer-events-none', 'opacity-50');
+                        });
+                });
+
+                root.querySelectorAll('[data-screenshot-download]').forEach((link) => {
+                    const url = link.dataset.screenshotDownload;
+                    carregarImagemAutenticada(url)
+                        .then((objectUrl) => {
+                            link.href = objectUrl;
+                        })
+                        .catch(() => {
+                            link.classList.add('pointer-events-none', 'opacity-50');
+                        });
+                });
+            };
+
             const cardScreenshotHtml = (nome, tamanho, grande = false) => {
                 const url = imageUrl(nome);
                 const altura = grande ? 'max-h-[70vh] object-contain' : 'h-40 object-cover object-top';
 
                 return `
                     <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                        <a href="${url}" target="_blank" rel="noopener" class="block bg-gray-900/5">
-                            <img src="${url}" alt="${nome}" loading="lazy"
-                                 class="w-full transition hover:opacity-90 ${altura}">
+                        <a href="#" data-screenshot-link="${url}" target="_blank" rel="noopener" class="block bg-gray-900/5">
+                            <img data-screenshot-src="${url}" alt="${nome}" loading="lazy"
+                                 class="w-full opacity-30 transition hover:opacity-90 ${altura}">
                         </a>
                         <div class="flex items-center justify-between gap-2 border-t border-gray-100 px-3 py-2">
                             <div class="min-w-0">
                                 <p class="truncate font-mono text-[11px] text-gray-700" title="${nome}">${nome}</p>
                                 ${tamanho ? `<p class="text-[10px] text-gray-400">${formatarTamanho(tamanho)}</p>` : ''}
                             </div>
-                            <a href="${url}" download="${nome}"
+                            <a href="#" data-screenshot-download="${url}" data-filename="${nome}"
                                class="shrink-0 rounded border border-gray-200 px-2 py-1 text-[10px] font-medium text-gray-600 hover:border-indigo-300 hover:text-indigo-700">
                                 <i class="fa-solid fa-download"></i>
                             </a>
@@ -1717,6 +1774,7 @@
                     const tamanho = typeof item === 'object' ? item.tamanho : null;
                     return cardScreenshotHtml(nome, tamanho, false);
                 }).join('');
+                aplicarImagensAutenticadas(grid);
             };
 
             const renderModalScreenshots = (items) => {
@@ -1738,6 +1796,7 @@
                     const tamanho = typeof item === 'object' ? item.tamanho : null;
                     return cardScreenshotHtml(nome, tamanho, true);
                 }).join('');
+                aplicarImagensAutenticadas(modalGrid);
             };
 
             const abrirModalScreenshots = async () => {
@@ -1775,6 +1834,8 @@
                 modal.classList.add('hidden');
                 modal.classList.remove('flex');
                 document.body.classList.remove('overflow-hidden');
+                blobUrls.forEach((url) => URL.revokeObjectURL(url));
+                blobUrls.clear();
             };
 
             document.querySelectorAll('[data-abrir-screenshots-automacao]').forEach((btn) => {

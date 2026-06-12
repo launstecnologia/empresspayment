@@ -108,6 +108,9 @@ cmd_update() {
     log "Reiniciando containers..."
     $COMPOSE up -d --remove-orphans
 
+    log "Reiniciando PHP (OPcache não recarrega arquivos sem restart)..."
+    $COMPOSE restart app queue scheduler 2>/dev/null || $COMPOSE restart app 2>/dev/null || true
+
     log "Aguardando app subir..."
     sleep 5
 
@@ -115,6 +118,7 @@ cmd_update() {
     $COMPOSE exec -T $APP_CONTAINER php artisan migrate --force
 
     log "Limpando e recriando caches..."
+    $COMPOSE exec -T $APP_CONTAINER php artisan optimize:clear
     $COMPOSE exec -T $APP_CONTAINER php artisan config:cache
     $COMPOSE exec -T $APP_CONTAINER php artisan route:cache
     $COMPOSE exec -T $APP_CONTAINER php artisan view:cache

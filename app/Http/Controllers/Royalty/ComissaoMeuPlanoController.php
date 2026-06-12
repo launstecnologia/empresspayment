@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Royalty;
 use App\Http\Controllers\Controller;
 use App\Services\MarketplacePlanoService;
 use App\Services\PlanoTaxaGradeService;
-use App\Services\RoyaltyCalculadorService;
 use App\Support\UsuarioComercial;
 use Illuminate\Http\Request;
 
@@ -15,7 +14,6 @@ class ComissaoMeuPlanoController extends Controller
         Request $request,
         MarketplacePlanoService $marketplacePlano,
         PlanoTaxaGradeService $gradeService,
-        RoyaltyCalculadorService $calculador,
     ) {
         $usuario = UsuarioComercial::principal();
         abort_unless(in_array($usuario?->tipo, ['marketplace', 'revenda'], true), 403);
@@ -30,7 +28,7 @@ class ComissaoMeuPlanoController extends Controller
 
             abort_unless($marketplacePlano->planoPermitido($plano->id, $usuario), 403);
 
-            $grade = $gradeService->dadosGradeComissaoUsuario($plano, $usuario, $calculador);
+            $grade = $gradeService->dadosGradeComissaoUsuario($plano);
         }
 
         return view('comissao.meu-plano', [

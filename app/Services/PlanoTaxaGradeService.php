@@ -73,25 +73,25 @@ class PlanoTaxaGradeService
         ];
     }
 
-    public function dadosGradeComissaoUsuario(Plano $plano, Usuario $usuario, RoyaltyCalculadorService $calculador): array
+    public function dadosGradeComissaoUsuario(Plano $plano): array
     {
         $plano->loadMissing('taxas.royalties');
 
         return [
             'debito' => collect(self::DEBITO_GRUPOS)
-                ->map(fn (array $config) => $this->linhaComComissao($plano, 'debito', 1, $config['instituicoes'][0], $usuario, $calculador))
+                ->map(fn (array $config) => $this->linhaComComissao($plano, 'debito', 1, $config['instituicoes'][0]))
                 ->all(),
             'credito' => collect(range(1, 18))
-                ->mapWithKeys(function (int $parcelas) use ($plano, $usuario, $calculador) {
+                ->mapWithKeys(function (int $parcelas) use ($plano) {
                     $grupos = collect(self::CREDITO_GRUPOS)
-                        ->map(fn (array $config) => $this->linhaComComissao($plano, 'credito', $parcelas, $config['instituicoes'][0], $usuario, $calculador))
+                        ->map(fn (array $config) => $this->linhaComComissao($plano, 'credito', $parcelas, $config['instituicoes'][0]))
                         ->all();
 
                     return [$parcelas => $grupos];
                 })
                 ->all(),
             'pix' => [
-                'bacen' => $this->linhaComComissao($plano, 'pix', 1, 'BACEN', $usuario, $calculador),
+                'bacen' => $this->linhaComComissao($plano, 'pix', 1, 'BACEN'),
             ],
         ];
     }
@@ -148,7 +148,7 @@ class PlanoTaxaGradeService
 
         return [
             'taxa' => $taxa?->taxa_percentual,
-            'comissao' => $taxa?->royalties?->firstWhere('nivel', 'admin')?->percentual,
+            'comissao' => $this->comissaoDoPlano($taxa),
             'ativo' => $taxa?->ativo ?? false,
             'existe' => $taxa !== null,
             'arranjo' => $this->mapa($instituicao, $tipo)['arranjo'] ?? null,
@@ -160,8 +160,6 @@ class PlanoTaxaGradeService
         string $tipo,
         int $parcelas,
         string $instituicao,
-        Usuario $usuario,
-        RoyaltyCalculadorService $calculador,
     ): array {
         $base = $this->linha($plano, $tipo, $parcelas, $instituicao);
         $taxa = $this->taxaDoPlano($plano, $tipo, $parcelas, $instituicao);
@@ -170,14 +168,28 @@ class PlanoTaxaGradeService
             return $base;
         }
 
-        $recebido = $calculador->percentualRecebidoUsuario($taxa, $usuario);
-        $repassa = (float) ($taxa->royalties->firstWhere('usuario_id', $usuario->id)?->percentual ?? 0);
+        $comissao = $this->comissaoDoPlano($taxa);
 
         return array_merge($base, [
-            'recebido' => $recebido,
-            'repassa' => $repassa,
-            'minha_comissao' => max($recebido - $repassa, 0),
+            'minha_comissao' => $comissao,
         ]);
+    }
+
+    private function comissaoDoPlano(?PlanoTaxa $taxa): ?float
+    {
+        if (! $taxa) {
+            return null;
+        }
+
+        $royaltyAdmin = $taxa->royalties?->firstWhere('nivel', 'admin')?->percentual;
+
+        if ($royaltyAdmin !== null && $royaltyAdmin !== '') {
+            return (float) $royaltyAdmin;
+        }
+
+        return $taxa->comissao_percentual !== null
+            ? (float) $taxa->comissao_percentual
+            : null;
     }
 
     private function taxaDoPlano(Plano $plano, string $tipo, int $parcelas, string $instituicao): ?PlanoTaxa

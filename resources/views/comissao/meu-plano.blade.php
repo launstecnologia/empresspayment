@@ -40,7 +40,7 @@
                 <button type="button" data-tab-button="credito" class="rounded-lg bg-gray-100 px-4 py-2 text-sm font-bold text-gray-600">Crédito</button>
                 <button type="button" data-tab-button="pix" class="rounded-lg bg-gray-100 px-4 py-2 text-sm font-bold text-gray-600">PIX</button>
             </div>
-            <p class="text-xs text-gray-400">Taxa = cobrada do estabelecimento · Minha comissão = valor que fica com você</p>
+            <p class="text-xs text-gray-400">Taxa = cobrada do estabelecimento · Minha comissão = comissão definida no plano (mesmo valor da grade admin)</p>
         </div>
 
         <div data-tab-panel="debito" class="p-5">
@@ -143,7 +143,7 @@
     </section>
 
     <div class="mt-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        Sua comissão é calculada sobre a taxa repassada pelo nível acima, descontando o que você repassa para revendas.
+        A coluna &quot;Minha comissão&quot; exibe a comissão cadastrada no plano pelo administrador, igual à &quot;Comissão Admin&quot; da grade de taxas.
     </div>
 @endif
 @endsection

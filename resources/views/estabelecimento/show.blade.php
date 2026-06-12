@@ -534,8 +534,7 @@
         {{-- Screenshots da automação --}}
         @if ($estabelecimento->fv_job_id)
             <div id="automacao-screenshots-section"
-                 data-list-url="{{ route('admin.estabelecimentos.automacao.screenshots', $estabelecimento) }}"
-                 data-image-url-template="{{ route('admin.estabelecimentos.automacao.screenshot', [$estabelecimento, '__ARQUIVO__']) }}">
+                 data-list-url="{{ route('admin.estabelecimentos.automacao.screenshots', $estabelecimento) }}">
                 <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Screenshots da execução</p>
                     <div class="flex items-center gap-2">
@@ -1632,8 +1631,7 @@
         const screenshotsSection = document.getElementById('automacao-screenshots-section');
         if (screenshotsSection) {
             const listUrl = screenshotsSection.dataset.listUrl;
-            const imageUrlTemplate = screenshotsSection.dataset.imageUrlTemplate;
-            const imageUrl = (filename) => imageUrlTemplate.replace('__ARQUIVO__', encodeURIComponent(filename));
+            const imageUrl = (filename) => `${listUrl.replace(/\/$/, '')}/${encodeURIComponent(filename)}`;
             const grid = document.getElementById('automacao-screenshots-grid');
             const loading = document.getElementById('automacao-screenshots-loading');
             const empty = document.getElementById('automacao-screenshots-empty');

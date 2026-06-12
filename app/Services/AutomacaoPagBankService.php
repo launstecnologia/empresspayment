@@ -153,9 +153,11 @@ class AutomacaoPagBankService
 
     public function baixarScreenshot(string $jobId, string $filename): \Illuminate\Http\Client\Response
     {
+        $arquivo = rawurlencode($filename);
+
         return Http::timeout(30)
             ->withHeaders(['X-Api-Key' => $this->apiKey])
-            ->get("{$this->apiUrl}/jobs/{$jobId}/screenshots/{$filename}");
+            ->get("{$this->apiUrl}/jobs/{$jobId}/screenshots/{$arquivo}");
     }
 
     // ----------------------------------------------------------------

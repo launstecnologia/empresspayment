@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Estabelecimento;
 use App\Http\Controllers\Controller;
 use App\Models\Estabelecimento;
 use App\Models\Log;
+use App\Rules\CelularValido;
 use App\Rules\CpfValido;
 use App\Rules\CnpjValido;
 use App\Rules\DocumentoEstabelecimentoUnico;
@@ -400,9 +401,8 @@ class EstabelecimentoController extends Controller
                 new CpfValido,
             ],
             'rep_data_nascimento' => ['nullable', 'date'],
-            'email' => ['nullable', 'email', 'max:150'],
-            'telefone' => ['nullable', 'string', 'max:15'],
-            'celular' => ['nullable', 'string', 'max:15'],
+            'email' => ['required', 'email', 'max:150'],
+            'celular' => ['required', 'string', 'max:16', new CelularValido],
             'cep' => ['nullable', 'string', 'max:9'],
             'endereco' => ['nullable', 'string', 'max:200'],
             'numero' => ['nullable', 'string', 'max:10'],
@@ -445,6 +445,10 @@ class EstabelecimentoController extends Controller
 
         if (filled($dados['rep_cpf'] ?? null)) {
             $dados['rep_cpf'] = DocumentoBrasil::formatarCpf($dados['rep_cpf']);
+        }
+
+        if (filled($dados['celular'] ?? null)) {
+            $dados['celular'] = DocumentoBrasil::formatarCelular($dados['celular']);
         }
 
         if (filled($dados['plano_id'] ?? null)) {

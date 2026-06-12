@@ -233,17 +233,23 @@
 
     <h2 class="{{ $sectionTitleClass }}">Dados contato</h2>
     <div class="grid gap-x-5 gap-y-3 px-3 py-4 md:grid-cols-12">
-        <label class="{{ $labelClass }} md:col-span-3">
-            <span class="{{ $labelTextClass }}">Telefone</span>
-            <input data-autofill="telefone" name="telefone" value="{{ old('telefone', $estabelecimento->telefone) }}" placeholder="(DDD) 0000-000" class="{{ $inputClass }}">
+        <label class="{{ $labelClass }} md:col-span-4">
+            <span class="{{ $labelTextClass }}">Celular *</span>
+            <input
+                name="celular"
+                value="{{ old('celular', $estabelecimento->celular) }}"
+                placeholder="(DDD) 90000-0000"
+                inputmode="numeric"
+                maxlength="16"
+                required
+                class="{{ $inputClass }}"
+            >
+            <span class="text-[10px] text-slate-400">Informe manualmente · 9 dígitos após o DDD</span>
         </label>
-        <label class="{{ $labelClass }} md:col-span-3">
-            <span class="{{ $labelTextClass }}">Celular</span>
-            <input name="celular" value="{{ old('celular', $estabelecimento->celular) }}" placeholder="(DDD) 0000-000" class="{{ $inputClass }}">
-        </label>
-        <label class="{{ $labelClass }} md:col-span-6">
-            <span class="{{ $labelTextClass }}">E-mail</span>
-            <input data-autofill="email" type="email" name="email" value="{{ old('email', $estabelecimento->email) }}" placeholder="exemplo@gmail.com" class="{{ $inputClass }}">
+        <label class="{{ $labelClass }} md:col-span-8">
+            <span class="{{ $labelTextClass }}">E-mail *</span>
+            <input type="email" name="email" value="{{ old('email', $estabelecimento->email) }}" placeholder="exemplo@gmail.com" required class="{{ $inputClass }}">
+            <span class="text-[10px] text-slate-400">Informe manualmente · não vem da Receita</span>
         </label>
     </div>
 
@@ -384,18 +390,6 @@
             return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
         };
 
-        const formatPhone = (ddd, phone) => {
-            const digits = onlyDigits(`${ddd || ''}${phone || ''}`);
-
-            if (digits.length < 10) {
-                return '';
-            }
-
-            return digits.length === 11
-                ? `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
-                : `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-        };
-
         const buscarCep = async (overwrite = false) => {
             const cep = onlyDigits(field('cep')?.value);
 
@@ -447,8 +441,6 @@
                 setValue('razao_social', data.razao_social, overwrite);
                 setValue('nome_fantasia', data.nome_fantasia || data.razao_social, overwrite);
                 setValue('data_abertura', normalizeDate(data.data_inicio_atividade), overwrite);
-                setValue('email', data.email, overwrite);
-                setValue('telefone', formatPhone(data.ddd_telefone_1, data.telefone_1), overwrite);
                 setValue('cep', data.cep, overwrite);
                 setValue('endereco', data.logradouro, overwrite);
                 setValue('numero', data.numero, overwrite);

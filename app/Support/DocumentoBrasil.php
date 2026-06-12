@@ -90,4 +90,22 @@ class DocumentoBrasil
             .substr($n, 8, 4).'-'
             .substr($n, 12, 2);
     }
+
+    public static function celularValido(?string $celular): bool
+    {
+        $n = self::apenasDigitos($celular);
+
+        return strlen($n) === 11 && $n[2] === '9';
+    }
+
+    public static function formatarCelular(?string $celular): string
+    {
+        $n = self::apenasDigitos($celular);
+
+        if (! self::celularValido($n)) {
+            return (string) $celular;
+        }
+
+        return '('.substr($n, 0, 2).') '.substr($n, 2, 5).'-'.substr($n, 7);
+    }
 }

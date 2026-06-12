@@ -316,6 +316,13 @@
                     const digits = onlyDigits(value).slice(0, 8);
                     return digits.replace(/(\d{5})(\d{1,3})$/, '$1-$2');
                 },
+                celular(value) {
+                    const digits = onlyDigits(value).slice(0, 11);
+
+                    return digits
+                        .replace(/^(\d{2})(\d)/, '($1) $2')
+                        .replace(/(\d{5})(\d{1,4})$/, '$1-$2');
+                },
                 phone(value) {
                     const digits = onlyDigits(value).slice(0, 11);
 
@@ -339,7 +346,8 @@
                 if (['cpf', 'rep_cpf'].includes(name)) return masks.cpf;
                 if (['documento'].includes(name)) return masks.documento;
                 if (['cep'].includes(name)) return masks.cep;
-                if (['telefone', 'celular'].includes(name)) return masks.phone;
+                if (['telefone'].includes(name)) return masks.phone;
+                if (['celular'].includes(name)) return masks.celular;
                 if (['uf'].includes(name)) return masks.uf;
 
                 return null;

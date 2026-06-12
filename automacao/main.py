@@ -342,8 +342,7 @@ class CadastradorFV:
     def _elementos_erro_documento(self) -> list:
         xpaths = [
             '//*[@data-testid="error-input"]//*[self::h3 or self::p or self::span]',
-            '//*[contains(@id,"feedback-title")]',
-            '//*[@role="alert"]',
+            '//*[contains(@id,"feedback-title") and contains(@class,"error")]',
             '//*[contains(text(), "FV-CDS-01")]',
             '//*[contains(text(), "gerenciado pelos times internos")]',
         ]
@@ -493,13 +492,80 @@ class CadastradorFV:
         campo.send_keys(valor[-1])
         time.sleep(0.3)
 
+    def _normalizar_texto(self, texto: str) -> str:
+        import unicodedata
+
+        t = unicodedata.normalize('NFKD', (texto or '').strip())
+
+        return t.encode('ascii', 'ignore').decode().lower()
+
+    def _texto_e_erro_validacao(self, texto: str) -> bool:
+        tl = self._normalizar_texto(texto)
+        if not tl:
+            return False
+
+        ignorar = (
+            'cadastro pessoa juridica',
+            'cadastrar pessoa juridica',
+            'cadastrar pessoa fisica',
+            'dados da empresa e contato',
+        )
+        if tl in ignorar:
+            return False
+
+        # Cabeçalho/breadcrumb do portal FV — não é erro de campo
+        if 'forca de vendas' in tl and ('cadastro pessoa' in tl or 'cadastrar pessoa' in tl):
+            return False
+
+        if tl.startswith('pagbank') and 'forca de vendas' in tl:
+            return False
+
+        return True
+
+    def _texto_indica_erro_campo(self, texto: str) -> bool:
+        tl = self._normalizar_texto(texto)
+        if not tl or not self._texto_e_erro_validacao(texto):
+            return False
+
+        indicadores = (
+            'invalido',
+            'obrigator',
+            'similar',
+            'fv-cds',
+            'gerenciado pelos times',
+            'nao e possivel',
+            'informe',
+            'preencha',
+            'required',
+            'erro ao',
+            'nao foi possivel',
+        )
+
+        return any(ind in tl for ind in indicadores)
+
+    def _exigir_erros_reais(self, contexto: str, erros: list[str] | None = None):
+        erros = erros if erros is not None else self._coletar_erros()
+        reais = [e for e in erros if self._texto_indica_erro_campo(e)]
+        if reais:
+            self._salvar_screenshot(f'erro_validacao_{contexto}')
+            raise Exception(f'Validação PagBank ({contexto}): {", ".join(reais)}')
+
+    def _formatar_celular_br(self, digits: str) -> str:
+        d = re.sub(r'\D', '', digits or '')
+        if len(d) == 11:
+            return f'({d[:2]}) {d[2:7]}-{d[7:]}'
+        if len(d) == 10:
+            return f'({d[:2]}) {d[2:6]}-{d[6:]}'
+
+        return d
+
     def _coletar_erros(self):
         msgs: list[str] = []
         vistos: set[str] = set()
 
         for el in self._elementos_erro_documento():
             txt = el.text.strip()
-            if txt and txt not in vistos:
+            if txt and txt not in vistos and self._texto_e_erro_validacao(txt):
                 vistos.add(txt)
                 msgs.append(txt)
 
@@ -785,12 +851,17 @@ class CadastradorFV:
         self._limpar_telefone_fixo()
 
         if cel:
-            self._preencher(By.ID, 'info.formattedCelphone', cel, 'celular')
+            self._preencher_react(
+                By.ID,
+                'info.formattedCelphone',
+                self._formatar_celular_br(cel),
+                'celular',
+            )
 
         if self.dados.get('url_site'):
-            self._preencher(By.ID, 'info.websiteURL', self.dados['url_site'], 'url_site')
+            self._preencher_react(By.ID, 'info.websiteURL', self.dados['url_site'], 'url_site')
 
-        time.sleep(0.5)
+        time.sleep(1)
         erros = self._coletar_erros()
 
         if any('número inválido' in (e or '').lower() or 'numero invalido' in (e or '').lower() for e in erros):
@@ -811,7 +882,7 @@ class CadastradorFV:
             self._redigitar_ultimo_char(campo_fantasia, self.dados['razao_social'])
             erros = self._coletar_erros()
 
-        self._exigir_sem_erros('dados da empresa')
+        self._exigir_erros_reais('dados da empresa', erros)
 
         self._clicar(
             By.XPATH,

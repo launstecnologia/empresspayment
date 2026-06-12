@@ -136,6 +136,28 @@ class AutomacaoPagBankService
         return $status;
     }
 
+    public function listarScreenshots(string $jobId): array
+    {
+        $response = Http::timeout(10)
+            ->withHeaders(['X-Api-Key' => $this->apiKey])
+            ->get("{$this->apiUrl}/jobs/{$jobId}/screenshots");
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                "Falha ao listar screenshots do job {$jobId}: ".$response->status().' — '.$response->body()
+            );
+        }
+
+        return $response->json();
+    }
+
+    public function baixarScreenshot(string $jobId, string $filename): \Illuminate\Http\Client\Response
+    {
+        return Http::timeout(30)
+            ->withHeaders(['X-Api-Key' => $this->apiKey])
+            ->get("{$this->apiUrl}/jobs/{$jobId}/screenshots/{$filename}");
+    }
+
     // ----------------------------------------------------------------
     // Consulta CPF/CNPJ no portal FV (sem cadastrar)
     // ----------------------------------------------------------------

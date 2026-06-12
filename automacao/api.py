@@ -15,7 +15,7 @@ from datetime import datetime
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 load_dotenv()
@@ -199,6 +199,47 @@ def _set_etapa(job_id: str, etapa: str) -> None:
             )
             conn.commit()
     log.info(f'[{job_id}] Etapa: {etapa}')
+
+
+def _screenshot_dir(job_id: str) -> str:
+    return os.path.join(SCREENSHOT_DIR, job_id)
+
+
+def _resumir_erro_selenium(erro: str) -> str:
+    if not erro:
+        return 'Erro desconhecido no cadastro FV'
+    if 'PagBank não avançou' in erro:
+        return erro.split('Stacktrace:')[0].strip()
+    for linha in erro.split('\n'):
+        linha = linha.strip()
+        if not linha or linha == 'Message:' or linha.startswith('#'):
+            continue
+        if linha.startswith('Message:'):
+            resto = linha[8:].strip()
+            if resto:
+                return resto
+        return linha
+    return erro[:400]
+
+
+def _formatar_erro_fv(fv_resultado: dict) -> str:
+    etapa = fv_resultado.get('etapa_falha_label') or 'Cadastro Força de Vendas'
+    resumo = fv_resultado.get('erro_resumido') or _resumir_erro_selenium(
+        fv_resultado.get('erro', 'Erro desconhecido no cadastro FV')
+    )
+    return f'Falha na etapa "{etapa}": {resumo}'
+
+
+def _resolver_arquivo_screenshot(job_id: str, filename: str) -> str:
+    nome = os.path.basename(filename)
+    if not nome.endswith('.png') or nome != filename or '..' in nome:
+        raise HTTPException(status_code=404, detail='Screenshot não encontrado')
+
+    caminho = os.path.join(_screenshot_dir(job_id), nome)
+    if not os.path.isfile(caminho):
+        raise HTTPException(status_code=404, detail='Screenshot não encontrado')
+
+    return caminho
 
 
 def _executar_etapa_proposta(job_id: str, req: dict, screenshot_dir: str) -> dict:
@@ -462,11 +503,12 @@ def _executar_job(job_id: str, req: dict) -> None:
         )
 
         if not fv_resultado.get('sucesso'):
+            erro_amigavel = _formatar_erro_fv(fv_resultado)
             _update_job(
                 job_id, 'erro',
                 resultado={'etapa': 'cadastro_fv', 'detalhe': fv_resultado},
-                erro=fv_resultado.get('erro', 'Erro desconhecido no cadastro FV'),
-                etapa_atual='Erro no cadastro PagBank',
+                erro=erro_amigavel,
+                etapa_atual=erro_amigavel,
             )
             return
 
@@ -798,6 +840,41 @@ async def consultar_status(job_id: str, x_api_key: str = Header(...)):
         'atualizado_em':      row['atualizado_em'],
         'logs':               _get_job_logs(job_id),
     }
+
+
+@app.get('/jobs/{job_id}/screenshots', tags=['Automação'])
+async def listar_screenshots(job_id: str, x_api_key: str = Header(...)):
+    """Lista screenshots PNG salvos durante a execução do job."""
+    _autenticar(x_api_key)
+
+    dir_path = _screenshot_dir(job_id)
+    if not os.path.isdir(dir_path):
+        return {'job_id': job_id, 'screenshots': []}
+
+    arquivos = sorted(
+        [nome for nome in os.listdir(dir_path) if nome.endswith('.png')],
+        key=lambda nome: os.path.getmtime(os.path.join(dir_path, nome)),
+    )
+
+    return {
+        'job_id': job_id,
+        'screenshots': [
+            {
+                'arquivo': nome,
+                'tamanho': os.path.getsize(os.path.join(dir_path, nome)),
+            }
+            for nome in arquivos
+        ],
+    }
+
+
+@app.get('/jobs/{job_id}/screenshots/{filename}', tags=['Automação'])
+async def obter_screenshot(job_id: str, filename: str, x_api_key: str = Header(...)):
+    """Retorna um screenshot PNG do job."""
+    _autenticar(x_api_key)
+    caminho = _resolver_arquivo_screenshot(job_id, filename)
+
+    return FileResponse(caminho, media_type='image/png', filename=filename)
 
 
 @app.get('/jobs', tags=['Administração'])

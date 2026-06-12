@@ -136,6 +136,57 @@ class EstabelecimentoAutomacaoController extends Controller
         }
     }
 
+    public function screenshots(Estabelecimento $estabelecimento)
+    {
+        abort_unless(auth()->user()?->tipo === 'admin', 403);
+
+        if (blank($estabelecimento->fv_job_id)) {
+            return response()->json(['job_id' => null, 'screenshots' => []]);
+        }
+
+        if (! PlatformSettings::automacaoConfigurado()) {
+            return response()->json(['erro' => 'Automação não configurada'], 503);
+        }
+
+        try {
+            $lista = app(AutomacaoPagBankService::class)
+                ->listarScreenshots($estabelecimento->fv_job_id);
+
+            return response()->json($lista);
+        } catch (\Throwable $e) {
+            return response()->json(['erro' => $e->getMessage()], 502);
+        }
+    }
+
+    public function screenshot(Estabelecimento $estabelecimento, string $filename)
+    {
+        abort_unless(auth()->user()?->tipo === 'admin', 403);
+
+        if (blank($estabelecimento->fv_job_id)) {
+            abort(404, 'Screenshot não encontrado');
+        }
+
+        if (! PlatformSettings::automacaoConfigurado()) {
+            abort(503, 'Automação não configurada');
+        }
+
+        try {
+            $response = app(AutomacaoPagBankService::class)
+                ->baixarScreenshot($estabelecimento->fv_job_id, $filename);
+
+            if (! $response->successful()) {
+                abort(404, 'Screenshot não encontrado');
+            }
+
+            return response($response->body(), 200, [
+                'Content-Type' => 'image/png',
+                'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            ]);
+        } catch (\Throwable $e) {
+            abort(502, $e->getMessage());
+        }
+    }
+
     public function buscarSafepayId(Request $request, Estabelecimento $estabelecimento)
     {
         abort_unless($request->user()?->tipo === 'admin', 403);

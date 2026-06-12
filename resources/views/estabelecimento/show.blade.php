@@ -224,6 +224,21 @@
             </div>
         @endif
 
+        @if ($estabelecimento->fv_job_id)
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3">
+                <div class="text-sm text-indigo-900">
+                    <i class="fa-solid fa-camera mr-1"></i>
+                    Screenshots disponíveis para debug deste cadastro.
+                </div>
+                <button type="button"
+                        data-abrir-screenshots-automacao
+                        class="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100">
+                    <i class="fa-solid fa-images"></i>
+                    Ver todos os screenshots
+                </button>
+            </div>
+        @endif
+
         {{-- Status atual + botões de ação --}}
         <div class="flex flex-col gap-4">
 
@@ -453,11 +468,38 @@
 
         {{-- Erro do cadastro (não confundir com erro só da proposta) --}}
         @if ($estabelecimento->fv_erro && ! $fvPropostaComErro)
+            @php
+                $erroAuto = $automacaoErro ?? \App\Support\AutomacaoErroInterpretador::interpretar($estabelecimento->fv_erro);
+            @endphp
             <div class="rounded-lg border border-red-200 bg-red-50 p-4">
-                <p class="mb-1 text-xs font-bold uppercase tracking-wide text-red-600">
-                    <i class="fa-solid fa-triangle-exclamation mr-1"></i> Retorno de Erro
-                </p>
-                <pre class="whitespace-pre-wrap break-all font-mono text-xs text-red-800">{{ $estabelecimento->fv_erro }}</pre>
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
+                        <p class="mb-1 text-xs font-bold uppercase tracking-wide text-red-600">
+                            <i class="fa-solid fa-triangle-exclamation mr-1"></i> {{ $erroAuto['titulo'] }}
+                        </p>
+                        @if ($erroAuto['etapa'])
+                            <p class="mb-2 inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-semibold text-red-800">
+                                <i class="fa-solid fa-layer-group"></i>
+                                Etapa: {{ $erroAuto['etapa'] }}
+                            </p>
+                        @endif
+                        <p class="text-sm leading-relaxed text-red-900">{{ $erroAuto['resumo'] }}</p>
+                        @if (filled($erroAuto['tecnico']) && $erroAuto['tecnico'] !== $erroAuto['resumo'])
+                            <details class="mt-3">
+                                <summary class="cursor-pointer text-xs font-medium text-red-700">Ver detalhes técnicos</summary>
+                                <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-red-100/60 p-3 font-mono text-[10px] text-red-900">{{ $erroAuto['tecnico'] }}</pre>
+                            </details>
+                        @endif
+                    </div>
+                    @if ($estabelecimento->fv_job_id)
+                        <button type="button"
+                                data-abrir-screenshots-automacao
+                                class="inline-flex shrink-0 items-center gap-2 rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-700 shadow-sm hover:bg-red-100">
+                            <i class="fa-solid fa-images"></i>
+                            Ver screenshots do processo
+                        </button>
+                    @endif
+                </div>
             </div>
         @endif
 
@@ -489,6 +531,38 @@
             </div>
         @endif
 
+        {{-- Screenshots da automação --}}
+        @if ($estabelecimento->fv_job_id)
+            <div id="automacao-screenshots-section"
+                 data-list-url="{{ route('admin.estabelecimentos.automacao.screenshots', $estabelecimento) }}"
+                 data-image-url-template="{{ route('admin.estabelecimentos.automacao.screenshot', [$estabelecimento, '__ARQUIVO__']) }}">
+                <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Screenshots da execução</p>
+                    <div class="flex items-center gap-2">
+                        <button type="button"
+                                data-abrir-screenshots-automacao
+                                class="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100">
+                            <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+                            Abrir galeria
+                        </button>
+                        <button type="button"
+                                id="automacao-screenshots-recarregar"
+                                class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:border-indigo-300 hover:text-indigo-700">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                            Atualizar
+                        </button>
+                    </div>
+                </div>
+                <div id="automacao-screenshots-loading" class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                    <i class="fa-solid fa-spinner fa-spin mr-1"></i> Carregando screenshots...
+                </div>
+                <div id="automacao-screenshots-empty" class="hidden rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-400">
+                    Nenhum screenshot disponível para este job.
+                </div>
+                <div id="automacao-screenshots-grid" class="hidden grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+            </div>
+        @endif
+
         {{-- Histórico detalhado da automação --}}
         <div>
             <p class="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">Log da automação — passo a passo</p>
@@ -517,20 +591,46 @@
                                     'aviso' => 'bg-amber-100 text-amber-800',
                                     default => 'bg-blue-50 text-blue-800',
                                 };
+                                $contextoLog = is_array($alog->detalhe) ? $alog->detalhe : [];
+                                if (filled($alog->etapa)) {
+                                    $contextoLog['etapa_log'] = $alog->etapa;
+                                }
+                                $erroLog = \App\Support\AutomacaoErroInterpretador::logPareceErro($alog)
+                                    ? \App\Support\AutomacaoErroInterpretador::interpretar($alog->mensagem, $contextoLog, $automacaoLogs)
+                                    : null;
                             @endphp
                             <tr class="hover:bg-gray-50" data-log-id="{{ $alog->id }}">
                                 <td class="whitespace-nowrap px-3 py-2 text-gray-500">{{ $alog->created_at?->format('d/m/Y H:i:s') }}</td>
                                 <td class="whitespace-nowrap px-3 py-2">
                                     <span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase {{ $nivelCores }}">{{ $alog->nivel }}</span>
                                 </td>
-                                <td class="whitespace-nowrap px-3 py-2 text-gray-600">{{ $alog->etapa ?: '—' }}</td>
+                                <td class="whitespace-nowrap px-3 py-2 text-gray-600">{{ $erroLog['etapa'] ?? ($alog->etapa ?: '—') }}</td>
                                 <td class="px-3 py-2 text-gray-800">
-                                    {{ $alog->mensagem }}
-                                    @if (filled($alog->detalhe))
-                                        <details class="mt-1">
-                                            <summary class="cursor-pointer text-[10px] text-gray-400">detalhes</summary>
-                                            <pre class="mt-1 whitespace-pre-wrap break-all rounded bg-gray-50 p-2 font-mono text-[10px] text-gray-600">{{ json_encode($alog->detalhe, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
-                                        </details>
+                                    @if ($erroLog)
+                                        <p class="font-medium text-red-900">{{ $erroLog['titulo'] }}</p>
+                                        <p class="mt-0.5 text-gray-700">{{ $erroLog['resumo'] }}</p>
+                                        @if ($estabelecimento->fv_job_id)
+                                            <button type="button"
+                                                    data-abrir-screenshots-automacao
+                                                    class="mt-2 inline-flex items-center gap-1 rounded border border-red-200 bg-white px-2 py-1 text-[10px] font-semibold text-red-700 hover:bg-red-50">
+                                                <i class="fa-solid fa-images"></i>
+                                                Ver screenshots
+                                            </button>
+                                        @endif
+                                        @if (filled($erroLog['tecnico']) && $erroLog['tecnico'] !== $erroLog['resumo'])
+                                            <details class="mt-2">
+                                                <summary class="cursor-pointer text-[10px] text-gray-400">detalhes técnicos</summary>
+                                                <pre class="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-gray-50 p-2 font-mono text-[10px] text-gray-600">{{ $erroLog['tecnico'] }}</pre>
+                                            </details>
+                                        @endif
+                                    @else
+                                        {{ $alog->mensagem }}
+                                        @if (filled($alog->detalhe))
+                                            <details class="mt-1">
+                                                <summary class="cursor-pointer text-[10px] text-gray-400">detalhes</summary>
+                                                <pre class="mt-1 whitespace-pre-wrap break-all rounded bg-gray-50 p-2 font-mono text-[10px] text-gray-600">{{ json_encode($alog->detalhe, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                            </details>
+                                        @endif
                                     @endif
                                 </td>
                             </tr>
@@ -1065,6 +1165,28 @@
 @push('modals')
     @include('estabelecimento.partials.automacao-confirmacao-modal')
 
+    @if ($estabelecimento->fv_job_id)
+        <div id="automacao-screenshots-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4" aria-hidden="true">
+            <div class="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-900">Screenshots da automação</h3>
+                        <p class="text-xs text-gray-500">Todas as capturas deste cadastro, em ordem de execução.</p>
+                    </div>
+                    <button type="button" data-fechar-screenshots-automacao class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div id="automacao-screenshots-modal-body" class="overflow-y-auto p-4">
+                    <div id="automacao-screenshots-modal-loading" class="py-10 text-center text-sm text-gray-500">
+                        <i class="fa-solid fa-spinner fa-spin mr-1"></i> Carregando screenshots...
+                    </div>
+                    <div id="automacao-screenshots-modal-grid" class="hidden grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     {{-- ── Modal: Criar E-mail Plataforma ── --}}
     @if ($estabelecimento->email && blank($estabelecimento->webmail_email))
     @php $usernameSugerido = preg_replace('/[^a-z0-9._-]/i', '', strtolower(str($estabelecimento->email)->before('@')->value())); @endphp
@@ -1504,6 +1626,177 @@
 
             atualizarAutomacao();
             setInterval(atualizarAutomacao, 20000);
+        }
+
+        // Galeria de screenshots da automação
+        const screenshotsSection = document.getElementById('automacao-screenshots-section');
+        if (screenshotsSection) {
+            const listUrl = screenshotsSection.dataset.listUrl;
+            const imageUrlTemplate = screenshotsSection.dataset.imageUrlTemplate;
+            const imageUrl = (filename) => imageUrlTemplate.replace('__ARQUIVO__', encodeURIComponent(filename));
+            const grid = document.getElementById('automacao-screenshots-grid');
+            const loading = document.getElementById('automacao-screenshots-loading');
+            const empty = document.getElementById('automacao-screenshots-empty');
+            const btnRecarregar = document.getElementById('automacao-screenshots-recarregar');
+            const modal = document.getElementById('automacao-screenshots-modal');
+            const modalGrid = document.getElementById('automacao-screenshots-modal-grid');
+            const modalLoading = document.getElementById('automacao-screenshots-modal-loading');
+            let screenshotsCache = [];
+
+            const formatarTamanho = (bytes) => {
+                if (!bytes || bytes < 1024) return `${bytes || 0} B`;
+                if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+                return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+            };
+
+            const cardScreenshotHtml = (nome, tamanho, grande = false) => {
+                const url = imageUrl(nome);
+                const altura = grande ? 'max-h-[70vh] object-contain' : 'h-40 object-cover object-top';
+
+                return `
+                    <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                        <a href="${url}" target="_blank" rel="noopener" class="block bg-gray-900/5">
+                            <img src="${url}" alt="${nome}" loading="lazy"
+                                 class="w-full transition hover:opacity-90 ${altura}">
+                        </a>
+                        <div class="flex items-center justify-between gap-2 border-t border-gray-100 px-3 py-2">
+                            <div class="min-w-0">
+                                <p class="truncate font-mono text-[11px] text-gray-700" title="${nome}">${nome}</p>
+                                ${tamanho ? `<p class="text-[10px] text-gray-400">${formatarTamanho(tamanho)}</p>` : ''}
+                            </div>
+                            <a href="${url}" download="${nome}"
+                               class="shrink-0 rounded border border-gray-200 px-2 py-1 text-[10px] font-medium text-gray-600 hover:border-indigo-300 hover:text-indigo-700">
+                                <i class="fa-solid fa-download"></i>
+                            </a>
+                        </div>
+                    </div>
+                `;
+            };
+
+            const renderScreenshots = (items) => {
+                screenshotsCache = items;
+                if (!grid || !loading || !empty) return;
+
+                loading.classList.add('hidden');
+
+                if (!Array.isArray(items) || items.length === 0) {
+                    grid.classList.add('hidden');
+                    grid.innerHTML = '';
+                    empty.classList.remove('hidden');
+                    return;
+                }
+
+                empty.classList.add('hidden');
+                grid.classList.remove('hidden');
+                grid.innerHTML = items.map((item) => {
+                    const arquivo = item.arquivo || item;
+                    const nome = typeof arquivo === 'string' ? arquivo : arquivo.arquivo;
+                    const tamanho = typeof item === 'object' ? item.tamanho : null;
+                    return cardScreenshotHtml(nome, tamanho, false);
+                }).join('');
+            };
+
+            const renderModalScreenshots = (items) => {
+                if (!modalGrid || !modalLoading) return;
+
+                modalLoading.classList.add('hidden');
+
+                if (!Array.isArray(items) || items.length === 0) {
+                    modalGrid.classList.add('hidden');
+                    modalLoading.classList.remove('hidden');
+                    modalLoading.innerHTML = 'Nenhum screenshot disponível para este cadastro.';
+                    return;
+                }
+
+                modalGrid.classList.remove('hidden');
+                modalGrid.innerHTML = items.map((item) => {
+                    const arquivo = item.arquivo || item;
+                    const nome = typeof arquivo === 'string' ? arquivo : arquivo.arquivo;
+                    const tamanho = typeof item === 'object' ? item.tamanho : null;
+                    return cardScreenshotHtml(nome, tamanho, true);
+                }).join('');
+            };
+
+            const abrirModalScreenshots = async () => {
+                if (!modal) return;
+
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                document.body.classList.add('overflow-hidden');
+                screenshotsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                if (screenshotsCache.length > 0) {
+                    renderModalScreenshots(screenshotsCache);
+                    return;
+                }
+
+                if (modalLoading) {
+                    modalLoading.classList.remove('hidden');
+                    modalLoading.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Carregando screenshots...';
+                }
+                if (modalGrid) modalGrid.classList.add('hidden');
+
+                try {
+                    const resp = await fetch(listUrl, {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    if (!resp.ok) throw new Error('Falha ao carregar');
+                    const data = await resp.json();
+                    renderModalScreenshots(data.screenshots || []);
+                } catch (_) {
+                    if (modalLoading) {
+                        modalLoading.classList.remove('hidden');
+                        modalLoading.innerHTML = 'Não foi possível carregar os screenshots.';
+                    }
+                }
+            };
+
+            const fecharModalScreenshots = () => {
+                if (!modal) return;
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                document.body.classList.remove('overflow-hidden');
+            };
+
+            document.querySelectorAll('[data-abrir-screenshots-automacao]').forEach((btn) => {
+                btn.addEventListener('click', abrirModalScreenshots);
+            });
+
+            document.querySelectorAll('[data-fechar-screenshots-automacao]').forEach((btn) => {
+                btn.addEventListener('click', fecharModalScreenshots);
+            });
+
+            modal?.addEventListener('click', (event) => {
+                if (event.target === modal) fecharModalScreenshots();
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') fecharModalScreenshots();
+            });
+
+            const carregarScreenshots = async () => {
+                if (loading) loading.classList.remove('hidden');
+                if (empty) empty.classList.add('hidden');
+                if (grid) grid.classList.add('hidden');
+
+                try {
+                    const resp = await fetch(listUrl, {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    if (!resp.ok) throw new Error('Falha ao carregar');
+
+                    const data = await resp.json();
+                    renderScreenshots(data.screenshots || []);
+                } catch (_) {
+                    if (loading) {
+                        loading.classList.remove('hidden');
+                        loading.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-1 text-amber-600"></i> Não foi possível carregar os screenshots.';
+                    }
+                }
+            };
+
+            btnRecarregar?.addEventListener('click', carregarScreenshots);
+            carregarScreenshots();
         }
 
     });

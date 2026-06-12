@@ -29,6 +29,7 @@ use App\Services\RoyaltyCalculadorService;
 use App\Support\KycDocumentosObrigatorios;
 use App\Support\KycTipoDocumentoMapper;
 use App\Support\NotificacaoVars;
+use App\Support\AutomacaoErroInterpretador;
 use App\Support\PlatformSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -227,6 +228,20 @@ class EstabelecimentoController extends Controller
             }
         }
 
+        $automacaoErro = null;
+        if (filled($estabelecimento->fv_erro) && in_array($estabelecimento->fv_status, ['erro', 'timeout', 'erro_email'], true)) {
+            $ultimoLogErro = $automacaoLogs->filter(fn ($log) => AutomacaoErroInterpretador::logPareceErro($log))->last();
+            $contexto = is_array($ultimoLogErro?->detalhe) ? $ultimoLogErro->detalhe : null;
+            if ($ultimoLogErro && filled($ultimoLogErro->etapa)) {
+                $contexto = array_merge($contexto ?? [], ['etapa_log' => $ultimoLogErro->etapa]);
+            }
+            $automacaoErro = AutomacaoErroInterpretador::interpretar(
+                $estabelecimento->fv_erro,
+                $contexto,
+                $automacaoLogs,
+            );
+        }
+
         return view('estabelecimento.show', compact(
             'estabelecimento',
             'logs',
@@ -235,6 +250,7 @@ class EstabelecimentoController extends Controller
             'kyc',
             'kycItens',
             'automacaoPreview',
+            'automacaoErro',
         ) + [
             'kycAtivo'           => PlatformSettings::kycAtivo(),
             'ppidConfigurado'  => PlatformSettings::ppidConfigurado(),

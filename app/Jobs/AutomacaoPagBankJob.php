@@ -6,6 +6,7 @@ use App\Models\Estabelecimento;
 use App\Services\AutomacaoLogService;
 use App\Services\AutomacaoPagBankService;
 use App\Services\NotificacaoEmailService;
+use App\Support\AutomacaoErroInterpretador;
 use App\Support\AutomacaoSchema;
 use App\Support\EstabelecimentoEtapaListagem;
 use App\Support\EstabelecimentoSchema;
@@ -139,7 +140,11 @@ class AutomacaoPagBankJob implements ShouldQueue
                 }
 
             } elseif (in_array($statusFinal, ['erro', 'erro_email', 'erro_proposta'], true)) {
-                $erro = $status['erro'] ?? 'Erro desconhecido na automação';
+                $erroBruto = $status['erro'] ?? 'Erro desconhecido na automação';
+                $erroInterpretado = AutomacaoErroInterpretador::interpretar($erroBruto, [
+                    'resultado' => $resultado,
+                ]);
+                $erro = $erroInterpretado['mensagem_amigavel'];
 
                 if ($statusFinal === 'erro_proposta') {
                     $update = array_merge(
@@ -161,8 +166,12 @@ class AutomacaoPagBankJob implements ShouldQueue
                     $estab->id,
                     $erro,
                     $jobId,
-                    $statusFinal,
-                    ['status' => $statusFinal, 'resultado' => $resultado],
+                    $erroInterpretado['etapa'] ?? $statusFinal,
+                    [
+                        'status' => $statusFinal,
+                        'resultado' => $resultado,
+                        'erro_tecnico' => $erroBruto,
+                    ],
                 );
 
                 Log::error('AutomacaoPagBankJob: automação falhou', [

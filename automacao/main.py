@@ -50,10 +50,28 @@ class CadastradorFV:
         self.driver = None
         self.wait = None
         self.screenshots: list[str] = []
+        self.etapa_codigo: str | None = None
+        self.etapa_label: str | None = None
 
         os.makedirs(screenshot_dir, exist_ok=True)
 
+    _ETAPA_CODIGOS = {
+        'Iniciando navegador...': 'browser',
+        'Acessando portal Força de Vendas...': 'login',
+        'Abrindo cadastro de cliente...': 'cadastro',
+        'Preenchendo dados iniciais...': 'dados_iniciais',
+        'Preenchendo dados da empresa (PJ)...': 'dados_empresa',
+        'Preenchendo dados do proprietário...': 'dados_proprietario',
+        'Preenchendo dados pessoais (PF)...': 'dados_pf',
+        'Preenchendo endereço...': 'endereco',
+        'Preenchendo segmento...': 'segmento',
+        'Preenchendo condições comerciais...': 'condicoes_comerciais',
+        'Cadastro PagBank concluído': 'concluido',
+    }
+
     def _etapa(self, mensagem: str) -> None:
+        self.etapa_label = mensagem.rstrip('.')
+        self.etapa_codigo = self._ETAPA_CODIGOS.get(mensagem, self.etapa_codigo)
         reportar_etapa(self.job_id, mensagem)
 
     # ----------------------------------------------------------------
@@ -106,7 +124,10 @@ class CadastradorFV:
             return {
                 'sucesso': False,
                 'erro': f'CLIENTE_INTERNO: {str(e)}',
+                'erro_resumido': str(e),
                 'codigo': 'FV-CDS-01',
+                'etapa_falha': self.etapa_codigo,
+                'etapa_falha_label': self.etapa_label,
                 'screenshots': self.screenshots,
             }
         except Exception as e:
@@ -116,6 +137,9 @@ class CadastradorFV:
             return {
                 'sucesso': False,
                 'erro': str(e),
+                'erro_resumido': self._resumir_erro(str(e)),
+                'etapa_falha': self.etapa_codigo,
+                'etapa_falha_label': self.etapa_label,
                 'screenshots': self.screenshots,
             }
         finally:
@@ -516,6 +540,21 @@ class CadastradorFV:
             self._salvar_screenshot(f'timeout_{contexto}')
             detalhe = ', '.join(erros) if erros else f'Campo {seletor} não apareceu'
             raise Exception(f'PagBank não avançou ({contexto}): {detalhe}')
+
+    @staticmethod
+    def _resumir_erro(erro: str) -> str:
+        if 'PagBank não avançou' in erro:
+            return erro.split('Stacktrace:')[0].strip()
+        for linha in erro.split('\n'):
+            linha = linha.strip()
+            if not linha or linha == 'Message:' or linha.startswith('#'):
+                continue
+            if linha.startswith('Message:'):
+                resto = linha[8:].strip()
+                if resto:
+                    return resto
+            return linha
+        return erro[:400]
 
     # ----------------------------------------------------------------
     # Etapas
@@ -947,9 +986,12 @@ class CadastradorFV:
 
     def _preencher_condicoes_comerciais(self):
         log.info('--- ETAPA: CONDICOES COMERCIAIS ---')
-        self.wait.until(EC.presence_of_element_located(
-            (By.XPATH, '//*[@data-testid="btn_linkMobile"]')
-        ))
+        self._aguardar_campo_ou_falhar(
+            By.XPATH,
+            '//*[@data-testid="btn_linkMobile"]',
+            'condicoes_comerciais',
+            timeout=25,
+        )
         time.sleep(1)
 
         testid_map = {

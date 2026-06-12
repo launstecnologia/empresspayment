@@ -169,6 +169,11 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
             ->name('admin.estabelecimentos.automacao.retentar-email');
         Route::get('estabelecimentos/{estabelecimento}/automacao/status', [EstabelecimentoAutomacaoController::class, 'status'])
             ->name('admin.estabelecimentos.automacao.status');
+        Route::get('estabelecimentos/{estabelecimento}/automacao/screenshots', [EstabelecimentoAutomacaoController::class, 'screenshots'])
+            ->name('admin.estabelecimentos.automacao.screenshots');
+        Route::get('estabelecimentos/{estabelecimento}/automacao/screenshots/{filename}', [EstabelecimentoAutomacaoController::class, 'screenshot'])
+            ->where('filename', '[a-zA-Z0-9_\-\.]+\.png')
+            ->name('admin.estabelecimentos.automacao.screenshot');
         Route::post('estabelecimentos/{estabelecimento}/automacao/buscar-safepay-id', [EstabelecimentoAutomacaoController::class, 'buscarSafepayId'])
             ->name('admin.estabelecimentos.automacao.buscar-safepay-id');
         Route::post('estabelecimentos/{estabelecimento}/automacao/aceitar-proposta', [EstabelecimentoAutomacaoController::class, 'aceitarProposta'])

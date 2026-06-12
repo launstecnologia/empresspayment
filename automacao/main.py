@@ -66,6 +66,7 @@ class CadastradorFV:
         'Preenchendo endereço...': 'endereco',
         'Preenchendo segmento...': 'segmento',
         'Preenchendo condições comerciais...': 'condicoes_comerciais',
+        'Selecionando plano (promoção mobile)...': 'plano_promocao',
         'Cadastro PagBank concluído': 'concluido',
     }
 
@@ -1005,26 +1006,45 @@ class CadastradorFV:
             self.driver.execute_script('arguments[0].click();', chip)
 
         time.sleep(0.5)
+        self._etapa('Selecionando plano (promoção mobile)...')
 
-        dropdown = self.wait.until(EC.element_to_be_clickable(
-            (By.XPATH, '//*[@data-testid="promotion-mobile-select"]//*[@role="button"][1]')
-        ))
+        self._aguardar_campo_ou_falhar(
+            By.XPATH,
+            '//*[@data-testid="promotion-mobile-select"]//*[@role="button"][1]',
+            'plano_promocao',
+            timeout=25,
+        )
+
+        dropdown = self.driver.find_element(
+            By.XPATH, '//*[@data-testid="promotion-mobile-select"]//*[@role="button"][1]'
+        )
         self.driver.execute_script('arguments[0].scrollIntoView(true);', dropdown)
         time.sleep(0.3)
         dropdown.click()
 
-        if self.dados.get('promocao'):
-            opcao = self.wait.until(EC.element_to_be_clickable(
-                (By.XPATH, f'//li//div[@role="button"][@aria-label="{self.dados["promocao"]}"]')
-            ))
-            opcao.click()
-        else:
-            primeira = self.wait.until(EC.element_to_be_clickable(
-                (By.XPATH,
-                 '//*[@data-testid="promotion-mobile-select"]'
-                 '//li//div[@role="button" and contains(@class,"styles_item")]')
-            ))
-            primeira.click()
+        promocao = self.dados.get('promocao')
+        try:
+            if promocao:
+                opcao = self.wait.until(EC.element_to_be_clickable(
+                    (By.XPATH, f'//li//div[@role="button"][@aria-label="{promocao}"]')
+                ))
+                opcao.click()
+            else:
+                primeira = self.wait.until(EC.element_to_be_clickable(
+                    (By.XPATH,
+                     '//*[@data-testid="promotion-mobile-select"]'
+                     '//li//div[@role="button" and contains(@class,"styles_item")]')
+                ))
+                primeira.click()
+        except TimeoutException:
+            self._salvar_screenshot('timeout_plano_promocao')
+            codigo = promocao or 'primeira opção da lista'
+            raise Exception(
+                f'PagBank: plano/promoção "{codigo}" não encontrado ou não pôde ser selecionado '
+                f'no campo "Promoção mobile".'
+            )
+
+        self._salvar_screenshot('etapa_plano_promocao')
 
         self.wait.until(EC.element_to_be_clickable(
             (By.XPATH, '//*[@data-testid="nextButtonFormNavigation" and not(@disabled)]')

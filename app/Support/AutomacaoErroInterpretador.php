@@ -8,12 +8,14 @@ class AutomacaoErroInterpretador
 {
     /** @var array<string, string> */
     private const ETAPAS_SCREENSHOT = [
-        'timeout_condicoes_comerciais' => 'Condições comerciais',
+        'timeout_plano_promocao' => 'Plano / promoção mobile',
+        'timeout_condicoes_comerciais' => 'Plano / promoção mobile',
         'timeout_segmento' => 'Segmento',
         'timeout_endereco' => 'Endereço',
         'erro_validacao_segmento' => 'Segmento',
         'erro_validacao_endereco' => 'Endereço',
-        'etapa_confirmacao' => 'Condições comerciais',
+        'etapa_confirmacao' => 'Plano / promoção mobile',
+        'etapa_plano_promocao' => 'Plano / promoção mobile',
         'etapa6_segmento' => 'Segmento',
         'etapa5_endereco' => 'Endereço',
         'pf_etapa2_endereco' => 'Endereço (PF)',
@@ -26,7 +28,8 @@ class AutomacaoErroInterpretador
         'etapa2_dados_empresa' => 'Dados do proprietário',
         'pf_etapa2_endereco' => 'Endereço (PF)',
         'etapa5_endereco' => 'Segmento',
-        'etapa6_segmento' => 'Condições comerciais',
+        'etapa6_segmento' => 'Plano / promoção mobile',
+        'etapa_plano_promocao' => 'Confirmação',
         'etapa_confirmacao' => 'Confirmação',
     ];
 
@@ -49,14 +52,24 @@ class AutomacaoErroInterpretador
 
         $etapa = data_get($detalhe, 'etapa_falha_label')
             ?: self::rotuloEtapa(data_get($detalhe, 'etapa_falha'))
+            ?: self::inferirEtapaDeErroFatal($screenshots)
             ?: self::rotuloEtapaTexto(data_get($contexto, 'etapa_log'))
             ?: self::inferirEtapaDeLogs($logsRecentes)
             ?: self::inferirEtapaDeScreenshots($screenshots, $erro);
 
+        $etapa = self::normalizarRotuloEtapa($etapa);
+
         $tecnico = self::extrairErroTecnico($erro, $contexto);
         $resumo = self::resumirMensagem($tecnico ?: $erro);
 
-        if ($resumo === 'Erro desconhecido na automação.' && $etapa) {
+        if ($etapa === 'Plano / promoção mobile' && (
+            $resumo === 'Erro desconhecido na automação.'
+            || str_contains($resumo, 'não respondeu a tempo')
+            || str_contains($resumo, 'não avançou')
+        )) {
+            $resumo = 'Não foi possível selecionar o plano (promoção mobile) no PagBank. '
+                .'Confira se o código FV do plano está correto e aparece na lista "Promoção mobile".';
+        } elseif ($resumo === 'Erro desconhecido na automação.' && $etapa) {
             $resumo = 'O portal PagBank não avançou nesta etapa. Confira os screenshots para ver em qual tela parou.';
         }
 
@@ -171,7 +184,7 @@ class AutomacaoErroInterpretador
             return self::PROXIMA_ETAPA_APOS_SCREENSHOT[$ultimoConcluido];
         }
 
-        if ($ultimoConcluido && isset(self::ETAPAS_SCREENSHOT[$ultimoConcluido])) {
+        if ($ultimoConcluido && isset(self::ETAPAS_SCREENSHOT[$ultimoConcluido]) && ! in_array('erro_fatal', $nomes, true)) {
             return self::ETAPAS_SCREENSHOT[$ultimoConcluido];
         }
 
@@ -188,7 +201,8 @@ class AutomacaoErroInterpretador
 
         return match (true) {
             str_contains($texto, 'segmento') => 'Segmento',
-            str_contains($texto, 'condições comerciais') || str_contains($texto, 'condicoes comerciais') => 'Condições comerciais',
+            str_contains($texto, 'condições comerciais') || str_contains($texto, 'condicoes comerciais') => 'Plano / promoção mobile',
+            str_contains($texto, 'promoção') || str_contains($texto, 'promocao') || str_contains($texto, 'plano') => 'Plano / promoção mobile',
             str_contains($texto, 'endereço') || str_contains($texto, 'endereco') => 'Endereço',
             str_contains($texto, 'e-mail') || str_contains($texto, 'email') => 'Validação de e-mail',
             str_contains($texto, 'proposta') => 'Proposta comercial',
@@ -214,7 +228,8 @@ class AutomacaoErroInterpretador
         $normalizado = Str::lower(Str::ascii($texto));
 
         return match (true) {
-            str_contains($normalizado, 'condicoes comerciais') => 'Condições comerciais',
+            str_contains($normalizado, 'condicoes comerciais') => 'Plano / promoção mobile',
+            str_contains($normalizado, 'promocao') || str_contains($normalizado, 'plano') => 'Plano / promoção mobile',
             str_contains($normalizado, 'segmento') => 'Segmento',
             str_contains($normalizado, 'endereco') => 'Endereço',
             str_contains($normalizado, 'dados pessoais') => 'Dados pessoais (PF)',
@@ -240,12 +255,66 @@ class AutomacaoErroInterpretador
         $ultimaInfo = null;
 
         foreach ($logs as $log) {
+            if (self::logPareceErro($log)) {
+                break;
+            }
+
             if (($log->nivel ?? '') === 'info' && filled($log->etapa ?? null)) {
                 $ultimaInfo = (string) $log->etapa;
             }
         }
 
         return self::rotuloEtapaTexto($ultimaInfo);
+    }
+
+    /**
+     * Quando há erro_fatal, a falha ocorreu na etapa APÓS o último screenshot de sucesso.
+     *
+     * @param  array<int, string>  $screenshots
+     */
+    private static function inferirEtapaDeErroFatal(array $screenshots): ?string
+    {
+        if ($screenshots === []) {
+            return null;
+        }
+
+        $nomes = array_map(
+            fn ($caminho) => self::prefixoScreenshot((string) $caminho),
+            $screenshots,
+        );
+
+        if (! in_array('erro_fatal', $nomes, true)) {
+            return null;
+        }
+
+        $ultimoConcluido = null;
+        foreach ($nomes as $nome) {
+            if ($nome === 'erro_fatal') {
+                break;
+            }
+
+            if (! str_starts_with($nome, 'timeout_')) {
+                $ultimoConcluido = $nome;
+            }
+        }
+
+        if ($ultimoConcluido && isset(self::PROXIMA_ETAPA_APOS_SCREENSHOT[$ultimoConcluido])) {
+            return self::PROXIMA_ETAPA_APOS_SCREENSHOT[$ultimoConcluido];
+        }
+
+        return null;
+    }
+
+    private static function normalizarRotuloEtapa(?string $etapa): ?string
+    {
+        if (blank($etapa)) {
+            return null;
+        }
+
+        return match ($etapa) {
+            'Condições comerciais', 'condicoes_comerciais' => 'Plano / promoção mobile',
+            default => $etapa,
+        };
     }
 
     /**
@@ -315,7 +384,8 @@ class AutomacaoErroInterpretador
 
         return match ($codigo) {
             'segmento' => 'Segmento',
-            'condicoes_comerciais' => 'Condições comerciais',
+            'condicoes_comerciais' => 'Plano / promoção mobile',
+            'plano_promocao' => 'Plano / promoção mobile',
             'endereco' => 'Endereço',
             'dados_pf' => 'Dados pessoais (PF)',
             'dados_empresa' => 'Dados da empresa',

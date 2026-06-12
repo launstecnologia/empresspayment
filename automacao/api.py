@@ -231,8 +231,10 @@ def _formatar_erro_fv(fv_resultado: dict) -> str:
 
 
 def _resolver_arquivo_screenshot(job_id: str, filename: str) -> str:
-    nome = os.path.basename(filename)
-    if not nome.endswith('.png') or nome != filename or '..' in nome:
+    from urllib.parse import unquote
+
+    nome = os.path.basename(unquote(filename))
+    if '..' in nome or not nome.endswith('.png'):
         raise HTTPException(status_code=404, detail='Screenshot não encontrado')
 
     caminho = os.path.join(_screenshot_dir(job_id), nome)

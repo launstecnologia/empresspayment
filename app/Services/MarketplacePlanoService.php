@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Plano;
+use App\Models\SubUsuario;
 use App\Models\Usuario;
 use App\Support\UsuarioComercial;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,9 +26,9 @@ class MarketplacePlanoService
         };
     }
 
-    public function planosDisponiveis(?Usuario $usuario = null, ?int $marketplaceId = null): Collection
+    public function planosDisponiveis(Usuario|SubUsuario|null $usuario = null, ?int $marketplaceId = null): Collection
     {
-        $usuario ??= UsuarioComercial::principal();
+        $usuario = $this->resolverUsuario($usuario);
 
         if (UsuarioComercial::ehAdmin() || UsuarioComercial::tipo() === 'master') {
             if ($marketplaceId) {
@@ -58,7 +59,7 @@ class MarketplacePlanoService
             ->get();
     }
 
-    public function planoPermitido(?int $planoId, ?Usuario $usuario = null, ?int $marketplaceId = null): bool
+    public function planoPermitido(?int $planoId, Usuario|SubUsuario|null $usuario = null, ?int $marketplaceId = null): bool
     {
         if (! $planoId) {
             return true;
@@ -79,5 +80,14 @@ class MarketplacePlanoService
             ->all();
 
         $marketplace->planosHabilitados()->sync($planoIds);
+    }
+
+    private function resolverUsuario(Usuario|SubUsuario|null $usuario): ?Usuario
+    {
+        if ($usuario instanceof SubUsuario) {
+            return $usuario->dono;
+        }
+
+        return $usuario ?? UsuarioComercial::principal();
     }
 }

@@ -452,10 +452,10 @@ class EstabelecimentoController extends Controller
                 ? $request->integer('marketplace_id')
                 : ($dados['marketplace_id']
                     ?? $request->route('estabelecimento')?->marketplace_id
-                    ?? $this->marketplacePlano->marketplaceDoUsuario($request->user())?->id);
+                    ?? $this->marketplacePlano->marketplaceDoUsuario(UsuarioComercial::principal())?->id);
 
             abort_unless(
-                $this->marketplacePlano->planoPermitido((int) $dados['plano_id'], $request->user(), $marketplaceId),
+                $this->marketplacePlano->planoPermitido((int) $dados['plano_id'], UsuarioComercial::principal(), $marketplaceId),
                 422,
                 'Plano não disponível para este marketplace.'
             );
@@ -565,7 +565,7 @@ class EstabelecimentoController extends Controller
             ?: old('marketplace_id');
 
         return $this->marketplacePlano->planosDisponiveis(
-            $request->user(),
+            UsuarioComercial::principal(),
             $marketplaceId ?: null,
         );
     }

@@ -170,6 +170,13 @@ cmd_status() {
         elif [ "$ACEITAR" = "401" ] || [ "$ACEITAR" = "422" ]; then
             ok "API Automação: endpoint /aceitar-proposta disponível"
         fi
+
+        SCREENSHOTS=$($COMPOSE exec -T automacao curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/jobs/test/screenshots 2>/dev/null || echo "000")
+        if [ "$SCREENSHOTS" = "404" ]; then
+            warn "Endpoint /jobs/{id}/screenshots não encontrado — rode: docker compose up -d --force-recreate automacao"
+        elif [ "$SCREENSHOTS" = "401" ] || [ "$SCREENSHOTS" = "422" ]; then
+            ok "API Automação: endpoint de screenshots disponível"
+        fi
     fi
 }
 

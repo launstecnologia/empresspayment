@@ -1649,6 +1649,31 @@
                 return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
             };
 
+            const buscarScreenshots = async () => {
+                const resp = await fetch(listUrl, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+
+                let data = {};
+                try {
+                    data = await resp.json();
+                } catch (_) {
+                    data = {};
+                }
+
+                if (!resp.ok) {
+                    throw new Error(data.erro || `Erro ${resp.status} ao carregar screenshots`);
+                }
+
+                return data.screenshots || [];
+            };
+
+            const exibirErroScreenshots = (mensagem, alvo) => {
+                if (!alvo) return;
+                alvo.classList.remove('hidden');
+                alvo.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1 text-amber-600"></i> ${mensagem}`;
+            };
+
             const cardScreenshotHtml = (nome, tamanho, grande = false) => {
                 const url = imageUrl(nome);
                 const altura = grande ? 'max-h-[70vh] object-contain' : 'h-40 object-cover object-top';
@@ -1737,17 +1762,13 @@
                 if (modalGrid) modalGrid.classList.add('hidden');
 
                 try {
-                    const resp = await fetch(listUrl, {
-                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                    });
-                    if (!resp.ok) throw new Error('Falha ao carregar');
-                    const data = await resp.json();
-                    renderModalScreenshots(data.screenshots || []);
-                } catch (_) {
-                    if (modalLoading) {
-                        modalLoading.classList.remove('hidden');
-                        modalLoading.innerHTML = 'Não foi possível carregar os screenshots.';
-                    }
+                    const items = await buscarScreenshots();
+                    renderModalScreenshots(items);
+                } catch (error) {
+                    exibirErroScreenshots(
+                        error.message || 'Não foi possível carregar os screenshots.',
+                        modalLoading,
+                    );
                 }
             };
 
@@ -1780,18 +1801,15 @@
                 if (grid) grid.classList.add('hidden');
 
                 try {
-                    const resp = await fetch(listUrl, {
-                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                    });
-                    if (!resp.ok) throw new Error('Falha ao carregar');
-
-                    const data = await resp.json();
-                    renderScreenshots(data.screenshots || []);
-                } catch (_) {
-                    if (loading) {
-                        loading.classList.remove('hidden');
-                        loading.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-1 text-amber-600"></i> Não foi possível carregar os screenshots.';
-                    }
+                    const items = await buscarScreenshots();
+                    renderScreenshots(items);
+                } catch (error) {
+                    if (loading) loading.classList.add('hidden');
+                    exibirErroScreenshots(
+                        error.message || 'Não foi possível carregar os screenshots.',
+                        empty,
+                    );
+                    empty?.classList.remove('hidden');
                 }
             };
 

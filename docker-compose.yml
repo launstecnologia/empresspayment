@@ -101,6 +101,7 @@ services:
     shm_size: '2gb'
     env_file: automacao/.env
     volumes:
+      - ./automacao:/app
       - automacao-screenshots:/tmp/automacao_screenshots
       - automacao-db:/tmp/automacao_db
     ports:

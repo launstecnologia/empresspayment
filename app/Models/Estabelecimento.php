@@ -68,6 +68,7 @@ class Estabelecimento extends Model
         'anotacoes_interno',
         'anotacoes',
         'ativo',
+        'legacy_import_id',
     ];
 
     protected function casts(): array

@@ -235,4 +235,25 @@ trait LegacyImportConcerns
 
         return null;
     }
+
+    protected function marketplaceDoUsuario(Usuario $usuario): ?Usuario
+    {
+        if ($usuario->tipo === 'marketplace') {
+            return $usuario;
+        }
+
+        $usuario->loadMissing('hierarquia.pai.usuario');
+        $pai = $usuario->hierarquia?->pai?->usuario;
+
+        while ($pai) {
+            if ($pai->tipo === 'marketplace') {
+                return $pai;
+            }
+
+            $pai->loadMissing('hierarquia.pai.usuario');
+            $pai = $pai->hierarquia?->pai?->usuario;
+        }
+
+        return null;
+    }
 }

@@ -57,6 +57,8 @@ class PlatformSetting extends Model
         'pagbank_token',
         'pagbank_client_id',
         'pagbank_client_secret',
+        'pagbank_edi_token_sandbox',
+        'pagbank_edi_token_producao',
     ];
 
     protected function casts(): array
@@ -69,6 +71,8 @@ class PlatformSetting extends Model
             'ppid_senha' => 'encrypted',
             'pagbank_token' => 'encrypted',
             'pagbank_client_secret' => 'encrypted',
+            'pagbank_edi_token_sandbox' => 'encrypted',
+            'pagbank_edi_token_producao' => 'encrypted',
         ];
     }
 }

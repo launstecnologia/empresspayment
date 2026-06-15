@@ -39,6 +39,17 @@
             @csrf
             @method('PUT')
 
+            @if ($errors->any())
+                <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+                    <p class="font-semibold">Não foi possível salvar:</p>
+                    <ul class="mt-1 list-inside list-disc">
+                        @foreach ($errors->all() as $erro)
+                            <li>{{ $erro }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             {{-- Marca --}}
             <div x-show="aba === 'marca'" x-cloak class="space-y-6">
                 <p class="text-sm text-gray-500 dark:text-gray-400">Logos e ícone exibidos no menu, login e aba do navegador.</p>

@@ -136,10 +136,42 @@ trait LegacyImportConcerns
 
     protected function salvarComDataCadastro(Model $model, array $row): Model
     {
-        $this->aplicarDataCadastro($model, $row);
+        $cadastro = $this->parseDataCadastro($row['data_cadastro'] ?? null);
+
+        if ($cadastro) {
+            $model->timestamps = false;
+            $model->created_at = $cadastro;
+            $model->updated_at = $cadastro;
+        }
+
         $model->save();
 
+        if ($cadastro && $model->exists) {
+            $model->newQueryWithoutScopes()
+                ->whereKey($model->getKey())
+                ->update([
+                    'created_at' => $cadastro,
+                    'updated_at' => $cadastro,
+                ]);
+        }
+
         return $model;
+    }
+
+    protected function atualizarDataCadastro(Model $model, array $row): bool
+    {
+        $cadastro = $this->parseDataCadastro($row['data_cadastro'] ?? null);
+
+        if (! $cadastro || ! $model->exists) {
+            return false;
+        }
+
+        return (bool) $model->newQueryWithoutScopes()
+            ->whereKey($model->getKey())
+            ->update([
+                'created_at' => $cadastro,
+                'updated_at' => $cadastro,
+            ]);
     }
 
     /**

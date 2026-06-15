@@ -67,8 +67,8 @@ class ConfiguracaoPlataformaController extends Controller
             'mail_password' => ['nullable', 'string', 'max:500'],
             'mail_from_address' => ['nullable', 'email', 'max:150'],
             'mail_from_name' => ['nullable', 'string', 'max:120'],
-            'mail_reset_ativo' => ['boolean'],
-            'mail_reset_expira_minutos' => ['required', 'integer', 'min:15', 'max:1440'],
+            'mail_reset_ativo' => ['nullable', 'boolean'],
+            'mail_reset_expira_minutos' => ['nullable', 'integer', 'min:15', 'max:1440'],
             'mail_reset_assunto' => ['nullable', 'string', 'max:200'],
             'mail_reset_corpo' => ['nullable', 'string', 'max:5000'],
             'kyc_ativo' => ['boolean'],
@@ -123,8 +123,22 @@ class ConfiguracaoPlataformaController extends Controller
             $dados['remover_favicon'],
         );
 
-        $dados['mail_reset_ativo'] = $request->boolean('mail_reset_ativo');
+        $dados['mail_reset_ativo'] = $request->has('mail_reset_ativo')
+            ? $request->boolean('mail_reset_ativo')
+            : ($config->mail_reset_ativo ?? true);
         $dados['kyc_ativo'] = $request->boolean('kyc_ativo');
+
+        if (! $request->filled('mail_reset_expira_minutos')) {
+            unset($dados['mail_reset_expira_minutos']);
+        }
+
+        if (! $request->filled('mail_reset_assunto')) {
+            unset($dados['mail_reset_assunto']);
+        }
+
+        if (! $request->filled('mail_reset_corpo')) {
+            unset($dados['mail_reset_corpo']);
+        }
 
         if (! $request->filled('ppid_senha')) {
             unset($dados['ppid_senha']);
@@ -159,7 +173,7 @@ class ConfiguracaoPlataformaController extends Controller
         \App\Support\PlatformMail::apply();
 
         return redirect()
-            ->route('admin.configuracoes.edit')
+            ->route('admin.configuracoes.edit', ['aba' => $request->input('_aba')])
             ->with('status', 'Configurações da plataforma salvas com sucesso.');
     }
 

@@ -4,7 +4,7 @@
 
 @section('content')
 <div
-    x-data="{ aba: 'marca' }"
+    x-data="{ aba: '{{ in_array(request('aba'), ['marca', 'seo', 'empresa', 'email', 'kyc', 'pagbank'], true) ? request('aba') : 'marca' }}' }"
     class="mx-auto max-w-4xl space-y-6"
 >
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -38,6 +38,13 @@
         <form method="POST" action="{{ route('admin.configuracoes.update') }}" enctype="multipart/form-data" class="space-y-6 px-6 py-6">
             @csrf
             @method('PUT')
+            <input type="hidden" name="_aba" x-bind:value="aba">
+
+            @if (session('status'))
+                <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300">
+                    {{ session('status') }}
+                </div>
+            @endif
 
             @if ($errors->any())
                 <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\ProcessarEdiJob;
+use App\Jobs\SincronizarEdiEstabelecimentoJob;
 use App\Models\EdiMovimento;
 use App\Models\Estabelecimento;
 use App\Support\PlatformSettings;
@@ -18,10 +19,14 @@ class EdiProcessadorService
             return false;
         }
 
-        $response = Http::baseUrl((string) config('pagseguro.edi_url'))
+        if (! PlatformSettings::ediConfigurado()) {
+            return false;
+        }
+
+        $response = Http::baseUrl(PlatformSettings::ediUrl())
             ->withHeaders([
                 'USER' => $estabelecimento->token_pagseguro,
-                'TOKEN' => (string) config('pagseguro.edi_token'),
+                'TOKEN' => (string) PlatformSettings::ediToken(),
             ])
             ->acceptJson()
             ->timeout(60)
@@ -39,6 +44,70 @@ class EdiProcessadorService
         ProcessarEdiJob::dispatch($estabelecimento->id, $data->format('Y-m-d'), $tipoMovimento, 1, $response->json());
 
         return true;
+    }
+
+    /**
+     * @return array{estabelecimentos: int, dias: int, enfileirados: int}
+     */
+    public function enfileirarSincronizacao(
+        ?\Carbon\CarbonInterface $de = null,
+        ?\Carbon\CarbonInterface $ate = null,
+        ?int $estabelecimentoId = null,
+        ?int $limit = null,
+    ): array {
+        $ate = ($ate ?? now()->subDay())->copy()->startOfDay();
+        $de = ($de ?? $ate->copy()->subDays(89))->copy()->startOfDay();
+
+        if ($de->gt($ate)) {
+            [$de, $ate] = [$ate, $de];
+        }
+
+        $query = Estabelecimento::withoutGlobalScopes()
+            ->where('ativo', true)
+            ->where('pagbank_edi_ativo', true)
+            ->whereNotNull('token_pagseguro')
+            ->where('token_pagseguro', '!=', '');
+
+        if ($estabelecimentoId) {
+            $query->whereKey($estabelecimentoId);
+        }
+
+        if ($limit) {
+            $query->limit($limit);
+        }
+
+        $estabelecimentos = 0;
+        $dias = 0;
+
+        $query->orderBy('id')->chunkById(100, function ($chunk) use ($de, $ate, &$estabelecimentos, &$dias) {
+            foreach ($chunk as $estabelecimento) {
+                $inicio = $de->copy();
+
+                if ($estabelecimento->created_at?->gt($inicio)) {
+                    $inicio = $estabelecimento->created_at->copy()->startOfDay();
+                }
+
+                if ($inicio->gt($ate)) {
+                    continue;
+                }
+
+                $diasEstab = $inicio->diffInDays($ate) + 1;
+                $dias += $diasEstab;
+                $estabelecimentos++;
+
+                SincronizarEdiEstabelecimentoJob::dispatch(
+                    $estabelecimento->id,
+                    $inicio->format('Y-m-d'),
+                    $ate->format('Y-m-d'),
+                );
+            }
+        });
+
+        return [
+            'estabelecimentos' => $estabelecimentos,
+            'dias' => $dias,
+            'enfileirados' => $estabelecimentos,
+        ];
     }
 
     public function processarPagina(int $estabelecimentoId, string $data, string $tipoMovimento, int $pagina = 1, ?array $payload = null): int

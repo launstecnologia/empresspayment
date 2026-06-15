@@ -41,6 +41,8 @@ class Usuario extends Authenticatable
         'must_change_password',
         'ativo',
         'percentual_retencao_pai',
+        'legacy_pagbank_id',
+        'legacy_import_id',
     ];
 
     protected $hidden = ['password', 'remember_token'];

@@ -117,14 +117,14 @@ class LegacyMktImportService
         }
 
         try {
-            $usuario = DB::transaction(function () use ($dados) {
-                $usuario = Usuario::create($dados);
+            $usuario = DB::transaction(function () use ($dados, $row) {
+                $usuario = $this->salvarComDataCadastro(Usuario::make($dados), $row);
 
-                Hierarquia::create([
+                $this->salvarComDataCadastro(Hierarquia::make([
                     'usuario_id' => $usuario->id,
                     'pai_id' => null,
                     'nivel' => 'marketplace',
-                ]);
+                ]), $row);
 
                 return $usuario;
             });

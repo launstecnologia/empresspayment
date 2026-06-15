@@ -174,9 +174,11 @@ class LegacyRepImportService
         }
 
         try {
-            $usuario = DB::transaction(function () use ($dados, $marketplace) {
-                $usuario = Usuario::create($dados);
-                $this->hierarquiaService->criarNo($usuario, $marketplace);
+            $usuario = DB::transaction(function () use ($dados, $marketplace, $row) {
+                $usuario = $this->salvarComDataCadastro(Usuario::make($dados), $row);
+                $hierarquia = $this->hierarquiaService->criarNo($usuario, $marketplace);
+                $this->aplicarDataCadastro($hierarquia, $row);
+                $hierarquia->save();
 
                 return $usuario;
             });

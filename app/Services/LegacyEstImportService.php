@@ -216,8 +216,11 @@ class LegacyEstImportService
         }
 
         try {
-            $estabelecimento = DB::transaction(function () use ($dados, $plano) {
-                $estabelecimento = Estabelecimento::withoutGlobalScopes()->create($dados);
+            $estabelecimento = DB::transaction(function () use ($dados, $plano, $row) {
+                $estabelecimento = $this->salvarComDataCadastro(
+                    Estabelecimento::withoutGlobalScopes()->make($dados),
+                    $row,
+                );
 
                 if ($plano) {
                     $estabelecimento->load('plano.taxas.royalties');

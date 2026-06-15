@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\SubUsuario;
 use App\Models\Usuario;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 trait LegacyImportConcerns
@@ -112,6 +113,33 @@ trait LegacyImportConcerns
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    protected function parseDataCadastro(mixed $valor): ?Carbon
+    {
+        $data = $this->parseData(trim((string) $valor));
+
+        return $data ? Carbon::parse($data)->startOfDay() : null;
+    }
+
+    protected function aplicarDataCadastro(Model $model, array $row): void
+    {
+        $cadastro = $this->parseDataCadastro($row['data_cadastro'] ?? null);
+
+        if (! $cadastro) {
+            return;
+        }
+
+        $model->created_at = $cadastro;
+        $model->updated_at = $cadastro;
+    }
+
+    protected function salvarComDataCadastro(Model $model, array $row): Model
+    {
+        $this->aplicarDataCadastro($model, $row);
+        $model->save();
+
+        return $model;
     }
 
     /**

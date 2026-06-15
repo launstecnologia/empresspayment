@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Estabelecimento;
+use App\Support\DocumentoBrasil;
 use App\Support\PlatformSettings;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -337,6 +338,28 @@ class AutomacaoPagBankService
             $avisos[] = 'Razão social não informada.';
         }
 
+        if (blank($dados['celular']) || ! DocumentoBrasil::celularValido($dados['celular'])) {
+            $avisos[] = 'Celular obrigatório com DDD + 9 dígitos (ex: 62992777240).';
+        }
+
+        if ($estab->pessoa_tipo === 'juridica') {
+            if (blank($dados['nome_fantasia'])) {
+                $avisos[] = 'Nome fantasia não informado (use a razão social se não houver).';
+            }
+
+            if (blank($dados['cpf_socio']) || ! DocumentoBrasil::cpfValido($dados['cpf_socio'])) {
+                $avisos[] = 'CPF do sócio/representante inválido ou não informado.';
+            }
+
+            if (blank($dados['nome_socio'])) {
+                $avisos[] = 'Nome do sócio/representante não informado.';
+            }
+
+            if (blank($dados['nascimento'])) {
+                $avisos[] = 'Data de nascimento do sócio não informada.';
+            }
+        }
+
         if (blank($payload['fv_usuario']) || blank($payload['fv_senha'])) {
             $avisos[] = 'Credenciais do portal FV não configuradas no .env.';
         }
@@ -436,7 +459,7 @@ class AutomacaoPagBankService
         if ($estab->pessoa_tipo === 'juridica') {
             $dados = array_merge($dados, [
                 'razao_social'  => $estab->razao_social ?? '',
-                'nome_fantasia' => $estab->nome_fantasia ?? $estab->razao_social ?? '',
+                'nome_fantasia' => $this->nomeFantasiaAutomacao($estab),
                 'cpf_socio'     => $this->formatarCpf($estab->rep_cpf ?? $estab->cpf ?? ''),
                 'nascimento'    => $estab->rep_data_nascimento
                     ? $estab->rep_data_nascimento->format('d/m/Y')
@@ -506,6 +529,15 @@ class AutomacaoPagBankService
         }
 
         return $numero;
+    }
+
+    private function nomeFantasiaAutomacao(Estabelecimento $estab): string
+    {
+        if (filled($estab->nome_fantasia)) {
+            return trim((string) $estab->nome_fantasia);
+        }
+
+        return trim((string) ($estab->razao_social ?? $estab->nome_completo ?? ''));
     }
 
     private function formatarTelefone(?string $numero): string

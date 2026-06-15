@@ -96,6 +96,7 @@ class CadastradorFV:
 
             if tipo == 'pj':
                 log.info('>>> Fluxo PESSOA JURÍDICA (CNPJ)')
+                self._preparar_dados_pj()
                 self._etapa('Preenchendo dados da empresa (PJ)...')
                 self._preencher_dados_empresa()
                 self._etapa('Preenchendo dados do proprietário...')
@@ -442,6 +443,87 @@ class CadastradorFV:
         except TimeoutException:
             self._salvar_screenshot(f'erro_click_{descricao}')
             raise Exception(f'Nao encontrou elemento para clicar: {descricao or seletor}')
+
+    def _clicar_continuar_form(self, descricao: str = 'continuar'):
+        """Clica no botão Continuar do formulário FV (XPath fixo quebra entre etapas)."""
+        xpaths = [
+            '//*[@data-testid="nextButtonFormNavigation"]',
+            '//*[@id="__next"]//form//button[contains(normalize-space(.), "Continuar")]',
+        ]
+
+        for xpath in xpaths:
+            for btn in reversed(self.driver.find_elements(By.XPATH, xpath)):
+                try:
+                    if not btn.is_displayed():
+                        continue
+                except Exception:
+                    continue
+
+                disabled = (btn.get_attribute('disabled') or '').lower() in ('true', 'disabled')
+                aria_disabled = (btn.get_attribute('aria-disabled') or '').lower() == 'true'
+                if disabled or aria_disabled:
+                    continue
+
+                self.driver.execute_script('arguments[0].scrollIntoView({block: "center"});', btn)
+                time.sleep(0.3)
+                try:
+                    btn.click()
+                except Exception:
+                    self.driver.execute_script('arguments[0].click();', btn)
+                log.info(f'Clicou Continuar ({descricao}) via {xpath}')
+                return btn
+
+        self._salvar_screenshot(f'erro_click_{descricao}')
+        erros = self._coletar_erros()
+        detalhe = ', '.join(erros) if erros else 'Botão Continuar não encontrado ou desabilitado'
+        raise Exception(f'Nao encontrou elemento para clicar: {descricao} — {detalhe}')
+
+    def _preparar_dados_pj(self):
+        """Normaliza payload PJ e falha cedo se faltar dado obrigatório."""
+        razao = (self.dados.get('razao_social') or '').strip()
+        fantasia = (self.dados.get('nome_fantasia') or '').strip()
+        if not fantasia:
+            fantasia = razao
+        self.dados['nome_fantasia'] = fantasia
+        self.dados['razao_social'] = razao
+
+        cel = re.sub(r'\D', '', self.dados.get('celular') or '')
+        if len(cel) != 11 or cel[2] != '9':
+            raise Exception(
+                'Celular inválido no payload: informe DDD + 9 dígitos (ex: 62992777240).'
+            )
+        self.dados['celular'] = cel
+
+        for campo, label in (
+            ('cpf_socio', 'CPF do sócio'),
+            ('nascimento', 'Nascimento do sócio'),
+            ('nome_socio', 'Nome do sócio'),
+        ):
+            if not (self.dados.get(campo) or '').strip():
+                raise Exception(f'{label} não informado no payload da automação.')
+
+    def _selecionar_faturamento(self):
+        faturamento = (self.dados.get('faturamento') or '').strip()
+        if not faturamento:
+            raise Exception('Faturamento mensal não informado no payload.')
+
+        dropdown = self.wait.until(EC.element_to_be_clickable(
+            (By.XPATH, '//*[@data-testid="dropdown-select"]//div[@role="button"][1]')
+        ))
+        self.driver.execute_script('arguments[0].scrollIntoView(true);', dropdown)
+        time.sleep(0.3)
+        dropdown.click()
+
+        try:
+            opcao = self.wait.until(EC.element_to_be_clickable(
+                (By.XPATH, f'//li//div[@role="button"][@aria-label="{faturamento}"]')
+            ))
+        except TimeoutException:
+            self._salvar_screenshot('erro_faturamento_nao_encontrado')
+            raise Exception(f'Opção de faturamento não encontrada no PagBank: {faturamento}')
+
+        opcao.click()
+        time.sleep(0.5)
 
     def _preencher(self, by, seletor, valor, descricao=''):
         try:
@@ -807,7 +889,7 @@ class CadastradorFV:
         self._clicar(By.XPATH, "//*[@id='__next']/div/main/div/div/form/button", 'botao_continuar')
         log.info('Clicou em Continuar — aguardando proxima tela...')
         time.sleep(3)
-        self._salvar_screenshot('etapa2_dados_empresa')
+        self._salvar_screenshot('etapa1_pos_email')
 
     def _detectar_tipo_cliente(self) -> str:
         try:
@@ -846,17 +928,18 @@ class CadastradorFV:
         log.info(f'Preencheu nome_fantasia: {self.dados["nome_fantasia"]}')
 
         cel = re.sub(r'\D', '', self.dados.get('celular') or '')
+        if not cel:
+            raise Exception('Celular não informado — obrigatório na etapa de dados da empresa.')
 
         # Telefone fixo: sempre ignorar (nunca preencher; limpa se PagBank pré-preencheu)
         self._limpar_telefone_fixo()
 
-        if cel:
-            self._preencher_react(
-                By.ID,
-                'info.formattedCelphone',
-                self._formatar_celular_br(cel),
-                'celular',
-            )
+        self._preencher_react(
+            By.ID,
+            'info.formattedCelphone',
+            self._formatar_celular_br(cel),
+            'celular',
+        )
 
         if self.dados.get('url_site'):
             self._preencher_react(By.ID, 'info.websiteURL', self.dados['url_site'], 'url_site')
@@ -884,21 +967,18 @@ class CadastradorFV:
 
         self._exigir_erros_reais('dados da empresa', erros)
 
-        self._clicar(
-            By.XPATH,
-            "//*[@id='__next']/div/main/div/div/form/div[2]/div/button[2]",
-            'botao_continuar_etapa2',
-        )
+        self._clicar_continuar_form('botao_continuar_etapa2')
         time.sleep(2)
         self._aguardar_campo_ou_falhar(By.ID, 'info.cpf', 'dados do proprietário')
-        self._salvar_screenshot('etapa3')
+        self._salvar_screenshot('etapa2_dados_empresa_preenchido')
+        self._salvar_screenshot('etapa3_proprietario')
 
     def _preencher_dados_proprietario(self):
         log.info('--- ETAPA 5: DADOS DO PROPRIETARIO ---')
         self._aguardar_campo_ou_falhar(By.ID, 'info.cpf', 'dados do proprietário', timeout=5)
         time.sleep(1)
 
-        self._preencher(By.ID, 'info.cpf', self.dados['cpf_socio'], 'cpf_socio')
+        self._preencher_react(By.ID, 'info.cpf', self.dados['cpf_socio'], 'cpf_socio')
 
         try:
             self.wait.until(EC.element_to_be_clickable((By.ID, 'info.birthDate')))
@@ -906,7 +986,7 @@ class CadastradorFV:
             pass
 
         time.sleep(0.5)
-        self._preencher(By.ID, 'info.birthDate', self.dados['nascimento'], 'nascimento')
+        self._preencher_react(By.ID, 'info.birthDate', self.dados['nascimento'], 'nascimento')
 
         try:
             self.wait.until(EC.element_to_be_clickable((By.ID, 'info.name')))
@@ -914,31 +994,17 @@ class CadastradorFV:
             pass
 
         time.sleep(0.5)
-        self._preencher(By.ID, 'info.name', self.dados['nome_socio'], 'nome_socio')
+        self._preencher_react(By.ID, 'info.name', self.dados['nome_socio'], 'nome_socio')
         time.sleep(0.5)
 
-        dropdown = self.wait.until(EC.element_to_be_clickable(
-            (By.XPATH, '//*[@data-testid="dropdown-select"]//div[@role="button"][1]')
-        ))
-        self.driver.execute_script('arguments[0].scrollIntoView(true);', dropdown)
-        time.sleep(0.3)
-        dropdown.click()
+        self._selecionar_faturamento()
 
-        opcao = self.wait.until(EC.element_to_be_clickable(
-            (By.XPATH, f'//li//div[@role="button"][@aria-label="{self.dados["faturamento"]}"]')
-        ))
-        opcao.click()
-
-        time.sleep(0.5)
-        self._coletar_erros()
-        self._clicar(
-            By.XPATH,
-            "//*[@id='__next']/div/main/div/div/form/div[3]/div/button[2]",
-            'botao_continuar_etapa3',
-        )
+        erros = self._coletar_erros()
+        self._exigir_erros_reais('dados do proprietário', erros)
+        self._clicar_continuar_form('botao_continuar_etapa3')
         time.sleep(3)
         self._coletar_erros()
-        self._salvar_screenshot('etapa4')
+        self._salvar_screenshot('etapa4_endereco')
 
     def _preencher_dados_pf(self):
         log.info('--- ETAPA PF-1: DADOS PESSOAIS E DE CONTATO ---')

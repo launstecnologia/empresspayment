@@ -20,12 +20,20 @@ class AutomacaoErroInterpretador
         'etapa5_endereco' => 'Endereço',
         'pf_etapa2_endereco' => 'Endereço (PF)',
         'etapa2_dados_empresa' => 'Dados da empresa',
+        'etapa2_dados_empresa_preenchido' => 'Dados da empresa',
+        'etapa1_pos_email' => 'Dados da empresa',
+        'etapa3_proprietario' => 'Dados do proprietário',
+        'etapa4_endereco' => 'Endereço',
         'cadastro_concluido' => 'Confirmação',
     ];
 
     /** @var array<string, string> Etapa concluída → provável etapa da falha */
     private const PROXIMA_ETAPA_APOS_SCREENSHOT = [
+        'etapa1_pos_email' => 'Dados da empresa',
         'etapa2_dados_empresa' => 'Dados do proprietário',
+        'etapa2_dados_empresa_preenchido' => 'Dados do proprietário',
+        'etapa3_proprietario' => 'Endereço',
+        'etapa4_endereco' => 'Segmento',
         'pf_etapa2_endereco' => 'Endereço (PF)',
         'etapa5_endereco' => 'Segmento',
         'etapa6_segmento' => 'Plano / promoção mobile',

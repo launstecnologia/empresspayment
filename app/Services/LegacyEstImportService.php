@@ -142,40 +142,28 @@ class LegacyEstImportService
         }
 
         $revenda = $nomeRepresentante !== '' ? $this->resolverRevenda($nomeRepresentante) : null;
+        $avisos = [];
 
         if ($nomeRepresentante !== '' && ! $revenda) {
-            return $this->resultadoLinha(
-                $fantasia,
-                $token,
-                $nomeMarketplace,
-                'erro',
-                "Revenda não encontrada: {$nomeRepresentante}",
-            );
+            $avisos[] = "Revenda não encontrada: {$nomeRepresentante}";
         }
 
         $marketplace = $nomeMarketplace !== ''
             ? $this->resolverMarketplace($nomeMarketplace)
             : ($revenda ? $this->marketplaceDoUsuario($revenda) : null);
 
-        if (! $marketplace) {
-            $motivo = $nomeMarketplace !== ''
-                ? "Marketplace não encontrado: {$nomeMarketplace}"
-                : 'Marketplace não informado.';
-
-            return $this->resultadoLinha($fantasia, $token, $nomeMarketplace, 'erro', $motivo);
+        if ($nomeMarketplace !== '' && ! $marketplace) {
+            $avisos[] = "Marketplace não encontrado: {$nomeMarketplace}";
         }
 
         if ($revenda) {
             $marketplaceRevenda = $this->marketplaceDoUsuario($revenda);
 
-            if (! $marketplaceRevenda || $marketplaceRevenda->id !== $marketplace->id) {
-                return $this->resultadoLinha(
-                    $fantasia,
-                    $token,
-                    $nomeMarketplace,
-                    'erro',
-                    "Revenda {$nomeRepresentante} não pertence ao marketplace {$marketplace->nome_fantasia}.",
-                );
+            if ($marketplace && $marketplaceRevenda && $marketplaceRevenda->id !== $marketplace->id) {
+                $avisos[] = "Revenda {$nomeRepresentante} ignorada — não pertence ao marketplace informado.";
+                $revenda = null;
+            } elseif (! $marketplace && $marketplaceRevenda) {
+                $marketplace = $marketplaceRevenda;
             }
         }
 
@@ -195,7 +183,7 @@ class LegacyEstImportService
                 'ignorado',
                 "Já existe estabelecimento #{$existente->id} ({$existente->nome_fantasia}) — match: {$motivo}",
                 $existente->id,
-                $marketplace->id,
+                $marketplace?->id,
                 $revenda?->id,
             );
         }
@@ -203,17 +191,26 @@ class LegacyEstImportService
         $plano = $this->resolverPlano(trim((string) ($row['plan_code'] ?? $row['plano_listagem'] ?? '')));
         $dados = $this->mapearEstabelecimento($row, $marketplace, $revenda, $plano, $token, $legacyId);
 
-        $avisoPlano = $plano ? '' : ' Plano não mapeado — importado sem plano_id.';
+        if (! $plano) {
+            $avisos[] = 'Plano não mapeado — importado sem plano_id.';
+        }
+
+        $textoAvisos = $avisos !== [] ? ' '.implode(' ', $avisos) : '';
 
         if ($dryRun) {
+            $vinculos = trim(collect([
+                $marketplace ? "MKT #{$marketplace->id}" : null,
+                $revenda ? "REP #{$revenda->id}" : null,
+            ])->filter()->join(' / '));
+
             return $this->resultadoLinha(
                 $fantasia,
                 $token,
                 $nomeMarketplace,
                 'criado',
-                trim("Seria criado vinculado ao MKT #{$marketplace->id}".($revenda ? " / REP #{$revenda->id}" : '').'.'.$avisoPlano),
+                trim('Seria criado'.($vinculos !== '' ? " vinculado a {$vinculos}" : ' sem vínculo MKT/REP.').'.'.$textoAvisos),
                 null,
-                $marketplace->id,
+                $marketplace?->id,
                 $revenda?->id,
             );
         }
@@ -235,9 +232,9 @@ class LegacyEstImportService
                 $token,
                 $nomeMarketplace,
                 'criado',
-                trim("Estabelecimento #{$estabelecimento->id} criado.".($avisoPlano ?: '')),
+                trim("Estabelecimento #{$estabelecimento->id} criado.{$textoAvisos}"),
                 $estabelecimento->id,
-                $marketplace->id,
+                $marketplace?->id,
                 $revenda?->id,
             );
         } catch (\Throwable $e) {
@@ -344,7 +341,7 @@ class LegacyEstImportService
      */
     private function mapearEstabelecimento(
         array $row,
-        Usuario $marketplace,
+        ?Usuario $marketplace,
         ?Usuario $revenda,
         ?Plano $plano,
         string $token,
@@ -376,10 +373,10 @@ class LegacyEstImportService
             'pagbank_edi_ativo' => true,
             'plano_id' => $plano?->id,
             'master_id' => null,
-            'marketplace_id' => $marketplace->id,
+            'marketplace_id' => $marketplace?->id,
             'revenda_id' => $revenda?->id,
-            'cadastrado_por_id' => $cadastradoPor->id,
-            'cadastrado_por_nivel' => $cadastradoPor->tipo,
+            'cadastrado_por_id' => $cadastradoPor?->id,
+            'cadastrado_por_nivel' => $cadastradoPor?->tipo,
             'status' => EstabelecimentoSchema::statusParaBanco('aprovado'),
             'ativo' => true,
             'legacy_import_id' => $legacyId,

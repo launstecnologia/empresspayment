@@ -45,7 +45,10 @@ class ImportLegacyEstCommand extends Command
             ? $resultado['linhas']
             : array_values(array_filter(
                 $resultado['linhas'],
-                fn (array $linha) => $linha['status'] !== 'criado',
+                fn (array $linha) => $linha['status'] !== 'criado'
+                    || str_contains($linha['mensagem'], 'não encontrad')
+                    || str_contains($linha['mensagem'], 'ignorada')
+                    || str_contains($linha['mensagem'], 'Plano não mapeado'),
             ));
 
         if ($linhasExibir !== []) {

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\CalcularRoyaltiesJob;
 use App\Jobs\ProcessarEdiJob;
 use App\Jobs\SincronizarEdiDataJob;
 use App\Models\EdiMovimento;
@@ -11,6 +12,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -129,14 +131,32 @@ class EdiProcessadorService
     ): int {
         $payload ??= $this->baixarPagina($data, $tipoMovimento, $pagina);
         $registros = $this->extrairRegistros($payload);
-        $estabelecimentosPorToken = Estabelecimento::withoutGlobalScopes()
-            ->where('pagbank_edi_ativo', true)
-            ->whereNotNull('token_pagseguro')
-            ->pluck('id', 'token_pagseguro')
-            ->mapWithKeys(fn ($id, $token) => [(string) $token => (int) $id])
-            ->all();
+        $estabelecimentosPorToken = $this->mapaEstabelecimentosPorToken();
+        $total = $this->gravarRegistros($registros, $estabelecimentosPorToken, $estabelecimentoIdFiltro);
 
-        $total = 0;
+        Log::info('EDI PagBank: página processada', [
+            'data' => $data,
+            'pagina' => $pagina,
+            'registros' => count($registros),
+            'importados' => $total,
+        ]);
+
+        if ($this->temProximaPagina($payload, $pagina, count($registros))) {
+            ProcessarEdiJob::dispatch($data, $tipoMovimento, $pagina + 1, $estabelecimentoIdFiltro);
+        } elseif ($estabelecimentoIdFiltro === null && $total >= 0) {
+            CalcularRoyaltiesJob::dispatch($data);
+        }
+
+        return $total;
+    }
+
+    /**
+     * @param  array<string, int>  $estabelecimentosPorToken
+     */
+    private function gravarRegistros(array $registros, array $estabelecimentosPorToken, ?int $estabelecimentoIdFiltro): int
+    {
+        $lote = [];
+        $agora = now();
 
         foreach ($registros as $registro) {
             $codigo = Arr::get($registro, 'movimento_api_codigo');
@@ -155,26 +175,43 @@ class EdiProcessadorService
                 continue;
             }
 
-            EdiMovimento::withoutGlobalScopes()->updateOrCreate(
-                ['movimento_api_codigo' => $codigo],
-                $mapeado,
+            $lote[] = array_merge($mapeado, [
+                'movimento_api_codigo' => $codigo,
+                'created_at' => $agora,
+                'updated_at' => $agora,
+            ]);
+        }
+
+        if ($lote === []) {
+            return 0;
+        }
+
+        $colunas = array_keys($lote[0]);
+
+        foreach (array_chunk($lote, 250) as $chunk) {
+            EdiMovimento::withoutGlobalScopes()->upsert(
+                $chunk,
+                ['movimento_api_codigo'],
+                array_values(array_diff($colunas, ['movimento_api_codigo', 'created_at'])),
             );
-
-            $total++;
         }
 
-        Log::info('EDI PagBank: página processada', [
-            'data' => $data,
-            'pagina' => $pagina,
-            'registros' => count($registros),
-            'importados' => $total,
-        ]);
+        return count($lote);
+    }
 
-        if ($this->temProximaPagina($payload, $pagina, count($registros))) {
-            ProcessarEdiJob::dispatch($data, $tipoMovimento, $pagina + 1, $estabelecimentoIdFiltro);
-        }
-
-        return $total;
+    /**
+     * @return array<string, int>
+     */
+    private function mapaEstabelecimentosPorToken(): array
+    {
+        return Cache::remember('edi:estabelecimentos_por_token', 300, function () {
+            return Estabelecimento::withoutGlobalScopes()
+                ->where('pagbank_edi_ativo', true)
+                ->whereNotNull('token_pagseguro')
+                ->pluck('id', 'token_pagseguro')
+                ->mapWithKeys(fn ($id, $token) => [(string) $token => (int) $id])
+                ->all();
+        });
     }
 
     private function baixarPagina(string $data, string $tipoMovimento, int $pagina): array

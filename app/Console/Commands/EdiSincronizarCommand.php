@@ -87,8 +87,7 @@ class EdiSincronizarCommand extends Command
     {
         if ($calcular) {
             CalcularRoyaltiesJob::dispatch();
-            AgregarFaturamentoJob::dispatch();
-            $this->line('Jobs de royalties e faturamento enfileirados (executam após processar EDI).');
+            $this->line('Job de royalties enfileirado (pendências globais). Faturamento roda ao concluir cada dia importado.');
         }
 
         return self::SUCCESS;

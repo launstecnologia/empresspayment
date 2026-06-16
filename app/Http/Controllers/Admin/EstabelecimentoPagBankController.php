@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Estabelecimento;
 use App\Services\LogService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 
 class EstabelecimentoPagBankController extends Controller
@@ -43,6 +44,8 @@ class EstabelecimentoPagBankController extends Controller
         }
 
         $estabelecimento->update($update);
+
+        Cache::forget('edi:estabelecimentos_por_token');
 
         $log->registrar(
             'Estabelecimento',

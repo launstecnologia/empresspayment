@@ -10,8 +10,22 @@ class CalcularRoyaltiesJob implements ShouldQueue
 {
     use Queueable;
 
+    public int $timeout = 900;
+
+    public function __construct(public ?string $data = null) {}
+
     public function handle(RoyaltyCalculadorService $service): void
     {
-        $service->calcularPendentes();
+        $processados = $service->calcularPendentes(500, $this->data);
+
+        if ($processados === 500) {
+            self::dispatch($this->data);
+
+            return;
+        }
+
+        if ($this->data) {
+            AgregarFaturamentoJob::dispatch($this->data);
+        }
     }
 }

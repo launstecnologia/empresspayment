@@ -9,7 +9,6 @@ use App\Models\PlanoTaxa;
 use App\Models\TransacaoRoyalty;
 use App\Models\Usuario;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class RoyaltyCalculadorService
@@ -73,51 +72,89 @@ class RoyaltyCalculadorService
         }
     }
 
-    public function calcularPendentes(int $lote = 500): int
+    public function calcularPendentes(int $lote = 500, ?string $data = null): int
     {
-        $movimentos = EdiMovimento::withoutGlobalScopes()
+        $query = EdiMovimento::withoutGlobalScopes()
             ->where('processado', false)
-            ->whereNotNull('estabelecimento_id')
-            ->limit($lote)
-            ->get();
+            ->whereNotNull('estabelecimento_id');
+
+        if ($data) {
+            $query->whereDate('data_inicial_transacao', $data);
+        }
+
+        $movimentos = $query->limit($lote)->get();
+
+        if ($movimentos->isEmpty()) {
+            return 0;
+        }
+
+        $estabelecimentos = Estabelecimento::withoutGlobalScopes()
+            ->whereIn('id', $movimentos->pluck('estabelecimento_id')->unique())
+            ->get(['id', 'plano_id'])
+            ->keyBy('id');
+
+        $royaltiesPorEstabTaxa = EstabelecimentoRoyalty::query()
+            ->whereIn('estabelecimento_id', $estabelecimentos->keys())
+            ->orderBy('ordem')
+            ->get()
+            ->groupBy(fn (EstabelecimentoRoyalty $royalty) => $royalty->estabelecimento_id.'_'.$royalty->plano_taxa_id);
+
+        $taxasPorPlano = PlanoTaxa::query()
+            ->whereIn('plano_id', $estabelecimentos->pluck('plano_id')->filter()->unique())
+            ->where('ativo', true)
+            ->get()
+            ->groupBy('plano_id');
+
+        $usuarioIds = $royaltiesPorEstabTaxa
+            ->flatten()
+            ->pluck('usuario_id')
+            ->unique();
+
+        $usuarios = Usuario::query()
+            ->whereIn('id', $usuarioIds)
+            ->get(['id', 'tipo', 'percentual_retencao_pai'])
+            ->keyBy('id');
+
+        $processadosIds = [];
 
         foreach ($movimentos as $movimento) {
-            DB::transaction(function () use ($movimento) {
-                $planoTaxa = $this->planoTaxaDoMovimento($movimento);
+            $planoTaxa = $this->resolverPlanoTaxa($movimento, $estabelecimentos, $taxasPorPlano);
 
-                if (! $planoTaxa) {
-                    $movimento->forceFill(['processado' => true])->save();
+            if (! $planoTaxa) {
+                $processadosIds[] = $movimento->id;
 
-                    return;
-                }
+                continue;
+            }
 
-                $royalties = EstabelecimentoRoyalty::query()
-                    ->where('estabelecimento_id', $movimento->estabelecimento_id)
-                    ->where('plano_taxa_id', $planoTaxa->id)
-                    ->orderBy('ordem')
-                    ->get();
+            $royalties = $royaltiesPorEstabTaxa->get($movimento->estabelecimento_id.'_'.$planoTaxa->id, collect());
 
-                $lancamentos = $this->distribuirComissoes(
-                    (float) $movimento->valor_total_transacao,
-                    $royalties
+            $lancamentos = $this->distribuirComissoes(
+                (float) $movimento->valor_total_transacao,
+                $royalties,
+                $usuarios,
+            );
+
+            foreach ($lancamentos as $usuarioId => $dados) {
+                TransacaoRoyalty::updateOrCreate(
+                    [
+                        'edi_movimento_id' => $movimento->id,
+                        'usuario_id' => $usuarioId,
+                    ],
+                    [
+                        'nivel' => $dados['nivel'],
+                        'percentual_royalty' => $dados['percentual_efetivo'],
+                        'valor_royalty' => $dados['valor'],
+                    ]
                 );
+            }
 
-                foreach ($lancamentos as $usuarioId => $dados) {
-                    TransacaoRoyalty::updateOrCreate(
-                        [
-                            'edi_movimento_id' => $movimento->id,
-                            'usuario_id' => $usuarioId,
-                        ],
-                        [
-                            'nivel' => $dados['nivel'],
-                            'percentual_royalty' => $dados['percentual_efetivo'],
-                            'valor_royalty' => $dados['valor'],
-                        ]
-                    );
-                }
+            $processadosIds[] = $movimento->id;
+        }
 
-                $movimento->forceFill(['processado' => true])->save();
-            });
+        if ($processadosIds !== []) {
+            EdiMovimento::withoutGlobalScopes()
+                ->whereIn('id', $processadosIds)
+                ->update(['processado' => true]);
         }
 
         return $movimentos->count();
@@ -253,23 +290,44 @@ class RoyaltyCalculadorService
             return null;
         }
 
+        return $this->resolverPlanoTaxa(
+            $movimento,
+            collect([$estabelecimento->id => $estabelecimento])->keyBy('id'),
+            PlanoTaxa::query()
+                ->where('plano_id', $estabelecimento->plano_id)
+                ->where('ativo', true)
+                ->get()
+                ->groupBy('plano_id'),
+        );
+    }
+
+    /**
+     * @param  Collection<int, Estabelecimento>  $estabelecimentos
+     * @param  Collection<int|string, Collection<int, PlanoTaxa>>  $taxasPorPlano
+     */
+    private function resolverPlanoTaxa(
+        EdiMovimento $movimento,
+        Collection $estabelecimentos,
+        Collection $taxasPorPlano,
+    ): ?PlanoTaxa {
+        $estabelecimento = $estabelecimentos->get($movimento->estabelecimento_id);
+
+        if (! $estabelecimento?->plano_id) {
+            return null;
+        }
+
+        $taxas = $taxasPorPlano->get($estabelecimento->plano_id, collect());
         $parcelas = (int) ($movimento->quantidade_parcela ?: 1);
 
-        $taxa = PlanoTaxa::where('plano_id', $estabelecimento->plano_id)
-            ->where('arranjo_ur', $movimento->arranjo_ur)
-            ->where('parcelas', $parcelas)
-            ->where('ativo', true)
-            ->first();
+        $taxa = $taxas->first(fn (PlanoTaxa $item) => $item->arranjo_ur === $movimento->arranjo_ur
+            && (int) $item->parcelas === $parcelas);
 
         if ($taxa) {
             return $taxa;
         }
 
-        return PlanoTaxa::where('plano_id', $estabelecimento->plano_id)
-            ->where('instituicao', $movimento->instituicao_financeira)
-            ->where('tipo_transacao', $movimento->tipo_transacao)
-            ->where('parcelas', $parcelas)
-            ->where('ativo', true)
-            ->first();
+        return $taxas->first(fn (PlanoTaxa $item) => $item->instituicao === $movimento->instituicao_financeira
+            && $item->tipo_transacao === $movimento->tipo_transacao
+            && (int) $item->parcelas === $parcelas);
     }
 }

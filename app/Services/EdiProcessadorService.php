@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Jobs\AgregarFaturamentoJob;
 use App\Jobs\CalcularRoyaltiesJob;
 use App\Jobs\ProcessarEdiJob;
 use App\Jobs\SincronizarEdiDataJob;
+use App\Jobs\SincronizarEdiPeriodoJob;
 use App\Models\EdiMovimento;
 use App\Models\Estabelecimento;
 use App\Support\EdiTransacaoCategoria;
@@ -101,26 +103,98 @@ class EdiProcessadorService
             [$de, $ate] = [$ate, $de];
         }
 
-        $dias = 0;
-
-        for ($data = $de->copy(); $data->lte($ate); $data->addDay()) {
-            if ($limit !== null && $dias >= $limit) {
-                break;
-            }
-
-            SincronizarEdiDataJob::dispatch(
-                $data->format('Y-m-d'),
-                'transactional',
-                $estabelecimentoId,
-            );
-
-            $dias++;
+        if ($limit !== null && $limit > 0) {
+            $de = $ate->copy()->subDays($limit - 1)->startOfDay();
         }
+
+        $dias = $de->copy()->diffInDays($ate) + 1;
+
+        SincronizarEdiPeriodoJob::dispatch(
+            $de->format('Y-m-d'),
+            $ate->format('Y-m-d'),
+            $estabelecimentoId,
+        );
 
         return [
             'dias' => $dias,
-            'enfileirados' => $dias,
+            'enfileirados' => 1,
         ];
+    }
+
+    /**
+     * Importa todas as páginas de um dia de forma sequencial (sem enfileirar por página).
+     *
+     * @return array{validado: bool, importados: int, paginas: int, motivo?: string}
+     */
+    public function importarDiaCompleto(
+        string $data,
+        string $tipoMovimento = 'transactional',
+        ?int $estabelecimentoIdFiltro = null,
+    ): array {
+        if (! PlatformSettings::ediConfigurado()) {
+            return ['validado' => false, 'importados' => 0, 'paginas' => 0, 'motivo' => 'credenciais'];
+        }
+
+        try {
+            $response = $this->clienteEdi()
+                ->get("/movement/v3.00/{$tipoMovimento}/{$data}", $this->queryPaginacao(1));
+        } catch (\Throwable $e) {
+            Log::error('EDI PagBank: erro ao importar dia', ['data' => $data, 'erro' => $e->getMessage()]);
+
+            return ['validado' => false, 'importados' => 0, 'paginas' => 0, 'motivo' => $e->getMessage()];
+        }
+
+        if ($response->failed()) {
+            return [
+                'validado' => false,
+                'importados' => 0,
+                'paginas' => 0,
+                'motivo' => 'http_'.$response->status(),
+            ];
+        }
+
+        if (! $this->ediValidado($response)) {
+            return ['validado' => false, 'importados' => 0, 'paginas' => 0, 'motivo' => 'nao_validado'];
+        }
+
+        $pagina = 1;
+        $total = 0;
+        $payload = $response->json() ?? [];
+
+        while (true) {
+            if ($pagina > 1) {
+                $payload = $this->baixarPagina($data, $tipoMovimento, $pagina);
+            }
+
+            $registros = $this->extrairRegistros($payload);
+            $total += $this->processarPagina(
+                $data,
+                $tipoMovimento,
+                $pagina,
+                $payload,
+                $estabelecimentoIdFiltro,
+                encadear: false,
+            );
+
+            if (! $this->temProximaPagina($payload, $pagina, count($registros))) {
+                break;
+            }
+
+            $pagina++;
+        }
+
+        if ($estabelecimentoIdFiltro === null) {
+            CalcularRoyaltiesJob::dispatch($data);
+            AgregarFaturamentoJob::dispatch($data);
+        }
+
+        Log::info('EDI PagBank: dia importado', [
+            'data' => $data,
+            'importados' => $total,
+            'paginas' => $pagina,
+        ]);
+
+        return ['validado' => true, 'importados' => $total, 'paginas' => $pagina];
     }
 
     public function processarPagina(
@@ -129,6 +203,7 @@ class EdiProcessadorService
         int $pagina = 1,
         ?array $payload = null,
         ?int $estabelecimentoIdFiltro = null,
+        bool $encadear = true,
     ): int {
         $payload ??= $this->baixarPagina($data, $tipoMovimento, $pagina);
         $registros = $this->extrairRegistros($payload);
@@ -142,10 +217,12 @@ class EdiProcessadorService
             'importados' => $total,
         ]);
 
-        if ($this->temProximaPagina($payload, $pagina, count($registros))) {
-            ProcessarEdiJob::dispatch($data, $tipoMovimento, $pagina + 1, $estabelecimentoIdFiltro);
-        } elseif ($estabelecimentoIdFiltro === null && $total >= 0) {
-            CalcularRoyaltiesJob::dispatch($data);
+        if ($encadear) {
+            if ($this->temProximaPagina($payload, $pagina, count($registros))) {
+                ProcessarEdiJob::dispatch($data, $tipoMovimento, $pagina + 1, $estabelecimentoIdFiltro);
+            } elseif ($estabelecimentoIdFiltro === null) {
+                CalcularRoyaltiesJob::dispatch($data);
+            }
         }
 
         return $total;

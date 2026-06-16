@@ -21,6 +21,7 @@ class EdiSincronizarCommand extends Command
                             {--limit= : Limita quantidade de estabelecimentos}
                             {--ontem : Busca só o dia anterior (job diário)}
                             {--force : Enfileira sem confirmação}
+                            {--sync : Importa direto (sem fila), dia a dia}
                             {--calcular : Dispara cálculo de royalties e agregação após enfileirar}';
 
     protected $description = 'Enfileira busca de EDI PagBank para estabelecimentos com token ativo';
@@ -64,8 +65,12 @@ class EdiSincronizarCommand extends Command
             $this->warn('Nenhum estabelecimento com pagbank_edi_ativo e token_pagseguro.');
         }
 
-        if (! $this->option('force') && ! $this->confirm('Enfileirar sincronização EDI?', true)) {
+        if (! $this->option('force') && ! $this->option('sync') && ! $this->confirm('Enfileirar sincronização EDI?', true)) {
             return self::SUCCESS;
+        }
+
+        if ($this->option('sync')) {
+            return $this->sincronizarDireto($service, $de, $ate);
         }
 
         $resultado = $service->enfileirarSincronizacao(
@@ -76,11 +81,29 @@ class EdiSincronizarCommand extends Command
         );
 
         $this->newLine();
-        $this->info("Jobs enfileirados: {$resultado['enfileirados']} dia(s)");
-        $this->line('Cada job baixa todos os movimentos do dia e vincula por token_pagseguro.');
-        $this->line('Certifique-se de que o worker está rodando: docker compose exec -T queue php artisan queue:work');
+        $this->info("Job enfileirado: 1 (período {$resultado['dias']} dia(s), importação sequencial)");
+        $this->line('Acompanhe: php artisan edi:status --de='.$de->format('Y-m-d').' --ate='.$ate->format('Y-m-d'));
+        $this->line('Worker: docker compose logs queue -f --tail=20');
 
         return $this->finalizar($this->option('calcular'));
+    }
+
+    private function sincronizarDireto(EdiProcessadorService $service, Carbon $de, Carbon $ate): int
+    {
+        $this->info('Importação direta (sem fila)...');
+
+        for ($data = $de->copy(); $data->lte($ate); $data->addDay()) {
+            $dia = $data->format('Y-m-d');
+            $resultado = $service->importarDiaCompleto($dia);
+
+            if ($resultado['validado']) {
+                $this->line("  {$dia} → ".number_format($resultado['importados'], 0, ',', '.')." movimentos ({$resultado['paginas']} pág.)");
+            } else {
+                $this->warn("  {$dia} → pulado (".($resultado['motivo'] ?? 'erro').')');
+            }
+        }
+
+        return self::SUCCESS;
     }
 
     private function finalizar(bool $calcular): int

@@ -12,8 +12,10 @@ use Illuminate\Support\Facades\Http;
 class EdiTestarCommand extends Command
 {
     protected $signature = 'edi:testar
-                            {estabelecimento : ID do estabelecimento}
+                            {estabelecimento : ID do estabelecimento (contexto/importação)}
                             {--data= : Data Y-m-d (padrão: ontem)}
+                            {--user= : USER do Basic Auth (padrão: token_pagseguro do estabelecimento)}
+                            {--token= : TOKEN EDI (padrão: config da plataforma)}
                             {--importar : Grava movimentos se VALIDADO=TRUE}';
 
     protected $description = 'Testa conexão EDI PagBank para um estabelecimento e mostra diagnóstico';
@@ -32,23 +34,32 @@ class EdiTestarCommand extends Command
             ? Carbon::parse($this->option('data'))->format('Y-m-d')
             : now()->subDay()->format('Y-m-d');
 
+        $ediUser = filled($this->option('user'))
+            ? trim((string) $this->option('user'))
+            : (string) $estabelecimento->token_pagseguro;
+
+        $ediToken = filled($this->option('token'))
+            ? trim((string) $this->option('token'))
+            : (string) (PlatformSettings::ediToken() ?? '');
+
         $this->info("Estabelecimento #{$estabelecimento->id} — {$estabelecimento->nome_fantasia}");
-        $this->line("Token USER: {$estabelecimento->token_pagseguro}");
+        $this->line("token_pagseguro (Excel): {$estabelecimento->token_pagseguro}");
+        $this->line("USER na requisição: {$ediUser}");
         $this->line('EDI ativo: '.($estabelecimento->pagbank_edi_ativo ? 'sim' : 'não'));
         $this->line('Ambiente PagBank: '.PlatformSettings::pagbankAmbienteRotulo());
         $this->line('EDI URL: '.PlatformSettings::ediUrl());
-        $this->line('EDI token parceiro: '.(PlatformSettings::ediConfigurado() ? 'configurado' : 'NÃO configurado'));
-        $this->line('Autenticação: Basic Auth (USER=ID estabelecimento, senha=token EDI)');
+        $this->line('TOKEN EDI: '.(filled($ediToken) ? 'informado' : 'NÃO configurado'));
+        $this->line('Autenticação: Basic Auth base64(USER:TOKEN)');
         $this->newLine();
 
-        if (! $estabelecimento->pagbank_edi_ativo || blank($estabelecimento->token_pagseguro)) {
-            $this->error('Estabelecimento sem token_pagseguro ou pagbank_edi_ativo=false.');
+        if (blank($ediUser)) {
+            $this->error('Informe --user= ou cadastre token_pagseguro no estabelecimento.');
 
             return self::FAILURE;
         }
 
-        if (! PlatformSettings::ediConfigurado()) {
-            $this->error('Token EDI do parceiro não configurado (Admin → PagBank ou platform:edi-token).');
+        if (blank($ediToken)) {
+            $this->error('Token EDI não configurado (Admin → PagBank, platform:edi-token ou --token=).');
 
             return self::FAILURE;
         }
@@ -59,10 +70,7 @@ class EdiTestarCommand extends Command
 
         try {
             $response = Http::baseUrl(PlatformSettings::ediUrl())
-                ->withBasicAuth(
-                    (string) $estabelecimento->token_pagseguro,
-                    (string) PlatformSettings::ediToken(),
-                )
+                ->withBasicAuth($ediUser, $ediToken)
                 ->acceptJson()
                 ->timeout(60)
                 ->get("/movement/v3.00/transactional/{$data}", [
@@ -110,6 +118,16 @@ class EdiTestarCommand extends Command
             $this->warn("VALIDADO=TRUE mas sem movimentos em {$data} (sem vendas nesse dia).");
 
             return self::SUCCESS;
+        }
+
+        $codigosEstabelecimento = collect($movimentos)
+            ->pluck('estabelecimento')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($codigosEstabelecimento->isNotEmpty()) {
+            $this->line('IDs PagBank nos movimentos: '.$codigosEstabelecimento->implode(', '));
         }
 
         $this->info('Conexão OK — amostra do primeiro movimento:');

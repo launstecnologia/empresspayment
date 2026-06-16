@@ -7,24 +7,11 @@ use App\Models\PlanoTaxa;
 use App\Models\PlanoTaxaRoyalty;
 use App\Models\Usuario;
 use App\Services\RoyaltyCalculadorService;
-use App\Support\UsuarioComercial;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class ComissaoConfiguracaoController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware(function ($request, $next) {
-            abort_if(
-                UsuarioComercial::ehMarketplaceOuRevenda(),
-                403,
-                'Acesso restrito ao administrador.'
-            );
-
-            return $next($request);
-        });
-    }
     public function index()
     {
         return view('comissao.configuracoes.index', [

@@ -141,6 +141,7 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
     Route::redirect('/royalties', '/comissoes');
     Route::get('/comissoes/meu-plano', [ComissaoMeuPlanoController::class, 'index'])->name('comissoes.meu-plano');
     Route::resource('comissoes/configuracoes', ComissaoConfiguracaoController::class)
+        ->middleware('acesso.admin-master')
         ->parameters(['configuracoes' => 'configuracao'])
         ->names('comissoes.configuracoes');
     Route::get('/relatorios/faturamento', [RelatorioController::class, 'faturamento'])->name('relatorios.faturamento');

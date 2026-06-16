@@ -8,6 +8,7 @@ use App\Models\Usuario;
 use App\Support\DocumentoBrasil;
 use App\Support\EstabelecimentoSchema;
 use App\Support\LegacyImportConcerns;
+use App\Support\LegacyPlanoAlias;
 use App\Support\SimpleXlsxReader;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -108,12 +109,12 @@ class LegacyEstImportService
         Plano::query()
             ->get(['id', 'nome', 'codigo_fv'])
             ->each(function (Plano $plano) {
-                foreach ($this->chavesNomeTexto($plano->nome) as $chave) {
+                foreach (LegacyPlanoAlias::chaves($plano->nome) as $chave) {
                     $this->cachePlanoPorChave[$chave] = $plano;
                 }
 
                 if (filled($plano->codigo_fv)) {
-                    foreach ($this->chavesNomeTexto($plano->codigo_fv) as $chave) {
+                    foreach (LegacyPlanoAlias::chaves($plano->codigo_fv) as $chave) {
                         $this->cachePlanoPorChave[$chave] = $plano;
                     }
                 }
@@ -325,18 +326,7 @@ class LegacyEstImportService
 
     private function resolverPlano(string $planCode): ?Plano
     {
-        $planCode = trim($planCode);
-        if ($planCode === '') {
-            return null;
-        }
-
-        foreach ($this->chavesNomeTexto($planCode) as $chave) {
-            if (isset($this->cachePlanoPorChave[$chave])) {
-                return $this->cachePlanoPorChave[$chave];
-            }
-        }
-
-        return null;
+        return LegacyPlanoAlias::resolverPlano($planCode, $this->cachePlanoPorChave);
     }
 
     /**

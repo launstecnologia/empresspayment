@@ -27,7 +27,7 @@ class EstabelecimentoPagBankController extends Controller
 
         if ($ativarEdi && blank($token)) {
             throw ValidationException::withMessages([
-                'token_pagseguro' => 'Informe o código USER do EDI retornado pelo PagBank antes de ativar.',
+                'token_pagseguro' => 'Informe o ID PagSeguro (Safepay) do estabelecimento para vincular movimentos EDI.',
             ]);
         }
 

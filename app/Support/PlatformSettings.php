@@ -231,6 +231,23 @@ class PlatformSettings
         return self::pagbankAmbiente() === 'sandbox' ? 'Sandbox' : 'Produção';
     }
 
+    public static function ediUser(): ?string
+    {
+        $setting = self::get();
+        $ambiente = self::pagbankAmbiente();
+
+        $col = $ambiente === 'sandbox' ? 'pagbank_edi_user_sandbox' : 'pagbank_edi_user_producao';
+        $db = $setting->{$col} ?? null;
+
+        if (filled($db)) {
+            return (string) $db;
+        }
+
+        $env = config('pagseguro.edi_user');
+
+        return filled($env) ? (string) $env : null;
+    }
+
     public static function ediToken(): ?string
     {
         $setting = self::get();
@@ -256,7 +273,7 @@ class PlatformSettings
 
     public static function ediConfigurado(): bool
     {
-        return filled(self::ediToken());
+        return filled(self::ediUser()) && filled(self::ediToken());
     }
 
     public static function automacaoApiUrl(): ?string

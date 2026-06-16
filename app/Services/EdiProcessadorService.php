@@ -3,63 +3,90 @@
 namespace App\Services;
 
 use App\Jobs\ProcessarEdiJob;
-use App\Jobs\SincronizarEdiEstabelecimentoJob;
+use App\Jobs\SincronizarEdiDataJob;
 use App\Models\EdiMovimento;
 use App\Models\Estabelecimento;
 use App\Support\PlatformSettings;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class EdiProcessadorService
 {
-    public function buscarEdiDisponivel(Estabelecimento $estabelecimento, CarbonInterface $data, string $tipoMovimento = 'transactional'): bool
-    {
-        if (! $estabelecimento->pagbank_edi_ativo || blank($estabelecimento->token_pagseguro)) {
-            return false;
-        }
-
+    public function buscarEdiPorData(
+        CarbonInterface $data,
+        string $tipoMovimento = 'transactional',
+        ?int $estabelecimentoIdFiltro = null,
+    ): bool {
         if (! PlatformSettings::ediConfigurado()) {
             return false;
         }
 
-        $response = $this->clienteEdi($estabelecimento)
-            ->get("/movement/v3.00/{$tipoMovimento}/{$data->format('Y-m-d')}", $this->queryPaginacao(1));
+        try {
+            $response = $this->clienteEdi()
+                ->get("/movement/v3.00/{$tipoMovimento}/{$data->format('Y-m-d')}", $this->queryPaginacao(1));
+        } catch (\Throwable $e) {
+            Log::error('EDI PagBank: erro na requisição', [
+                'data' => $data->format('Y-m-d'),
+                'erro' => $e->getMessage(),
+            ]);
 
-        if ($response->header('VALIDADO') !== 'TRUE') {
+            return false;
+        }
+
+        if ($response->failed()) {
+            Log::warning('EDI PagBank: requisição rejeitada', [
+                'data' => $data->format('Y-m-d'),
+                'status' => $response->status(),
+                'body' => substr($response->body(), 0, 500),
+            ]);
+
+            return false;
+        }
+
+        if (! $this->ediValidado($response)) {
             Log::warning('EDI PagBank: arquivo não validado', [
-                'estabelecimento_id' => $estabelecimento->id,
                 'data' => $data->format('Y-m-d'),
                 'validado' => $response->header('VALIDADO'),
                 'status' => $response->status(),
             ]);
 
-            ProcessarEdiJob::dispatch($estabelecimento->id, $data->format('Y-m-d'), $tipoMovimento, 1)->delay(now()->addHour());
+            ProcessarEdiJob::dispatch(
+                $data->format('Y-m-d'),
+                $tipoMovimento,
+                1,
+                null,
+                $estabelecimentoIdFiltro,
+            )->delay(now()->addHour());
 
             return false;
         }
 
         $payload = $response->json();
-        $registros = Arr::get($payload ?? [], 'movimentos')
-            ?? Arr::get($payload ?? [], 'content')
-            ?? Arr::get($payload ?? [], 'data')
-            ?? [];
+        $registros = $this->extrairRegistros($payload ?? []);
 
         Log::info('EDI PagBank: arquivo validado', [
-            'estabelecimento_id' => $estabelecimento->id,
             'data' => $data->format('Y-m-d'),
-            'movimentos_pagina1' => is_array($registros) ? count($registros) : 0,
+            'movimentos_pagina1' => count($registros),
+            'estabelecimento_filtro' => $estabelecimentoIdFiltro,
         ]);
 
-        ProcessarEdiJob::dispatch($estabelecimento->id, $data->format('Y-m-d'), $tipoMovimento, 1, $payload);
+        ProcessarEdiJob::dispatch(
+            $data->format('Y-m-d'),
+            $tipoMovimento,
+            1,
+            $payload,
+            $estabelecimentoIdFiltro,
+        );
 
         return true;
     }
 
     /**
-     * @return array{estabelecimentos: int, dias: int, enfileirados: int}
+     * @return array{dias: int, enfileirados: int}
      */
     public function enfileirarSincronizacao(
         ?\Carbon\CarbonInterface $de = null,
@@ -74,58 +101,36 @@ class EdiProcessadorService
             [$de, $ate] = [$ate, $de];
         }
 
-        $query = Estabelecimento::withoutGlobalScopes()
-            ->where('ativo', true)
-            ->where('pagbank_edi_ativo', true)
-            ->whereNotNull('token_pagseguro')
-            ->where('token_pagseguro', '!=', '');
-
-        if ($estabelecimentoId) {
-            $query->whereKey($estabelecimentoId);
-        }
-
-        if ($limit) {
-            $query->limit($limit);
-        }
-
-        $estabelecimentos = 0;
         $dias = 0;
 
-        $query->orderBy('id')->chunkById(100, function ($chunk) use ($de, $ate, &$estabelecimentos, &$dias) {
-            foreach ($chunk as $estabelecimento) {
-                $inicio = $de->copy();
-
-                if ($estabelecimento->created_at?->gt($inicio)) {
-                    $inicio = $estabelecimento->created_at->copy()->startOfDay();
-                }
-
-                if ($inicio->gt($ate)) {
-                    continue;
-                }
-
-                $diasEstab = $inicio->diffInDays($ate) + 1;
-                $dias += $diasEstab;
-                $estabelecimentos++;
-
-                SincronizarEdiEstabelecimentoJob::dispatch(
-                    $estabelecimento->id,
-                    $inicio->format('Y-m-d'),
-                    $ate->format('Y-m-d'),
-                );
+        for ($data = $de->copy(); $data->lte($ate); $data->addDay()) {
+            if ($limit !== null && $dias >= $limit) {
+                break;
             }
-        });
+
+            SincronizarEdiDataJob::dispatch(
+                $data->format('Y-m-d'),
+                'transactional',
+                $estabelecimentoId,
+            );
+
+            $dias++;
+        }
 
         return [
-            'estabelecimentos' => $estabelecimentos,
             'dias' => $dias,
-            'enfileirados' => $estabelecimentos,
+            'enfileirados' => $dias,
         ];
     }
 
-    public function processarPagina(int $estabelecimentoId, string $data, string $tipoMovimento, int $pagina = 1, ?array $payload = null): int
-    {
-        $estabelecimento = Estabelecimento::withoutGlobalScopes()->findOrFail($estabelecimentoId);
-        $payload ??= $this->baixarPagina($estabelecimento, $data, $tipoMovimento, $pagina);
+    public function processarPagina(
+        string $data,
+        string $tipoMovimento = 'transactional',
+        int $pagina = 1,
+        ?array $payload = null,
+        ?int $estabelecimentoIdFiltro = null,
+    ): int {
+        $payload ??= $this->baixarPagina($data, $tipoMovimento, $pagina);
         $registros = $this->extrairRegistros($payload);
         $total = 0;
 
@@ -136,24 +141,34 @@ class EdiProcessadorService
                 continue;
             }
 
+            $mapeado = $this->mapearRegistro($registro);
+
+            if (! $mapeado) {
+                continue;
+            }
+
+            if ($estabelecimentoIdFiltro !== null && $mapeado['estabelecimento_id'] !== $estabelecimentoIdFiltro) {
+                continue;
+            }
+
             EdiMovimento::withoutGlobalScopes()->updateOrCreate(
                 ['movimento_api_codigo' => $codigo],
-                $this->mapearRegistro($registro, $estabelecimento)
+                $mapeado,
             );
 
             $total++;
         }
 
         if ($this->temProximaPagina($payload, $pagina, count($registros))) {
-            ProcessarEdiJob::dispatch($estabelecimentoId, $data, $tipoMovimento, $pagina + 1);
+            ProcessarEdiJob::dispatch($data, $tipoMovimento, $pagina + 1, null, $estabelecimentoIdFiltro);
         }
 
         return $total;
     }
 
-    private function baixarPagina(Estabelecimento $estabelecimento, string $data, string $tipoMovimento, int $pagina): array
+    private function baixarPagina(string $data, string $tipoMovimento, int $pagina): array
     {
-        $response = $this->clienteEdi($estabelecimento)
+        $response = $this->clienteEdi()
             ->get("/movement/v3.00/{$tipoMovimento}/{$data}", $this->queryPaginacao($pagina));
 
         $response->throw();
@@ -161,15 +176,22 @@ class EdiProcessadorService
         return $response->json() ?? [];
     }
 
-    private function clienteEdi(Estabelecimento $estabelecimento): PendingRequest
+    private function clienteEdi(): PendingRequest
     {
         return Http::baseUrl(PlatformSettings::ediUrl())
             ->withBasicAuth(
-                (string) $estabelecimento->token_pagseguro,
+                (string) PlatformSettings::ediUser(),
                 (string) PlatformSettings::ediToken(),
             )
             ->acceptJson()
             ->timeout(60);
+    }
+
+    private function ediValidado(Response $response): bool
+    {
+        $validado = $response->header('VALIDADO') ?? $response->header('validado');
+
+        return strtoupper((string) $validado) === 'TRUE';
     }
 
     /**
@@ -185,19 +207,22 @@ class EdiProcessadorService
 
     private function extrairRegistros(array $payload): array
     {
-        return Arr::get($payload, 'movimentos')
+        $registros = Arr::get($payload, 'detalhes')
+            ?? Arr::get($payload, 'movimentos')
             ?? Arr::get($payload, 'content')
             ?? Arr::get($payload, 'data')
             ?? (array_is_list($payload) ? $payload : []);
+
+        return is_array($registros) ? $registros : [];
     }
 
     private function temProximaPagina(array $payload, int $pagina, int $quantidade): bool
     {
-        $page = Arr::get($payload, 'page');
+        $page = Arr::get($payload, 'pagination') ?? Arr::get($payload, 'page');
 
         if (is_array($page)) {
-            $totalPaginas = (int) ($page['totalPages'] ?? $page['total_pages'] ?? 0);
-            $paginaAtual = (int) ($page['number'] ?? $page['pageNumber'] ?? $pagina);
+            $totalPaginas = (int) ($page['totalPages'] ?? $page['total_pages'] ?? $page['totalPage'] ?? 0);
+            $paginaAtual = (int) ($page['number'] ?? $page['pageNumber'] ?? $page['page'] ?? $pagina);
 
             if ($totalPaginas > 0) {
                 return $paginaAtual < $totalPaginas;
@@ -217,15 +242,25 @@ class EdiProcessadorService
         return $quantidade >= (int) config('pagseguro.pagina_limite', 1000);
     }
 
-    private function mapearRegistro(array $registro, Estabelecimento $estabelecimento): array
+    private function mapearRegistro(array $registro): ?array
     {
         $codigoEstabelecimento = Arr::get($registro, 'estabelecimento');
+
+        if (blank($codigoEstabelecimento)) {
+            return null;
+        }
+
         $estabelecimentoVinculado = Estabelecimento::withoutGlobalScopes()
-            ->where('token_pagseguro', $codigoEstabelecimento)
+            ->where('token_pagseguro', (string) $codigoEstabelecimento)
+            ->where('pagbank_edi_ativo', true)
             ->first();
 
+        if (! $estabelecimentoVinculado) {
+            return null;
+        }
+
         return [
-            'estabelecimento_id' => $estabelecimentoVinculado?->id ?? $estabelecimento->id,
+            'estabelecimento_id' => $estabelecimentoVinculado->id,
             'id_cliente' => Arr::get($registro, 'id_cliente'),
             'tipo_registro' => Arr::get($registro, 'tipo_registro'),
             'estabelecimento' => $codigoEstabelecimento,

@@ -28,13 +28,13 @@ class EdiSincronizarCommand extends Command
     public function handle(EdiProcessadorService $service): int
     {
         if (! PlatformSettings::ediConfigurado()) {
-            $this->error('Token EDI não configurado. Configure em Admin → Configurações → PagBank.');
+            $this->error('Credenciais EDI não configuradas (USER + TOKEN). Configure em Admin → Configurações → PagBank.');
 
             return self::FAILURE;
         }
 
         if ($this->option('ontem')) {
-            $this->info('Enfileirando busca EDI de ontem (todos os estabelecimentos)...');
+            $this->info('Enfileirando busca EDI de ontem (credencial parceiro 1xN)...');
             BuscarEdiPagBankJob::dispatch();
             $this->line('Job BuscarEdiPagBankJob enfileirado.');
 
@@ -58,12 +58,10 @@ class EdiSincronizarCommand extends Command
             ->count();
 
         $this->info("Período: {$de->format('d/m/Y')} → {$ate->format('d/m/Y')}");
-        $this->line("Estabelecimentos elegíveis: {$elegiveis}");
+        $this->line("Estabelecimentos elegíveis (vínculo por token_pagseguro): {$elegiveis}");
 
-        if ($elegiveis === 0) {
+        if ($elegiveis === 0 && ! $this->option('estabelecimento')) {
             $this->warn('Nenhum estabelecimento com pagbank_edi_ativo e token_pagseguro.');
-
-            return self::FAILURE;
         }
 
         if (! $this->option('force') && ! $this->confirm('Enfileirar sincronização EDI?', true)) {
@@ -78,7 +76,8 @@ class EdiSincronizarCommand extends Command
         );
 
         $this->newLine();
-        $this->info("Jobs enfileirados: {$resultado['enfileirados']} estabelecimentos (~{$resultado['dias']} dias no total)");
+        $this->info("Jobs enfileirados: {$resultado['enfileirados']} dia(s)");
+        $this->line('Cada job baixa todos os movimentos do dia e vincula por token_pagseguro.');
         $this->line('Certifique-se de que o worker está rodando: docker compose exec -T queue php artisan queue:work');
 
         return $this->finalizar($this->option('calcular'));

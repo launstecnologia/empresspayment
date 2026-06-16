@@ -50,11 +50,11 @@ class EdiTesteSeeder extends Seeder
         }
 
         $importados = app(EdiProcessadorService::class)->processarPagina(
-            $estabelecimento->id,
             $dataReferencia,
             'transactional',
             1,
-            ['movimentos' => $registros, 'has_next' => false]
+            ['movimentos' => $registros, 'has_next' => false],
+            $estabelecimento->id,
         );
 
         $estabelecimento = $estabelecimento->fresh();

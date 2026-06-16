@@ -163,11 +163,42 @@
     <div class="border-t border-gray-100 pt-5 dark:border-gray-700">
         <h3 class="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-100">EDI PagBank</h3>
         <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
-            Token do parceiro usado para baixar arquivos de movimento (<code class="text-xs">TOKEN</code> header).
-            Mantenha os dois ambientes preenchidos — o sistema usa automaticamente o do ambiente ativo.
+            Credenciais do parceiro (modelo 1xN): <strong>USER</strong> + <strong>TOKEN</strong> em Basic Auth.
+            Uma consulta por dia retorna movimentos de todos os estabelecimentos; cada loja é vinculada pelo
+            <code class="text-xs">token_pagseguro</code> (ID Safepay).
         </p>
 
         <div class="grid gap-4 sm:grid-cols-2">
+            <label class="block space-y-1">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <span class="mr-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-700">SANDBOX</span>
+                    USER EDI
+                </span>
+                <input
+                    type="text"
+                    name="pagbank_edi_user_sandbox"
+                    value="{{ old('pagbank_edi_user_sandbox', $config->pagbank_edi_user_sandbox) }}"
+                    autocomplete="off"
+                    placeholder="USER parceiro sandbox..."
+                    class="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                >
+            </label>
+
+            <label class="block space-y-1">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <span class="mr-1 inline-block rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-bold text-emerald-700">PRODUÇÃO</span>
+                    USER EDI
+                </span>
+                <input
+                    type="text"
+                    name="pagbank_edi_user_producao"
+                    value="{{ old('pagbank_edi_user_producao', $config->pagbank_edi_user_producao) }}"
+                    autocomplete="off"
+                    placeholder="USER parceiro produção..."
+                    class="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                >
+            </label>
+
             <label class="block space-y-1">
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
                     <span class="mr-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-700">SANDBOX</span>
@@ -214,12 +245,14 @@
         </div>
 
         <div class="mt-3 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-3 text-xs text-gray-500 dark:border-gray-600 dark:bg-gray-800">
-            <strong>Token ativo agora:</strong>
+            <strong>EDI ativo agora:</strong>
             @if (\App\Support\PlatformSettings::ediConfigurado())
                 <span class="font-semibold text-green-600">Configurado</span>
-                (ambiente: <strong>{{ \App\Support\PlatformSettings::pagbankAmbienteRotulo() }}</strong>)
+                (USER: <code>{{ \App\Support\PlatformSettings::ediUser() }}</code>,
+                ambiente: <strong>{{ \App\Support\PlatformSettings::pagbankAmbienteRotulo() }}</strong>)
             @else
-                <span class="font-semibold text-amber-600">Não configurado</span> — fallback para <code>PAGBANK_EDI_TOKEN</code> no .env.
+                <span class="font-semibold text-amber-600">Incompleto</span> — informe USER + TOKEN ou use
+                <code>platform:edi-token</code> com <code>--user=</code>.
             @endif
         </div>
     </div>

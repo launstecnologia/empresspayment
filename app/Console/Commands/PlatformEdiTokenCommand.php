@@ -10,15 +10,17 @@ class PlatformEdiTokenCommand extends Command
 {
     protected $signature = 'platform:edi-token
                             {token : Token EDI do parceiro PagBank}
+                            {--user= : USER EDI do parceiro (modelo 1xN)}
                             {--sandbox : Grava no token sandbox}
                             {--producao : Grava no token produção (padrão)}';
 
-    protected $description = 'Define token EDI PagBank nas configurações da plataforma (via CLI)';
+    protected $description = 'Define credenciais EDI PagBank nas configurações da plataforma (via CLI)';
 
     public function handle(): int
     {
         $producao = ! $this->option('sandbox') || $this->option('producao');
-        $coluna = $producao ? 'pagbank_edi_token_producao' : 'pagbank_edi_token_sandbox';
+        $colunaToken = $producao ? 'pagbank_edi_token_producao' : 'pagbank_edi_token_sandbox';
+        $colunaUser = $producao ? 'pagbank_edi_user_producao' : 'pagbank_edi_user_sandbox';
         $ambiente = $producao ? 'producao' : 'sandbox';
 
         $config = PlatformSetting::query()->firstOrCreate([], [
@@ -27,15 +29,22 @@ class PlatformEdiTokenCommand extends Command
             'theme_color' => '#2563eb',
         ]);
 
-        $config->update([
-            $coluna => trim($this->argument('token')),
+        $update = [
+            $colunaToken => trim($this->argument('token')),
             'pagbank_ambiente' => $ambiente,
-        ]);
+        ];
+
+        if ($this->option('user')) {
+            $update[$colunaUser] = trim((string) $this->option('user'));
+        }
+
+        $config->update($update);
 
         PlatformSettings::forget();
 
-        $this->info("Token EDI {$ambiente} salvo com sucesso.");
+        $this->info("Credenciais EDI {$ambiente} salvas com sucesso.");
         $this->line('Ambiente PagBank ativo: '.PlatformSettings::pagbankAmbienteRotulo());
+        $this->line('USER EDI: '.(PlatformSettings::ediUser() ?: '(não configurado)'));
         $this->line('EDI configurado: '.(PlatformSettings::ediConfigurado() ? 'sim' : 'não'));
 
         return self::SUCCESS;

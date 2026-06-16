@@ -83,6 +83,8 @@ class ConfiguracaoPlataformaController extends Controller
             'pagbank_client_secret' => ['nullable', 'string', 'max:500'],
             'pagbank_edi_token_sandbox' => ['nullable', 'string', 'max:500'],
             'pagbank_edi_token_producao' => ['nullable', 'string', 'max:500'],
+            'pagbank_edi_user_sandbox' => ['nullable', 'string', 'max:100'],
+            'pagbank_edi_user_producao' => ['nullable', 'string', 'max:100'],
         ]);
 
         $config = PlatformSetting::query()->firstOrCreate(
@@ -158,6 +160,14 @@ class ConfiguracaoPlataformaController extends Controller
 
         if (! $request->filled('pagbank_edi_token_producao')) {
             unset($dados['pagbank_edi_token_producao']);
+        }
+
+        if (! $request->filled('pagbank_edi_user_sandbox')) {
+            unset($dados['pagbank_edi_user_sandbox']);
+        }
+
+        if (! $request->filled('pagbank_edi_user_producao')) {
+            unset($dados['pagbank_edi_user_producao']);
         }
 
         if (! $request->filled('mail_password')) {

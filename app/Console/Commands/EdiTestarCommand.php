@@ -12,22 +12,26 @@ use Illuminate\Support\Facades\Http;
 class EdiTestarCommand extends Command
 {
     protected $signature = 'edi:testar
-                            {estabelecimento : ID do estabelecimento (contexto/importação)}
+                            {estabelecimento? : ID do estabelecimento (filtro na importação)}
                             {--data= : Data Y-m-d (padrão: ontem)}
-                            {--user= : USER do Basic Auth (padrão: token_pagseguro do estabelecimento)}
+                            {--user= : USER do Basic Auth (padrão: config plataforma)}
                             {--token= : TOKEN EDI (padrão: config da plataforma)}
                             {--importar : Grava movimentos se VALIDADO=TRUE}';
 
-    protected $description = 'Testa conexão EDI PagBank para um estabelecimento e mostra diagnóstico';
+    protected $description = 'Testa conexão EDI PagBank e mostra diagnóstico';
 
     public function handle(EdiProcessadorService $service): int
     {
-        $estabelecimento = Estabelecimento::withoutGlobalScopes()->find($this->argument('estabelecimento'));
+        $estabelecimento = null;
 
-        if (! $estabelecimento) {
-            $this->error('Estabelecimento não encontrado.');
+        if ($this->argument('estabelecimento')) {
+            $estabelecimento = Estabelecimento::withoutGlobalScopes()->find($this->argument('estabelecimento'));
 
-            return self::FAILURE;
+            if (! $estabelecimento) {
+                $this->error('Estabelecimento não encontrado.');
+
+                return self::FAILURE;
+            }
         }
 
         $data = $this->option('data')
@@ -36,24 +40,28 @@ class EdiTestarCommand extends Command
 
         $ediUser = filled($this->option('user'))
             ? trim((string) $this->option('user'))
-            : (string) $estabelecimento->token_pagseguro;
+            : (string) (PlatformSettings::ediUser() ?? '');
 
         $ediToken = filled($this->option('token'))
             ? trim((string) $this->option('token'))
             : (string) (PlatformSettings::ediToken() ?? '');
 
-        $this->info("Estabelecimento #{$estabelecimento->id} — {$estabelecimento->nome_fantasia}");
-        $this->line("token_pagseguro (Excel): {$estabelecimento->token_pagseguro}");
+        if ($estabelecimento) {
+            $this->info("Estabelecimento #{$estabelecimento->id} — {$estabelecimento->nome_fantasia}");
+            $this->line("token_pagseguro (vínculo): {$estabelecimento->token_pagseguro}");
+        } else {
+            $this->info('Teste EDI — credenciais da plataforma (modelo 1xN)');
+        }
+
         $this->line("USER na requisição: {$ediUser}");
-        $this->line('EDI ativo: '.($estabelecimento->pagbank_edi_ativo ? 'sim' : 'não'));
         $this->line('Ambiente PagBank: '.PlatformSettings::pagbankAmbienteRotulo());
         $this->line('EDI URL: '.PlatformSettings::ediUrl());
         $this->line('TOKEN EDI: '.(filled($ediToken) ? 'informado' : 'NÃO configurado'));
-        $this->line('Autenticação: Basic Auth base64(USER:TOKEN)');
+        $this->line('Autenticação: Basic Auth base64(USER parceiro:TOKEN)');
         $this->newLine();
 
         if (blank($ediUser)) {
-            $this->error('Informe --user= ou cadastre token_pagseguro no estabelecimento.');
+            $this->error('USER EDI não configurado (Admin → PagBank, platform:edi-token --user= ou --user=).');
 
             return self::FAILURE;
         }
@@ -83,9 +91,11 @@ class EdiTestarCommand extends Command
             return self::FAILURE;
         }
 
-        $validado = $response->header('VALIDADO');
+        $validado = $response->header('VALIDADO') ?? $response->header('validado');
+        $validadoOk = strtoupper((string) $validado) === 'TRUE';
         $payload = $response->json() ?? [];
-        $movimentos = $payload['movimentos'] ?? $payload['content'] ?? $payload['data'] ?? [];
+        $movimentos = $payload['detalhes'] ?? $payload['movimentos'] ?? $payload['content'] ?? $payload['data'] ?? [];
+        $pagination = $payload['pagination'] ?? null;
 
         if (is_array($movimentos) && ! array_is_list($movimentos)) {
             $movimentos = [];
@@ -96,7 +106,10 @@ class EdiTestarCommand extends Command
             [
                 ['HTTP status', (string) $response->status()],
                 ['Header VALIDADO', $validado ?: '(vazio)'],
+                ['Validado (interpretado)', $validadoOk ? 'sim' : 'não'],
                 ['Movimentos na página', (string) count($movimentos)],
+                ['Total (pagination)', is_array($pagination) ? (string) ($pagination['totalElements'] ?? '—') : '—'],
+                ['Páginas', is_array($pagination) ? (string) ($pagination['totalPages'] ?? '—') : '—'],
             ],
         );
 
@@ -107,15 +120,14 @@ class EdiTestarCommand extends Command
             return self::FAILURE;
         }
 
-        if ($validado !== 'TRUE') {
-            $this->warn('Arquivo ainda não validado pelo PagBank (VALIDADO ≠ TRUE).');
-            $this->line('O job agenda retry em +1h. Para datas antigas, verifique token USER/TOKEN.');
+        if (! $validadoOk) {
+            $this->warn('Arquivo ainda não validado pelo PagBank.');
 
             return self::FAILURE;
         }
 
         if (count($movimentos) === 0) {
-            $this->warn("VALIDADO=TRUE mas sem movimentos em {$data} (sem vendas nesse dia).");
+            $this->warn("VALIDADO mas sem movimentos em {$data} (sem vendas nesse dia).");
 
             return self::SUCCESS;
         }
@@ -134,7 +146,13 @@ class EdiTestarCommand extends Command
         $this->line(json_encode($movimentos[0] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
         if ($this->option('importar')) {
-            $total = $service->processarPagina($estabelecimento->id, $data, 'transactional', 1, $payload);
+            $total = $service->processarPagina(
+                $data,
+                'transactional',
+                1,
+                $payload,
+                $estabelecimento?->id,
+            );
             $this->info("Importados/atualizados: {$total} movimento(s).");
         }
 

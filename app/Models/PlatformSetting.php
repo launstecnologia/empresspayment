@@ -59,6 +59,8 @@ class PlatformSetting extends Model
         'pagbank_client_secret',
         'pagbank_edi_token_sandbox',
         'pagbank_edi_token_producao',
+        'pagbank_edi_user_sandbox',
+        'pagbank_edi_user_producao',
     ];
 
     protected function casts(): array

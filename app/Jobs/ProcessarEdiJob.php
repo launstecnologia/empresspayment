@@ -12,11 +12,12 @@ class ProcessarEdiJob implements ShouldQueue
 
     public int $tries = 3;
 
+    public int $timeout = 900;
+
     public function __construct(
         public string $data,
         public string $tipoMovimento = 'transactional',
         public int $pagina = 1,
-        public ?array $payload = null,
         public ?int $estabelecimentoIdFiltro = null,
     ) {}
 
@@ -26,7 +27,7 @@ class ProcessarEdiJob implements ShouldQueue
             $this->data,
             $this->tipoMovimento,
             $this->pagina,
-            $this->payload,
+            null,
             $this->estabelecimentoIdFiltro,
         );
     }

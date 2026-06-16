@@ -58,15 +58,13 @@ class EdiProcessadorService
                 $data->format('Y-m-d'),
                 $tipoMovimento,
                 1,
-                null,
                 $estabelecimentoIdFiltro,
             )->delay(now()->addHour());
 
             return false;
         }
 
-        $payload = $response->json();
-        $registros = $this->extrairRegistros($payload ?? []);
+        $registros = $this->extrairRegistros($response->json() ?? []);
 
         Log::info('EDI PagBank: arquivo validado', [
             'data' => $data->format('Y-m-d'),
@@ -78,7 +76,6 @@ class EdiProcessadorService
             $data->format('Y-m-d'),
             $tipoMovimento,
             1,
-            $payload,
             $estabelecimentoIdFiltro,
         );
 
@@ -132,6 +129,13 @@ class EdiProcessadorService
     ): int {
         $payload ??= $this->baixarPagina($data, $tipoMovimento, $pagina);
         $registros = $this->extrairRegistros($payload);
+        $estabelecimentosPorToken = Estabelecimento::withoutGlobalScopes()
+            ->where('pagbank_edi_ativo', true)
+            ->whereNotNull('token_pagseguro')
+            ->pluck('id', 'token_pagseguro')
+            ->mapWithKeys(fn ($id, $token) => [(string) $token => (int) $id])
+            ->all();
+
         $total = 0;
 
         foreach ($registros as $registro) {
@@ -141,7 +145,7 @@ class EdiProcessadorService
                 continue;
             }
 
-            $mapeado = $this->mapearRegistro($registro);
+            $mapeado = $this->mapearRegistro($registro, $estabelecimentosPorToken);
 
             if (! $mapeado) {
                 continue;
@@ -159,8 +163,15 @@ class EdiProcessadorService
             $total++;
         }
 
+        Log::info('EDI PagBank: página processada', [
+            'data' => $data,
+            'pagina' => $pagina,
+            'registros' => count($registros),
+            'importados' => $total,
+        ]);
+
         if ($this->temProximaPagina($payload, $pagina, count($registros))) {
-            ProcessarEdiJob::dispatch($data, $tipoMovimento, $pagina + 1, null, $estabelecimentoIdFiltro);
+            ProcessarEdiJob::dispatch($data, $tipoMovimento, $pagina + 1, $estabelecimentoIdFiltro);
         }
 
         return $total;
@@ -242,25 +253,25 @@ class EdiProcessadorService
         return $quantidade >= (int) config('pagseguro.pagina_limite', 1000);
     }
 
-    private function mapearRegistro(array $registro): ?array
+    /**
+     * @param  array<string, int>  $estabelecimentosPorToken
+     */
+    private function mapearRegistro(array $registro, array $estabelecimentosPorToken): ?array
     {
-        $codigoEstabelecimento = Arr::get($registro, 'estabelecimento');
+        $codigoEstabelecimento = (string) Arr::get($registro, 'estabelecimento');
 
         if (blank($codigoEstabelecimento)) {
             return null;
         }
 
-        $estabelecimentoVinculado = Estabelecimento::withoutGlobalScopes()
-            ->where('token_pagseguro', (string) $codigoEstabelecimento)
-            ->where('pagbank_edi_ativo', true)
-            ->first();
+        $estabelecimentoId = $estabelecimentosPorToken[$codigoEstabelecimento] ?? null;
 
-        if (! $estabelecimentoVinculado) {
+        if (! $estabelecimentoId) {
             return null;
         }
 
         return [
-            'estabelecimento_id' => $estabelecimentoVinculado->id,
+            'estabelecimento_id' => $estabelecimentoId,
             'id_cliente' => Arr::get($registro, 'id_cliente'),
             'tipo_registro' => Arr::get($registro, 'tipo_registro'),
             'estabelecimento' => $codigoEstabelecimento,
@@ -282,7 +293,7 @@ class EdiProcessadorService
             'pagamento_prazo' => Arr::get($registro, 'pagamento_prazo'),
             'plano' => Arr::get($registro, 'plano'),
             'parcela' => Arr::get($registro, 'parcela'),
-            'quantidade_parcela' => Arr::get($registro, 'quantidade_parcela'),
+            'quantidade_parcela' => Arr::get($registro, 'quantidade_parcela') ?? Arr::get($registro, 'quantidade_parcelas'),
             'status_pagamento' => Arr::get($registro, 'status_pagamento'),
             'meio_pagamento' => Arr::get($registro, 'meio_pagamento'),
             'arranjo_ur' => Arr::get($registro, 'arranjo_ur'),

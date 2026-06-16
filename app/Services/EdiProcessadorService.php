@@ -7,6 +7,7 @@ use App\Jobs\ProcessarEdiJob;
 use App\Jobs\SincronizarEdiDataJob;
 use App\Models\EdiMovimento;
 use App\Models\Estabelecimento;
+use App\Support\EdiTransacaoCategoria;
 use App\Support\PlatformSettings;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Client\PendingRequest;
@@ -318,7 +319,11 @@ class EdiProcessadorService
             'hora_venda_ajuste' => Arr::get($registro, 'hora_venda_ajuste'),
             'data_prevista_pagamento' => Arr::get($registro, 'data_prevista_pagamento'),
             'tipo_evento' => Arr::get($registro, 'tipo_evento'),
-            'tipo_transacao' => Arr::get($registro, 'tipo_transacao'),
+            'tipo_transacao' => EdiTransacaoCategoria::normalizarParaArmazenamento(
+                Arr::get($registro, 'tipo_transacao'),
+                Arr::get($registro, 'meio_pagamento'),
+                Arr::get($registro, 'arranjo_ur'),
+            ),
             'codigo_transacao' => Arr::get($registro, 'codigo_transacao'),
             'codigo_venda' => Arr::get($registro, 'codigo_venda'),
             'valor_total_transacao' => Arr::get($registro, 'valor_total_transacao'),

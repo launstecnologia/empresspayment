@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\EdiTransacaoCategoria;
 use App\Support\InstituicaoFinanceira;
 use App\Models\Estabelecimento;
 use App\Models\Plano;
@@ -207,15 +208,7 @@ class DashboardApuracaoService
 
     private function agregarFaturamento(Collection $estabelecimentoIds, string $desde): Collection
     {
-        $categoriaSql = "
-            CASE
-                WHEN em.tipo_transacao = 'debito' THEN 'debito'
-                WHEN em.tipo_transacao = 'pix' THEN 'pix'
-                WHEN em.tipo_transacao = 'credito' AND CAST(COALESCE(NULLIF(em.quantidade_parcela, ''), '1') AS UNSIGNED) <= 1 THEN 'credito'
-                WHEN em.tipo_transacao = 'credito' THEN 'parcelado'
-                ELSE 'outros'
-            END
-        ";
+        $categoriaSql = EdiTransacaoCategoria::sqlCategoria('em');
 
         return DB::table('edi_movimentos as em')
             ->join('estabelecimentos as e', 'e.id', '=', 'em.estabelecimento_id')

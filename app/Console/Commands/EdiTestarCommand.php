@@ -38,6 +38,7 @@ class EdiTestarCommand extends Command
         $this->line('Ambiente PagBank: '.PlatformSettings::pagbankAmbienteRotulo());
         $this->line('EDI URL: '.PlatformSettings::ediUrl());
         $this->line('EDI token parceiro: '.(PlatformSettings::ediConfigurado() ? 'configurado' : 'NÃO configurado'));
+        $this->line('Autenticação: Basic Auth (USER=ID estabelecimento, senha=token EDI)');
         $this->newLine();
 
         if (! $estabelecimento->pagbank_edi_ativo || blank($estabelecimento->token_pagseguro)) {
@@ -58,15 +59,15 @@ class EdiTestarCommand extends Command
 
         try {
             $response = Http::baseUrl(PlatformSettings::ediUrl())
-                ->withHeaders([
-                    'USER' => $estabelecimento->token_pagseguro,
-                    'TOKEN' => (string) PlatformSettings::ediToken(),
-                ])
+                ->withBasicAuth(
+                    (string) $estabelecimento->token_pagseguro,
+                    (string) PlatformSettings::ediToken(),
+                )
                 ->acceptJson()
                 ->timeout(60)
                 ->get("/movement/v3.00/transactional/{$data}", [
-                    'page' => 1,
-                    'limit' => 10,
+                    'pageNumber' => 1,
+                    'pageSize' => 10,
                 ]);
         } catch (\Throwable $e) {
             $this->error('Erro HTTP: '.$e->getMessage());

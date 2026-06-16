@@ -8,6 +8,7 @@ use App\Models\EdiMovimento;
 use App\Models\Estabelecimento;
 use App\Support\PlatformSettings;
 use Carbon\CarbonInterface;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -24,17 +25,8 @@ class EdiProcessadorService
             return false;
         }
 
-        $response = Http::baseUrl(PlatformSettings::ediUrl())
-            ->withHeaders([
-                'USER' => $estabelecimento->token_pagseguro,
-                'TOKEN' => (string) PlatformSettings::ediToken(),
-            ])
-            ->acceptJson()
-            ->timeout(60)
-            ->get("/movement/v3.00/{$tipoMovimento}/{$data->format('Y-m-d')}", [
-                'page' => 1,
-                'limit' => config('pagseguro.pagina_limite', 1000),
-            ]);
+        $response = $this->clienteEdi($estabelecimento)
+            ->get("/movement/v3.00/{$tipoMovimento}/{$data->format('Y-m-d')}", $this->queryPaginacao(1));
 
         if ($response->header('VALIDADO') !== 'TRUE') {
             Log::warning('EDI PagBank: arquivo não validado', [
@@ -161,21 +153,34 @@ class EdiProcessadorService
 
     private function baixarPagina(Estabelecimento $estabelecimento, string $data, string $tipoMovimento, int $pagina): array
     {
-        $response = Http::baseUrl(PlatformSettings::ediUrl())
-            ->withHeaders([
-                'USER'  => $estabelecimento->token_pagseguro,
-                'TOKEN' => (string) PlatformSettings::ediToken(),
-            ])
-            ->acceptJson()
-            ->timeout(60)
-            ->get("/movement/v3.00/{$tipoMovimento}/{$data}", [
-                'page' => $pagina,
-                'limit' => config('pagseguro.pagina_limite', 1000),
-            ]);
+        $response = $this->clienteEdi($estabelecimento)
+            ->get("/movement/v3.00/{$tipoMovimento}/{$data}", $this->queryPaginacao($pagina));
 
         $response->throw();
 
         return $response->json() ?? [];
+    }
+
+    private function clienteEdi(Estabelecimento $estabelecimento): PendingRequest
+    {
+        return Http::baseUrl(PlatformSettings::ediUrl())
+            ->withBasicAuth(
+                (string) $estabelecimento->token_pagseguro,
+                (string) PlatformSettings::ediToken(),
+            )
+            ->acceptJson()
+            ->timeout(60);
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function queryPaginacao(int $pagina): array
+    {
+        return [
+            'pageNumber' => $pagina,
+            'pageSize' => (int) config('pagseguro.pagina_limite', 1000),
+        ];
     }
 
     private function extrairRegistros(array $payload): array
@@ -188,11 +193,22 @@ class EdiProcessadorService
 
     private function temProximaPagina(array $payload, int $pagina, int $quantidade): bool
     {
+        $page = Arr::get($payload, 'page');
+
+        if (is_array($page)) {
+            $totalPaginas = (int) ($page['totalPages'] ?? $page['total_pages'] ?? 0);
+            $paginaAtual = (int) ($page['number'] ?? $page['pageNumber'] ?? $pagina);
+
+            if ($totalPaginas > 0) {
+                return $paginaAtual < $totalPaginas;
+            }
+        }
+
         if (Arr::has($payload, 'has_next')) {
             return (bool) Arr::get($payload, 'has_next');
         }
 
-        $totalPaginas = Arr::get($payload, 'total_pages');
+        $totalPaginas = Arr::get($payload, 'total_pages') ?? Arr::get($payload, 'totalPages');
 
         if ($totalPaginas) {
             return $pagina < (int) $totalPaginas;

@@ -10,6 +10,7 @@ use App\Support\PlatformSettings;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class EdiProcessadorService
 {
@@ -36,12 +37,31 @@ class EdiProcessadorService
             ]);
 
         if ($response->header('VALIDADO') !== 'TRUE') {
+            Log::warning('EDI PagBank: arquivo não validado', [
+                'estabelecimento_id' => $estabelecimento->id,
+                'data' => $data->format('Y-m-d'),
+                'validado' => $response->header('VALIDADO'),
+                'status' => $response->status(),
+            ]);
+
             ProcessarEdiJob::dispatch($estabelecimento->id, $data->format('Y-m-d'), $tipoMovimento, 1)->delay(now()->addHour());
 
             return false;
         }
 
-        ProcessarEdiJob::dispatch($estabelecimento->id, $data->format('Y-m-d'), $tipoMovimento, 1, $response->json());
+        $payload = $response->json();
+        $registros = Arr::get($payload ?? [], 'movimentos')
+            ?? Arr::get($payload ?? [], 'content')
+            ?? Arr::get($payload ?? [], 'data')
+            ?? [];
+
+        Log::info('EDI PagBank: arquivo validado', [
+            'estabelecimento_id' => $estabelecimento->id,
+            'data' => $data->format('Y-m-d'),
+            'movimentos_pagina1' => is_array($registros) ? count($registros) : 0,
+        ]);
+
+        ProcessarEdiJob::dispatch($estabelecimento->id, $data->format('Y-m-d'), $tipoMovimento, 1, $payload);
 
         return true;
     }

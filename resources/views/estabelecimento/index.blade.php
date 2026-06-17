@@ -19,6 +19,23 @@
                 <p class="text-xs text-gray-400">{{ $estabelecimentos->total() }} resultado(s)</p>
             </div>
             <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+                <form method="GET" action="{{ route('estabelecimentos.index') }}" class="flex min-w-0 flex-1 items-center sm:max-w-xs sm:flex-none">
+                    @foreach ($filtros as $chave => $valor)
+                        @if ($chave !== 'busca' && $valor !== null && $valor !== '')
+                            <input type="hidden" name="{{ $chave }}" value="{{ $valor }}">
+                        @endif
+                    @endforeach
+                    <div class="relative w-full">
+                        <i class="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i>
+                        <input
+                            type="search"
+                            name="busca"
+                            value="{{ $filtros['busca'] ?? '' }}"
+                            placeholder="Nome, fantasia, CNPJ, CPF, cidade..."
+                            class="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                    </div>
+                </form>
                 @if ($podeCadastrarEstabelecimento)
                     <a href="{{ route('estabelecimentos.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700">
                         <i class="fa-solid fa-plus text-xs"></i>
@@ -121,6 +138,19 @@
 
             <form method="GET" action="{{ route('estabelecimentos.index') }}" class="flex min-h-0 flex-1 flex-col">
                 <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+                    <div>
+                        <label for="filtro-busca" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Pesquisar</label>
+                        <input
+                            id="filtro-busca"
+                            name="busca"
+                            type="search"
+                            value="{{ $filtros['busca'] ?? '' }}"
+                            placeholder="Nome, razão social, fantasia, CNPJ, CPF, cidade"
+                            class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                        <p class="mt-1 text-xs text-gray-400">Busca em nome, razão social, fantasia, documento e cidade.</p>
+                    </div>
+
                     <div>
                         <label for="filtro-master" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Master</label>
                         <select id="filtro-master" name="master_id" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">

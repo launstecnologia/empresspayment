@@ -48,6 +48,7 @@ class EstabelecimentoController extends Controller
         $this->aplicarFiltrosIndex($query, $request);
 
         $filtros = $request->only([
+            'busca',
             'master_id',
             'marketplace_id',
             'revenda_id',
@@ -585,6 +586,29 @@ class EstabelecimentoController extends Controller
 
     private function aplicarFiltrosIndex(Builder $query, Request $request): void
     {
+        if ($request->filled('busca')) {
+            $termo = trim($request->string('busca'));
+            $like = '%'.mb_strtolower($termo).'%';
+            $digitos = DocumentoBrasil::apenasDigitos($termo);
+
+            $query->where(function (Builder $q) use ($like, $digitos) {
+                $q->whereRaw('LOWER(COALESCE(nome_fantasia, "")) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(COALESCE(razao_social, "")) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(COALESCE(nome_completo, "")) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(COALESCE(cidade, "")) LIKE ?', [$like]);
+
+                if ($digitos !== '') {
+                    $q->orWhereRaw(
+                        "REPLACE(REPLACE(REPLACE(COALESCE(cnpj, ''), '.', ''), '/', ''), '-', '') LIKE ?",
+                        ['%'.$digitos.'%'],
+                    )->orWhereRaw(
+                        "REPLACE(REPLACE(COALESCE(cpf, ''), '.', ''), '-', '') LIKE ?",
+                        ['%'.$digitos.'%'],
+                    );
+                }
+            });
+        }
+
         if ($request->filled('master_id')) {
             $query->where('master_id', $request->integer('master_id'));
         }

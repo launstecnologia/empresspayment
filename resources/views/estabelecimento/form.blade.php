@@ -17,14 +17,22 @@
     $mostrarMaster = UsuarioComercial::ehAdmin();
     $mostrarMarketplace = UsuarioComercial::ehAdmin();
     $mostrarRevenda = UsuarioComercial::ehAdmin() || UsuarioComercial::ehMarketplace();
+    $escolherModoCadastro = ! $estabelecimento->exists && UsuarioComercial::deveEscolherModoCadastro();
 @endphp
 
-<form method="POST" action="{{ $estabelecimento->exists ? route('estabelecimentos.update', $estabelecimento) : route('estabelecimentos.store') }}" class="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm">
+<form
+    id="form-estabelecimento"
+    method="POST"
+    action="{{ $estabelecimento->exists ? route('estabelecimentos.update', $estabelecimento) : route('estabelecimentos.store') }}"
+    class="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm"
+    @if ($escolherModoCadastro) data-escolher-modo-cadastro @endif
+>
     @csrf
     @if ($estabelecimento->exists) @method('PUT') @endif
     <input type="hidden" name="ativo" value="1">
     <input type="hidden" name="status" value="{{ old('status', $estabelecimento->status ?: 'pendente') }}">
     <input type="hidden" name="risco" value="{{ old('risco', $estabelecimento->risco ?: 'confiavel') }}">
+    <input type="hidden" name="modo_cadastro" id="modo-cadastro-input" value="{{ old('modo_cadastro') }}">
 
     <div class="flex min-h-32 items-start justify-between px-3 py-5">
         <label class="{{ $labelClass }} mt-12 w-48">
@@ -316,11 +324,47 @@
     </div>
 
     <div class="flex justify-end px-3 pb-3 pt-4">
-        <button class="rounded bg-indigo-900 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-800">
+        <button type="{{ $escolherModoCadastro ? 'button' : 'submit' }}" id="btn-salvar-estabelecimento" class="rounded bg-indigo-900 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-800">
             {{ $estabelecimento->exists ? 'Atualizar' : 'Registrar' }}
         </button>
     </div>
 </form>
+
+@if ($escolherModoCadastro)
+<div id="modal-modo-cadastro" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/40 px-4">
+    <div class="w-full max-w-lg rounded-xl bg-white shadow-2xl">
+        <div class="border-b border-gray-100 px-5 py-4">
+            <h3 class="text-lg font-semibold text-gray-800">Como deseja salvar?</h3>
+            <p class="mt-1 text-sm text-gray-500">Escolha se o cadastro deve seguir para automação agora ou apenas gravar os dados.</p>
+        </div>
+        <div class="space-y-3 p-5">
+            <button type="button" data-modo-cadastro="completo" class="flex w-full items-start gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-left transition hover:border-indigo-400 hover:bg-indigo-100">
+                <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-700 text-white">
+                    <i class="fa-solid fa-robot text-sm"></i>
+                </span>
+                <span>
+                    <span class="block text-sm font-bold text-indigo-900">Cadastro completo com automação</span>
+                    <span class="mt-1 block text-xs text-indigo-800/80">Cria o e-mail da plataforma, envia para a Força de Vendas PagBank e inicia a automação.</span>
+                </span>
+            </button>
+            <button type="button" data-modo-cadastro="apenas_dados" class="flex w-full items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-left transition hover:border-gray-300 hover:bg-gray-100">
+                <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-600 text-white">
+                    <i class="fa-solid fa-floppy-disk text-sm"></i>
+                </span>
+                <span>
+                    <span class="block text-sm font-bold text-gray-800">Salvar apenas os dados</span>
+                    <span class="mt-1 block text-xs text-gray-600">Grava o estabelecimento sem criar e-mail e sem iniciar automação. Você pode acionar depois na aba Automação.</span>
+                </span>
+            </button>
+        </div>
+        <div class="border-t border-gray-100 px-5 py-4 text-right">
+            <button type="button" id="modal-modo-cadastro-fechar" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                Cancelar
+            </button>
+        </div>
+    </div>
+</div>
+@endif
 @endsection
 
 @section('scripts')
@@ -517,6 +561,43 @@
                 buscarCnpj(true);
             }
         @endif
+
+        const formEstabelecimento = document.getElementById('form-estabelecimento');
+        const modalModoCadastro = document.getElementById('modal-modo-cadastro');
+        const modoCadastroInput = document.getElementById('modo-cadastro-input');
+        const btnSalvarEstabelecimento = document.getElementById('btn-salvar-estabelecimento');
+
+        const abrirModalModoCadastro = () => {
+            if (!modalModoCadastro) return;
+            modalModoCadastro.classList.remove('hidden');
+            modalModoCadastro.classList.add('flex');
+        };
+
+        const fecharModalModoCadastro = () => {
+            if (!modalModoCadastro) return;
+            modalModoCadastro.classList.add('hidden');
+            modalModoCadastro.classList.remove('flex');
+        };
+
+        btnSalvarEstabelecimento?.addEventListener('click', () => {
+            if (!formEstabelecimento?.dataset.escolherModoCadastro) return;
+            if (!formEstabelecimento.reportValidity()) return;
+            abrirModalModoCadastro();
+        });
+
+        document.getElementById('modal-modo-cadastro-fechar')?.addEventListener('click', fecharModalModoCadastro);
+        modalModoCadastro?.addEventListener('click', (event) => {
+            if (event.target === modalModoCadastro) fecharModalModoCadastro();
+        });
+
+        document.querySelectorAll('[data-modo-cadastro]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (!modoCadastroInput || !formEstabelecimento) return;
+                modoCadastroInput.value = button.dataset.modoCadastro || '';
+                fecharModalModoCadastro();
+                formEstabelecimento.submit();
+            });
+        });
     });
 </script>
 @endsection

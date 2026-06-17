@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Estabelecimento;
 use App\Models\SubUsuario;
 use App\Models\Usuario;
 use Illuminate\Database\Eloquent\Builder;
@@ -52,6 +53,30 @@ class UsuarioComercial
     public static function podeCadastrarEstabelecimento(): bool
     {
         return in_array(self::tipo(), ['admin', 'marketplace', 'revenda'], true);
+    }
+
+    public static function deveEscolherModoCadastro(): bool
+    {
+        return in_array(self::tipo(), ['marketplace', 'revenda'], true);
+    }
+
+    public static function podeGerenciarAutomacaoEstabelecimento(Estabelecimento $estabelecimento): bool
+    {
+        $usuario = self::principal();
+
+        if (! $usuario) {
+            return false;
+        }
+
+        if ($usuario->tipo === 'admin') {
+            return true;
+        }
+
+        if ($usuario->tipo === 'marketplace') {
+            return (int) $estabelecimento->marketplace_id === (int) $usuario->id;
+        }
+
+        return false;
     }
 
     public static function podeDefinirRetencaoPai(string $tipoFilho): bool

@@ -1,5 +1,8 @@
 @php
+    use App\Support\UsuarioComercial;
+
     $ehAdmin = auth()->user()?->tipo === 'admin';
+    $podeGerenciarAutomacao = UsuarioComercial::podeGerenciarAutomacaoEstabelecimento($estabelecimento);
 
     $fvStatus = $estabelecimento->fv_status;
     $fvCores = match($fvStatus) {
@@ -11,7 +14,7 @@
         default                  => ['bg-gray-100 text-gray-600',       'fa-circle-minus'],
     };
 
-    $podeIniciar = $ehAdmin && ! in_array($fvStatus, ['em_andamento', 'concluido', 'erro_email']);
+    $podeIniciar = $podeGerenciarAutomacao && ! in_array($fvStatus, ['em_andamento', 'concluido', 'erro_email']);
 @endphp
 
 {{-- ── Automação Força de Vendas ── --}}
@@ -75,7 +78,7 @@
 
     {{-- Botões de ação --}}
     <div class="mt-3 flex flex-wrap gap-2">
-        @if ($fvStatus === 'erro_email' && $ehAdmin)
+        @if ($fvStatus === 'erro_email' && $podeGerenciarAutomacao)
             {{-- Retentar só o e-mail --}}
             <form method="POST"
                   action="{{ route('admin.estabelecimentos.automacao.retentar-email', $estabelecimento) }}"
@@ -107,7 +110,7 @@
                     {{ in_array($fvStatus, ['erro', 'timeout']) ? 'Retentar Automação' : 'Iniciar Automação' }}
                 </button>
             </form>
-        @elseif ($fvStatus === 'concluido' && $ehAdmin)
+        @elseif ($fvStatus === 'concluido' && $podeGerenciarAutomacao)
             <form method="POST"
                   action="{{ route('admin.estabelecimentos.automacao.iniciar', $estabelecimento) }}"
                   onsubmit="return confirm('A automação já foi concluída. Deseja reexecutar?')">

@@ -178,6 +178,7 @@
 {{-- ── Aba: Automação FV ── --}}
 @php
     $fvStatus   = $estabelecimento->fv_status;
+    $fvPodeGerenciarAutomacao = \App\Support\UsuarioComercial::podeGerenciarAutomacaoEstabelecimento($estabelecimento);
     $fvEhAdmin  = auth()->user()?->tipo === 'admin';
     $fvCadastroConcluido = filled($estabelecimento->fv_concluido_em);
     $fvPropostaComErro = ($estabelecimento->fv_proposta_status ?? null) === 'erro'
@@ -193,7 +194,7 @@
         $fvStatus === 'timeout' => ['bg-orange-100 text-orange-800 border-orange-200', 'fa-hourglass-end', 'Timeout'],
         default => ['bg-gray-100 text-gray-500 border-gray-200', 'fa-circle-minus', 'Não iniciada'],
     };
-    $fvPodeIniciar = $fvEhAdmin && ! in_array($fvStatus, ['em_andamento', 'concluido']) && ! $fvCadastroConcluido;
+    $fvPodeIniciar = $fvPodeGerenciarAutomacao && ! in_array($fvStatus, ['em_andamento', 'concluido']) && ! $fvCadastroConcluido;
 @endphp
 <section id="automacao" data-tab-panel="automacao" class="mt-8 hidden overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
     <div class="border-b border-gray-100 bg-gray-50/80 px-6 py-4">
@@ -294,7 +295,7 @@
 
             {{-- Botões de ação --}}
             <div class="flex flex-wrap items-center gap-3">
-                @if ($fvStatus === 'erro_email' && $fvEhAdmin)
+                @if ($fvStatus === 'erro_email' && $fvPodeGerenciarAutomacao)
                     {{-- Opção 1: retentar apenas o e-mail --}}
                     <form method="POST"
                           action="{{ route('admin.estabelecimentos.automacao.retentar-email', $estabelecimento) }}"
@@ -330,7 +331,7 @@
                             <i class="fa-solid fa-file-signature"></i> Retentar Proposta
                         </button>
                     </form>
-                @elseif (($fvStatus === 'concluido' || $fvCadastroConcluido) && $fvEhAdmin)
+                @elseif (($fvStatus === 'concluido' || $fvCadastroConcluido) && $fvPodeGerenciarAutomacao)
                     <button type="button"
                             data-modal-open="automacao-confirmar"
                             data-automacao-label="Confirmar e reexecutar"

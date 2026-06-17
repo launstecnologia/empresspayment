@@ -12,6 +12,7 @@ use App\Services\AutomacaoLogService;
 use App\Services\AutomacaoPagBankService;
 use App\Support\AutomacaoSchema;
 use App\Support\PlatformSettings;
+use App\Support\UsuarioComercial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -19,7 +20,7 @@ class EstabelecimentoAutomacaoController extends Controller
 {
     public function iniciar(Request $request, Estabelecimento $estabelecimento)
     {
-        abort_unless($request->user()?->tipo === 'admin', 403);
+        $this->autorizarAutomacao($estabelecimento);
 
         $statusBloqueante = ['em_andamento'];
         if (in_array($estabelecimento->fv_status, $statusBloqueante, true)) {
@@ -48,7 +49,7 @@ class EstabelecimentoAutomacaoController extends Controller
 
     public function retentarEmail(Request $request, Estabelecimento $estabelecimento)
     {
-        abort_unless($request->user()?->tipo === 'admin', 403);
+        $this->autorizarAutomacao($estabelecimento);
 
         if ($estabelecimento->fv_status !== 'erro_email') {
             return redirect()
@@ -87,7 +88,7 @@ class EstabelecimentoAutomacaoController extends Controller
 
     public function status(Estabelecimento $estabelecimento)
     {
-        abort_unless(auth()->user()?->tipo === 'admin', 403);
+        $this->autorizarAutomacao($estabelecimento);
 
         $estabelecimento->refresh();
 
@@ -138,7 +139,7 @@ class EstabelecimentoAutomacaoController extends Controller
 
     public function screenshots(Estabelecimento $estabelecimento)
     {
-        abort_unless(auth()->user()?->tipo === 'admin', 403);
+        $this->autorizarAutomacao($estabelecimento, apenasAdmin: true);
 
         if (blank($estabelecimento->fv_job_id)) {
             return response()->json(['job_id' => null, 'screenshots' => []]);
@@ -160,7 +161,7 @@ class EstabelecimentoAutomacaoController extends Controller
 
     public function screenshot(Estabelecimento $estabelecimento, string $filename)
     {
-        abort_unless(auth()->user()?->tipo === 'admin', 403);
+        $this->autorizarAutomacao($estabelecimento, apenasAdmin: true);
 
         if (blank($estabelecimento->fv_job_id)) {
             abort(404, 'Screenshot não encontrado');
@@ -189,7 +190,7 @@ class EstabelecimentoAutomacaoController extends Controller
 
     public function buscarSafepayId(Request $request, Estabelecimento $estabelecimento)
     {
-        abort_unless($request->user()?->tipo === 'admin', 403);
+        $this->autorizarAutomacao($estabelecimento, apenasAdmin: true);
 
         if (! in_array($estabelecimento->fv_status, ['concluido', 'erro_email'], true)) {
             return redirect()
@@ -223,7 +224,7 @@ class EstabelecimentoAutomacaoController extends Controller
 
     public function aceitarProposta(Request $request, Estabelecimento $estabelecimento)
     {
-        abort_unless($request->user()?->tipo === 'admin', 403);
+        $this->autorizarAutomacao($estabelecimento, apenasAdmin: true);
 
         if (! AutomacaoSchema::temColunasProposta()) {
             return redirect()
@@ -280,6 +281,21 @@ class EstabelecimentoAutomacaoController extends Controller
             ->withFragment('automacao')
             ->with('proposta_aceitando', true)
             ->with('status', 'Aceitando proposta comercial no PagBank... Aguarde, a página atualiza automaticamente.');
+    }
+
+    private function autorizarAutomacao(Estabelecimento $estabelecimento, bool $apenasAdmin = false): void
+    {
+        if ($apenasAdmin) {
+            abort_unless(UsuarioComercial::ehAdmin(), 403);
+
+            return;
+        }
+
+        abort_unless(
+            UsuarioComercial::podeGerenciarAutomacaoEstabelecimento($estabelecimento),
+            403,
+            'Sem permissão para gerenciar a automação deste estabelecimento.',
+        );
     }
 
     private function gerarSenha6(): string

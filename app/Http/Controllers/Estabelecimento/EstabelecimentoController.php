@@ -108,6 +108,16 @@ class EstabelecimentoController extends Controller
     {
         $this->autorizarMutacaoEstabelecimento();
 
+        if (UsuarioComercial::deveEscolherModoCadastro()) {
+            $request->validate([
+                'modo_cadastro' => ['required', 'in:completo,apenas_dados'],
+            ]);
+        }
+
+        $modoCadastro = UsuarioComercial::deveEscolherModoCadastro()
+            ? $request->string('modo_cadastro')->toString()
+            : 'completo';
+
         $dados = $this->validar($request);
         $usuario = $request->user();
         $dados = array_merge(
@@ -120,6 +130,12 @@ class EstabelecimentoController extends Controller
 
         $estabelecimento = Estabelecimento::create($dados);
         $royalties->fixarCadeia($estabelecimento->load('plano.taxas.royalties'));
+
+        if ($modoCadastro === 'apenas_dados') {
+            return redirect()
+                ->route('estabelecimentos.show', $estabelecimento)
+                ->with('status', 'Estabelecimento cadastrado. E-mail e automação não foram iniciados — você pode acioná-los depois na aba Automação.');
+        }
 
         if (filled($estabelecimento->email)) {
             app(NotificacaoEmailService::class)->enfileirar(
@@ -222,7 +238,10 @@ class EstabelecimentoController extends Controller
         $automacaoLogsIndisponivel = ! \App\Support\AutomacaoSchema::temTabelaLogs();
 
         $automacaoPreview = null;
-        if (auth()->user()?->tipo === 'admin' && PlatformSettings::automacaoConfigurado()) {
+        if (
+            PlatformSettings::automacaoConfigurado()
+            && UsuarioComercial::podeGerenciarAutomacaoEstabelecimento($estabelecimento)
+        ) {
             try {
                 $automacaoPreview = app(AutomacaoPagBankService::class)->previewConfirmacao($estabelecimento);
             } catch (\Throwable) {

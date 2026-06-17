@@ -147,6 +147,13 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
     Route::get('/relatorios/faturamento', [RelatorioController::class, 'faturamento'])->name('relatorios.faturamento');
     Route::get('/relatorios/faturamento/{linha}/detalhe', [RelatorioController::class, 'faturamentoDetalhe'])->name('relatorios.faturamento.detalhe');
 
+    Route::post('estabelecimentos/{estabelecimento}/automacao/iniciar', [EstabelecimentoAutomacaoController::class, 'iniciar'])
+        ->name('admin.estabelecimentos.automacao.iniciar');
+    Route::post('estabelecimentos/{estabelecimento}/automacao/retentar-email', [EstabelecimentoAutomacaoController::class, 'retentarEmail'])
+        ->name('admin.estabelecimentos.automacao.retentar-email');
+    Route::get('estabelecimentos/{estabelecimento}/automacao/status', [EstabelecimentoAutomacaoController::class, 'status'])
+        ->name('admin.estabelecimentos.automacao.status');
+
     Route::middleware('nivel:admin')->group(function () {
         Route::get('/admin/configuracoes', [ConfiguracaoPlataformaController::class, 'edit'])->name('admin.configuracoes.edit');
         Route::put('/admin/configuracoes', [ConfiguracaoPlataformaController::class, 'update'])->name('admin.configuracoes.update');
@@ -164,12 +171,6 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
         });
         Route::patch('estabelecimentos/{estabelecimento}/pagbank/edi', [EstabelecimentoPagBankController::class, 'atualizarEdi'])
             ->name('admin.estabelecimentos.pagbank.edi');
-        Route::post('estabelecimentos/{estabelecimento}/automacao/iniciar', [EstabelecimentoAutomacaoController::class, 'iniciar'])
-            ->name('admin.estabelecimentos.automacao.iniciar');
-        Route::post('estabelecimentos/{estabelecimento}/automacao/retentar-email', [EstabelecimentoAutomacaoController::class, 'retentarEmail'])
-            ->name('admin.estabelecimentos.automacao.retentar-email');
-        Route::get('estabelecimentos/{estabelecimento}/automacao/status', [EstabelecimentoAutomacaoController::class, 'status'])
-            ->name('admin.estabelecimentos.automacao.status');
         Route::get('estabelecimentos/{estabelecimento}/automacao/screenshots', [EstabelecimentoAutomacaoController::class, 'screenshots'])
             ->name('admin.estabelecimentos.automacao.screenshots');
         Route::get('estabelecimentos/{estabelecimento}/automacao/screenshots/{filename}', [EstabelecimentoAutomacaoController::class, 'screenshot'])

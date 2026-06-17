@@ -580,7 +580,7 @@
         };
 
         btnSalvarEstabelecimento?.addEventListener('click', () => {
-            if (!formEstabelecimento?.dataset.escolherModoCadastro) return;
+            if (!formEstabelecimento?.hasAttribute('data-escolher-modo-cadastro')) return;
             if (!formEstabelecimento.reportValidity()) return;
             abrirModalModoCadastro();
         });

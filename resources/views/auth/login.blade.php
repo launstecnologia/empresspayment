@@ -56,57 +56,14 @@
             <div class="absolute left-20 top-32 h-2 w-2 rounded-full bg-emerald-400/80"></div>
             <div class="absolute bottom-40 left-10 h-2 w-2 rounded-full bg-rose-400/80"></div>
 
-            <div class="relative z-10 flex w-full max-w-xl flex-col items-center pt-2 text-center">
+            <div class="relative z-10 my-6 flex w-full max-w-lg flex-1 items-center justify-center">
                 <img
                     src="{{ $logoWhiteUrl ?? $logoUrl }}"
                     alt="{{ $appName }}"
-                    class="mx-auto h-20 w-full max-w-sm object-contain object-center brightness-0 invert sm:h-24 lg:h-32 lg:max-w-md"
+                    class="w-full max-w-md object-contain object-center brightness-0 invert drop-shadow-lg"
                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block'"
                 >
-                <p class="hidden text-2xl font-bold tracking-tight" style="display:none">Express Payments</p>
-            </div>
-
-            <div class="relative z-10 my-6 flex w-full max-w-lg flex-1 items-center justify-center">
-                <svg class="w-full max-w-md drop-shadow-lg" viewBox="0 0 480 360" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    {{-- Painel de faturamento --}}
-                    <rect x="130" y="48" width="220" height="264" rx="20" fill="white" fill-opacity="0.96"/>
-                    <rect x="154" y="72" width="72" height="10" rx="5" fill="#dbeafe"/>
-                    <rect x="154" y="92" width="120" height="8" rx="4" fill="#eff6ff"/>
-                    <text x="154" y="128" fill="#1e40af" font-size="13" font-weight="700" font-family="system-ui, sans-serif">Faturamento</text>
-                    <text x="154" y="152" fill="#64748b" font-size="11" font-family="system-ui, sans-serif">EDI · Últimos 30 dias</text>
-                    {{-- Barras do gráfico --}}
-                    <rect x="154" y="228" width="28" height="56" rx="6" fill="#fcd34d"/>
-                    <rect x="192" y="200" width="28" height="84" rx="6" fill="#34d399"/>
-                    <rect x="230" y="168" width="28" height="116" rx="6" fill="#60a5fa"/>
-                    <rect x="268" y="148" width="28" height="136" rx="6" fill="#2563eb"/>
-                    <path d="M168 196 L212 172 L256 188 L296 158" stroke="#93c5fd" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <circle cx="168" cy="196" r="4" fill="#2563eb"/>
-                    <circle cx="212" cy="172" r="4" fill="#2563eb"/>
-                    <circle cx="256" cy="188" r="4" fill="#2563eb"/>
-                    <circle cx="296" cy="158" r="4" fill="#2563eb"/>
-                    {{-- Nota fiscal / fatura --}}
-                    <rect x="56" y="108" width="88" height="112" rx="12" fill="#fef3c7" stroke="#fbbf24" stroke-width="2"/>
-                    <rect x="68" y="124" width="48" height="6" rx="3" fill="#fbbf24"/>
-                    <rect x="68" y="138" width="64" height="4" rx="2" fill="#fde68a"/>
-                    <rect x="68" y="148" width="56" height="4" rx="2" fill="#fde68a"/>
-                    <rect x="68" y="158" width="60" height="4" rx="2" fill="#fde68a"/>
-                    <text x="68" y="198" fill="#b45309" font-size="14" font-weight="700" font-family="system-ui, sans-serif">R$</text>
-                    {{-- Total em destaque --}}
-                    <rect x="300" y="88" width="96" height="52" rx="12" fill="#2563eb"/>
-                    <text x="314" y="112" fill="#bfdbfe" font-size="9" font-weight="600" font-family="system-ui, sans-serif">TOTAL</text>
-                    <text x="314" y="132" fill="white" font-size="15" font-weight="700" font-family="system-ui, sans-serif">2.000,40</text>
-                    {{-- Ícone relatório --}}
-                    <rect x="72" y="248" width="64" height="48" rx="10" fill="white" fill-opacity="0.2" stroke="white" stroke-opacity="0.35"/>
-                    <path d="M88 278 L100 262 L112 272 L124 256" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <rect x="330" y="248" width="72" height="48" rx="10" fill="#1e3a8a" fill-opacity="0.45"/>
-                    <circle cx="366" cy="268" r="14" fill="#fcd34d"/>
-                    <text x="360" y="273" fill="#1e3a8a" font-size="14" font-weight="800" font-family="system-ui, sans-serif">%</text>
-                    {{-- Linhas EDI --}}
-                    <rect x="154" y="168" width="172" height="28" rx="8" fill="#eff6ff"/>
-                    <rect x="166" y="178" width="48" height="6" rx="3" fill="#93c5fd"/>
-                    <rect x="222" y="178" width="36" height="6" rx="3" fill="#60a5fa"/>
-                    <rect x="266" y="178" width="48" height="6" rx="3" fill="#2563eb"/>
-                </svg>
+                <p class="hidden text-3xl font-bold tracking-tight" style="display:none">Express Payments</p>
             </div>
 
             <div class="relative z-10 w-full max-w-lg text-center lg:text-left">

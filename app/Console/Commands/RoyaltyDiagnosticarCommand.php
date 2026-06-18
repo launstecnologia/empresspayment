@@ -150,7 +150,7 @@ class RoyaltyDiagnosticarCommand extends Command
         }
 
         if (! $temCadeia) {
-            $causas[] = 'Estabelecimento SEM cadeia comercial (master/marketplace/revenda) — não há a quem pagar comissão. É o caso mais comum de comissão R$ 0,00.';
+            $causas[] = 'Sem cadeia comercial (MKT/revenda): não há ROYALTY a distribuir a parceiros. A COMISSÃO DO ADMIN (acima) NÃO depende de cadeia e continua valendo normalmente.';
         } elseif ($totalEstabRoyalty === 0) {
             $causas[] = 'Cadeia existe, mas EstabelecimentoRoyalty está vazio — rode fixarCadeia (legacy:backfill-planos --force).';
         }

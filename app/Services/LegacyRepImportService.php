@@ -118,8 +118,15 @@ class LegacyRepImportService
             return $this->resultadoLinha($fantasia, $token, $nomeMarketplace, 'erro', 'E-mail ausente.');
         }
 
-        if ($this->emailEmUso($email)) {
-            return $this->resultadoLinha($fantasia, $token, $nomeMarketplace, 'ignorado', "E-mail já cadastrado: {$email}");
+        $donoEmail = $this->descreverDonoEmail($email);
+        if ($donoEmail !== null) {
+            return $this->resultadoLinha(
+                $fantasia,
+                $token,
+                $nomeMarketplace,
+                'ignorado',
+                "E-mail {$email} já é de {$donoEmail}",
+            );
         }
 
         $existente = $this->buscarDuplicataPorTipo(

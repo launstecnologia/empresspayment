@@ -56,11 +56,11 @@
             <div class="absolute left-20 top-32 h-2 w-2 rounded-full bg-emerald-400/80"></div>
             <div class="absolute bottom-40 left-10 h-2 w-2 rounded-full bg-rose-400/80"></div>
 
-            <div class="relative z-10 w-full max-w-xl pt-2">
+            <div class="relative z-10 flex w-full max-w-xl flex-col items-center pt-2 text-center">
                 <img
                     src="{{ $logoWhiteUrl ?? $logoUrl }}"
                     alt="{{ $appName }}"
-                    class="h-20 w-full max-w-sm object-contain object-left brightness-0 invert sm:h-24 lg:h-32 lg:max-w-md"
+                    class="mx-auto h-20 w-full max-w-sm object-contain object-center brightness-0 invert sm:h-24 lg:h-32 lg:max-w-md"
                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block'"
                 >
                 <p class="hidden text-2xl font-bold tracking-tight" style="display:none">Express Payments</p>

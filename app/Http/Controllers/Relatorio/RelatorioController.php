@@ -200,22 +200,45 @@ class RelatorioController extends Controller
 
     private function comissaoExibida(AggregatedRevenue $linha, Usuario|SubUsuario|null $usuario): float
     {
-        $query = DB::table('transacao_royalties')
+        if ($usuario instanceof SubUsuario) {
+            $usuario = $usuario->dono;
+        }
+
+        $ehAdmin = ! ($usuario instanceof Usuario) || $usuario->tipo === 'admin';
+
+        // Admin enxerga a comissão da plataforma (comissao_percentual da taxa do plano),
+        // que independe de cadeia comercial. Parceiro enxerga o próprio royalty repassado.
+        if ($ehAdmin) {
+            return $this->comissaoAdminLinha($linha);
+        }
+
+        return (float) DB::table('transacao_royalties')
             ->join('edi_movimentos', 'edi_movimentos.id', '=', 'transacao_royalties.edi_movimento_id')
             ->whereDate('edi_movimentos.data_inicial_transacao', $linha->data)
             ->where('edi_movimentos.estabelecimento_id', $linha->estabelecimento_id)
             ->where('edi_movimentos.instituicao_financeira', $linha->instituicao)
             ->where('edi_movimentos.tipo_transacao', $linha->tipo_transacao)
-            ->where('edi_movimentos.status_pagamento', $linha->status_pagamento);
+            ->where('edi_movimentos.status_pagamento', $linha->status_pagamento)
+            ->where('transacao_royalties.usuario_id', $usuario->id)
+            ->sum('transacao_royalties.valor_royalty');
+    }
 
-        if ($usuario instanceof SubUsuario) {
-            $usuario = $usuario->dono;
-        }
-
-        if ($usuario instanceof Usuario && $usuario->tipo !== 'admin') {
-            $query->where('transacao_royalties.usuario_id', $usuario->id);
-        }
-
-        return (float) $query->sum('transacao_royalties.valor_royalty');
+    private function comissaoAdminLinha(AggregatedRevenue $linha): float
+    {
+        return (float) DB::table('edi_movimentos as em')
+            ->join('estabelecimentos as e', 'e.id', '=', 'em.estabelecimento_id')
+            ->join('plano_taxas as pt', function ($join) {
+                $join->on('pt.plano_id', '=', 'e.plano_id')
+                    ->on('pt.arranjo_ur', '=', 'em.arranjo_ur')
+                    ->on('pt.parcelas', '=', DB::raw('COALESCE(em.quantidade_parcela, 1)'))
+                    ->where('pt.ativo', true);
+            })
+            ->whereDate('em.data_inicial_transacao', $linha->data)
+            ->where('em.estabelecimento_id', $linha->estabelecimento_id)
+            ->where('em.instituicao_financeira', $linha->instituicao)
+            ->where('em.tipo_transacao', $linha->tipo_transacao)
+            ->where('em.status_pagamento', $linha->status_pagamento)
+            ->whereNotNull('pt.comissao_percentual')
+            ->sum(DB::raw('em.valor_total_transacao * pt.comissao_percentual / 100'));
     }
 }

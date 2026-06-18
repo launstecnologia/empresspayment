@@ -54,7 +54,10 @@ class DashboardApuracaoService
         $usuarioIdFiltro = $this->usuarioIdComissao($usuario);
 
         $faturamentoPorPlano = $this->agregarFaturamento($estabelecimentoIds, $desde);
-        $comissaoPorPlano = $this->agregarComissao($estabelecimentoIds, $desde, $usuarioIdFiltro);
+        // Admin vê a comissão da plataforma (taxa do plano); parceiro vê o próprio royalty.
+        $comissaoPorPlano = $usuarioIdFiltro
+            ? $this->agregarComissao($estabelecimentoIds, $desde, $usuarioIdFiltro)
+            : $this->agregarComissaoAdmin($estabelecimentoIds, $desde);
 
         $planos = Plano::query()
             ->where('ativo', true)
@@ -221,6 +224,31 @@ class DashboardApuracaoService
             ->filter(fn ($row) => $row->categoria !== 'outros')
             ->groupBy('plano_id')
             ->map(fn (Collection $rows) => $rows->pluck('total', 'categoria'));
+    }
+
+    /**
+     * Comissão da plataforma (admin): comissao_percentual da plano_taxa × faturamento,
+     * casando cada movimento com sua taxa (arranjo_ur + parcelas). Independe de cadeia
+     * comercial — por isso aparece mesmo sem MKT/revenda vinculados.
+     */
+    private function agregarComissaoAdmin(Collection $estabelecimentoIds, string $desde): Collection
+    {
+        return DB::table('edi_movimentos as em')
+            ->join('estabelecimentos as e', 'e.id', '=', 'em.estabelecimento_id')
+            ->join('plano_taxas as pt', function ($join) {
+                $join->on('pt.plano_id', '=', 'e.plano_id')
+                    ->on('pt.arranjo_ur', '=', 'em.arranjo_ur')
+                    ->on('pt.parcelas', '=', DB::raw('COALESCE(em.quantidade_parcela, 1)'))
+                    ->where('pt.ativo', true);
+            })
+            ->whereIn('e.id', $estabelecimentoIds)
+            ->whereDate('em.data_inicial_transacao', '>=', $desde)
+            ->whereNotNull('e.plano_id')
+            ->whereNotNull('pt.comissao_percentual')
+            ->selectRaw('e.plano_id, SUM(em.valor_total_transacao * pt.comissao_percentual / 100) as total')
+            ->groupBy('e.plano_id')
+            ->get()
+            ->pluck('total', 'plano_id');
     }
 
     private function agregarComissao(Collection $estabelecimentoIds, string $desde, ?int $usuarioIdFiltro): Collection

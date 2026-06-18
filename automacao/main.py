@@ -625,6 +625,11 @@ class CadastradorFV:
 
         return any(ind in tl for ind in indicadores)
 
+    @staticmethod
+    def _erro_de_nome_fantasia(texto: str) -> bool:
+        t = (texto or '').lower()
+        return 'fantasia' in t or 'similar' in t or 'trademark' in t
+
     def _exigir_erros_reais(self, contexto: str, erros: list[str] | None = None):
         erros = erros if erros is not None else self._coletar_erros()
         reais = [e for e in erros if self._texto_indica_erro_campo(e)]
@@ -953,17 +958,14 @@ class CadastradorFV:
             time.sleep(0.5)
             erros = self._coletar_erros()
 
-        # Se o nome fantasia não é aceito, tenta com a razão social
-        nome_nao_similar = any('similar' in (e or '').lower() for e in erros)
-        if nome_nao_similar:
-            log.warning('Nome fantasia rejeitado — tentando com razão social como nome fantasia')
-            campo_fantasia = self.driver.find_element(By.ID, 'info.trademark')
-            campo_fantasia.clear()
-            time.sleep(0.3)
-            campo_fantasia.send_keys(self.dados['razao_social'])
-            time.sleep(0.5)
-            self._redigitar_ultimo_char(campo_fantasia, self.dados['razao_social'])
-            erros = self._coletar_erros()
+        # Segue sempre o nome fantasia cadastrado no sistema. O PagBank pode
+        # acusar "não similar à razão social", mas por decisão do negócio NÃO
+        # trocamos pela razão — apenas ignoramos esse aviso para não travar o fluxo.
+        erros_fantasia = [e for e in erros if self._erro_de_nome_fantasia(e)]
+        if erros_fantasia:
+            log.warning(f'Aviso de nome fantasia ignorado (mantém o do sistema): {erros_fantasia}')
+
+        erros = [e for e in erros if not self._erro_de_nome_fantasia(e)]
 
         self._exigir_erros_reais('dados da empresa', erros)
 

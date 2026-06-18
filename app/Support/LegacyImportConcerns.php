@@ -46,6 +46,37 @@ trait LegacyImportConcerns
             || SubUsuario::query()->whereRaw('LOWER(email) = ?', [$email])->exists();
     }
 
+    /**
+     * Descreve quem já usa o e-mail (tipo + id + nome), ou null se livre.
+     */
+    protected function descreverDonoEmail(string $email): ?string
+    {
+        $usuario = Usuario::query()
+            ->whereRaw('LOWER(email) = ?', [$email])
+            ->first(['id', 'tipo', 'nome_fantasia', 'razao_social', 'nome_completo']);
+
+        if ($usuario) {
+            $nome = $usuario->nome_fantasia
+                ?: $usuario->razao_social
+                ?: $usuario->nome_completo
+                ?: '—';
+
+            return ucfirst((string) $usuario->tipo)." #{$usuario->id} ({$nome})";
+        }
+
+        $sub = SubUsuario::query()
+            ->whereRaw('LOWER(email) = ?', [$email])
+            ->first(['id', 'nome', 'dono_tipo', 'dono_id']);
+
+        if ($sub) {
+            $nome = $sub->nome ?: '—';
+
+            return "Sub-usuário #{$sub->id} ({$nome}) de {$sub->dono_tipo} #{$sub->dono_id}";
+        }
+
+        return null;
+    }
+
     protected function ehRegistroTeste(string $fantasia, string $email): bool
     {
         return str_contains($email, 'teste')

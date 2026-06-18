@@ -238,7 +238,7 @@ class DashboardApuracaoService
             ->join('plano_taxas as pt', function ($join) {
                 $join->on('pt.plano_id', '=', 'e.plano_id')
                     ->on('pt.arranjo_ur', '=', 'em.arranjo_ur')
-                    ->on('pt.parcelas', '=', DB::raw('COALESCE(em.quantidade_parcela, 1)'))
+                    ->on('pt.parcelas', '=', DB::raw('COALESCE(NULLIF(em.quantidade_parcela, 0), 1)'))
                     ->where('pt.ativo', true);
             })
             ->whereIn('e.id', $estabelecimentoIds)

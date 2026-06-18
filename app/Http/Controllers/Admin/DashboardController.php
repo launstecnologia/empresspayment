@@ -37,10 +37,7 @@ class DashboardController extends Controller
 
     private function royaltiesMes(mixed $usuario): float
     {
-        $query = AggregatedRevenue::query()
-            ->where('ano', now()->year)
-            ->where('mes', now()->month);
-
+        // Parceiro (MKT/revenda): soma o próprio royalty repassado.
         if ($usuario instanceof Usuario && $usuario->tipo !== 'admin') {
             return (float) DB::table('transacao_royalties')
                 ->join('edi_movimentos', 'edi_movimentos.id', '=', 'transacao_royalties.edi_movimento_id')
@@ -50,6 +47,19 @@ class DashboardController extends Controller
                 ->sum('transacao_royalties.valor_royalty');
         }
 
-        return (float) $query->sum('total_royalty');
+        // Admin: comissão da plataforma (comissao_percentual da taxa do plano × faturamento).
+        return (float) DB::table('edi_movimentos as em')
+            ->join('estabelecimentos as e', 'e.id', '=', 'em.estabelecimento_id')
+            ->join('plano_taxas as pt', function ($join) {
+                $join->on('pt.plano_id', '=', 'e.plano_id')
+                    ->on('pt.arranjo_ur', '=', 'em.arranjo_ur')
+                    ->on('pt.parcelas', '=', DB::raw('COALESCE(em.quantidade_parcela, 1)'))
+                    ->where('pt.ativo', true);
+            })
+            ->whereYear('em.data_inicial_transacao', now()->year)
+            ->whereMonth('em.data_inicial_transacao', now()->month)
+            ->whereNotNull('e.plano_id')
+            ->whereNotNull('pt.comissao_percentual')
+            ->sum(DB::raw('em.valor_total_transacao * pt.comissao_percentual / 100'));
     }
 }

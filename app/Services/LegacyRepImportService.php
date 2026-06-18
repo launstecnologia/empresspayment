@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Usuario;
 use App\Support\LegacyImportConcerns;
+use App\Support\LegacyMarketplaceAlias;
 use App\Support\SimpleXlsxReader;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -212,6 +213,15 @@ class LegacyRepImportService
         foreach ($this->chavesNomeTexto($nome) as $chave) {
             if (isset($this->cacheMarketplacePorNome[$chave])) {
                 return $this->cacheMarketplacePorNome[$chave];
+            }
+        }
+
+        $alias = LegacyMarketplaceAlias::nomePlataforma($nome);
+        if ($alias !== null) {
+            foreach ($this->chavesNomeTexto($alias) as $chave) {
+                if (isset($this->cacheMarketplacePorNome[$chave])) {
+                    return $this->cacheMarketplacePorNome[$chave];
+                }
             }
         }
 

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Estabelecimento;
 use App\Models\Plano;
 use App\Support\LegacyPlanoAlias;
 use App\Support\SimpleXlsxReader;
@@ -26,10 +27,13 @@ class LegacyCompararPlanosCommand extends Command
 
         $planos = Plano::query()->orderBy('nome')->get(['id', 'nome', 'codigo_fv', 'ativo']);
         $cache = $this->montarCachePlanos($planos);
+        $planoPorId = $planos->keyBy('id');
+        $estabPorToken = $this->montarEstabelecimentosPorToken();
 
         $contagemExcel = [];
         $contagemResolvida = [];
         $semMatch = [];
+        $divergentes = [];
 
         foreach (SimpleXlsxReader::rowsAssociativos($path) as $row) {
             if (in_array(strtoupper(trim((string) ($row['tag'] ?? ''))), ['MKT', 'REP'], true)) {
@@ -47,6 +51,26 @@ class LegacyCompararPlanosCommand extends Command
 
             if ($plano) {
                 $contagemResolvida[$plano->nome] = ($contagemResolvida[$plano->nome] ?? 0) + 1;
+
+                $token = trim((string) ($row['token'] ?? $row['id_estabelecimento'] ?? ''));
+                $estabelecimento = $token !== '' ? ($estabPorToken[$token] ?? null) : null;
+
+                if (
+                    $estabelecimento
+                    && $estabelecimento->plano_id
+                    && (int) $estabelecimento->plano_id !== (int) $plano->id
+                ) {
+                    $divergentes[] = [
+                        $estabelecimento->id,
+                        $estabelecimento->nome_fantasia
+                            ?: $estabelecimento->razao_social
+                            ?: $estabelecimento->nome_completo
+                            ?: '—',
+                        $token,
+                        $planoPorId[$estabelecimento->plano_id]?->nome ?? "#{$estabelecimento->plano_id}",
+                        $plano->nome,
+                    ];
+                }
             } else {
                 $semMatch[$planCode] = ($semMatch[$planCode] ?? 0) + 1;
             }
@@ -123,7 +147,34 @@ class LegacyCompararPlanosCommand extends Command
             }
         }
 
+        $this->newLine();
+        $this->comment('Estabelecimentos com plano divergente (banco × Excel)');
+
+        if ($divergentes === []) {
+            $this->info('Nenhum estabelecimento com plano divergente — banco e Excel batem.');
+        } else {
+            usort($divergentes, fn ($a, $b) => strcmp((string) $a[3], (string) $b[3]));
+            $this->table(
+                ['ID', 'Estabelecimento', 'Token', 'Plano atual (banco)', 'Plano Excel'],
+                $divergentes,
+            );
+            $this->warn(count($divergentes).' estabelecimento(s) com plano divergente.');
+            $this->line('Para alinhar com o Excel: php artisan legacy:backfill-planos --force');
+        }
+
         return $semMatch === [] ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * @return array<string, Estabelecimento>
+     */
+    private function montarEstabelecimentosPorToken(): array
+    {
+        return Estabelecimento::withoutGlobalScopes()
+            ->whereNotNull('token_pagseguro')
+            ->get(['id', 'nome_fantasia', 'razao_social', 'nome_completo', 'token_pagseguro', 'plano_id'])
+            ->keyBy(fn (Estabelecimento $e) => trim((string) $e->token_pagseguro))
+            ->all();
     }
 
     /**

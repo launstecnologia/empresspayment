@@ -15,9 +15,12 @@ class LegacyPlanoAlias
 {
     /** @var array<string, string> chave normalizada => nome do plano na plataforma */
     private const ALIAS_PARA_NOME = [
-        'PLANO EXPRESS DEBITOD0' => 'PLANO EXPRESS DEBITODOR',
-        'PLANO EXPRESS DEBITOCREDD0' => 'PLANO DEBITOCREDDO',
-        'PLANO EXPRESS PARCED0' => 'PLANO PARCDO',
+        // Resolvem via codigo_fv (único e estável; o nome de exibição tem
+        // espaço duplo e 0/O ambíguos que quebram o match por nome).
+        'PLANO EXPRESS DEBITOD0' => 'nnexpresspay7299debitod0r',
+        'PLANO EXPRESS DEBITOCREDD0' => 'nnexpresspay7299debcredd0',
+        'PLANO EXPRESS PARCED0' => 'nnexpresspay7299parced0',
+        'COMERCIO GERAL PARCELE' => 'nnexpresspay7299parced0',
         'PLANO EXPRESS D+1 START' => 'EXPRESS73299p2',
         'PLANO EXPRESS D+1 ESPECIAL' => 'EXPRESS73299p2',
         'PLANO EXPRESSPAY D+0 27' => 'PLANO EXPRESSPAY 027',
@@ -28,9 +31,7 @@ class LegacyPlanoAlias
         'PLANO EXPRESS D+0 29' => 'PLANO EXPRESSPAY 029',
         'PLANO EXPRESSPAY D+0 31' => 'PLANO EXPRESSPAY 031',
         'PLANO EXPRESSPAY D+30 32' => 'PLANO EXPRESSPAY 032',
-        'NNEXPRESSPAY7299DEBITOD0R' => 'PLANO EXPRESS DEBITODOR',
         'NNEXPRESSPAY7399D028RETORNO' => 'EXPRESS73299p2',
-        'COMERCIO GERAL PARCELE' => 'PLANO PARCDO',
     ];
 
     public static function nomePlataforma(?string $planCode): ?string

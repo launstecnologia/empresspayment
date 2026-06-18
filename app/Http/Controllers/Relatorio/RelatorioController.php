@@ -47,7 +47,11 @@ class RelatorioController extends Controller
             return $linha;
         });
 
-        $totalRoyaltyExibido = $linhas->getCollection()->sum(fn ($linha) => $linha->comissao_exibida ?? $linha->total_royalty);
+        // Total da comissão sobre TODOS os resultados filtrados (não só a página).
+        $ehAdmin = ! ($usuario instanceof Usuario) || $usuario->tipo === 'admin';
+        $totalRoyaltyExibido = $ehAdmin
+            ? $this->totalComissaoAdmin($request)
+            : $this->totalComissaoParceiro($request, $usuario->id);
 
         return view('relatorio.faturamento', [
             'linhas' => $linhas,
@@ -221,6 +225,90 @@ class RelatorioController extends Controller
             ->where('edi_movimentos.status_pagamento', $linha->status_pagamento)
             ->where('transacao_royalties.usuario_id', $usuario->id)
             ->sum('transacao_royalties.valor_royalty');
+    }
+
+    /**
+     * Base de movimentos EDI com os mesmos filtros do relatório (aplicados em
+     * edi_movimentos/estabelecimentos), para somar a comissão de todos os
+     * resultados, não apenas da página exibida.
+     */
+    private function baseMovimentosFiltrados(Request $request): \Illuminate\Database\Query\Builder
+    {
+        $query = DB::table('edi_movimentos as em')
+            ->join('estabelecimentos as e', 'e.id', '=', 'em.estabelecimento_id');
+
+        if ($request->filled('estabelecimento')) {
+            $termo = '%'.$request->string('estabelecimento')->trim().'%';
+            $query->where(function ($q) use ($termo) {
+                $q->where('e.nome_fantasia', 'like', $termo)
+                    ->orWhere('e.razao_social', 'like', $termo)
+                    ->orWhere('e.nome_completo', 'like', $termo);
+            });
+        }
+
+        if ($request->filled('master_id')) {
+            $query->where('e.master_id', $request->integer('master_id'));
+        }
+
+        if ($request->filled('marketplace_id')) {
+            $query->where('e.marketplace_id', $request->integer('marketplace_id'));
+        }
+
+        if ($request->filled('revenda_id')) {
+            $query->where('e.revenda_id', $request->integer('revenda_id'));
+        }
+
+        if ($request->filled('tipo_transacao')) {
+            $query->where('em.tipo_transacao', $request->string('tipo_transacao'));
+        }
+
+        if ($request->filled('instituicao')) {
+            $query->where('em.instituicao_financeira', $request->string('instituicao'));
+        }
+
+        if ($request->filled('status_pagamento')) {
+            $query->where('em.status_pagamento', $request->string('status_pagamento'));
+        }
+
+        if ($request->filled('data_inicio')) {
+            $query->whereDate('em.data_inicial_transacao', '>=', $request->date('data_inicio'));
+        }
+
+        if ($request->filled('data_fim')) {
+            $query->whereDate('em.data_inicial_transacao', '<=', $request->date('data_fim'));
+        }
+
+        if ($request->filled('ano')) {
+            $query->whereYear('em.data_inicial_transacao', $request->integer('ano'));
+        }
+
+        if ($request->filled('mes')) {
+            $query->whereMonth('em.data_inicial_transacao', $request->integer('mes'));
+        }
+
+        return $query;
+    }
+
+    private function totalComissaoAdmin(Request $request): float
+    {
+        return (float) $this->baseMovimentosFiltrados($request)
+            ->join('plano_taxas as pt', function ($join) {
+                $join->on('pt.plano_id', '=', 'e.plano_id')
+                    ->on('pt.arranjo_ur', '=', 'em.arranjo_ur')
+                    ->on('pt.parcelas', '=', DB::raw('COALESCE(NULLIF(em.quantidade_parcela, 0), 1)'))
+                    ->where('pt.ativo', true);
+            })
+            ->whereNotNull('e.plano_id')
+            ->whereNotNull('pt.comissao_percentual')
+            ->sum(DB::raw('em.valor_total_transacao * pt.comissao_percentual / 100'));
+    }
+
+    private function totalComissaoParceiro(Request $request, int $usuarioId): float
+    {
+        return (float) $this->baseMovimentosFiltrados($request)
+            ->join('transacao_royalties as tr', 'tr.edi_movimento_id', '=', 'em.id')
+            ->where('tr.usuario_id', $usuarioId)
+            ->sum('tr.valor_royalty');
     }
 
     private function comissaoAdminLinha(AggregatedRevenue $linha): float

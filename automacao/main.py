@@ -923,16 +923,35 @@ class CadastradorFV:
             return 'pj' if '/' in self.dados['cpf_cnpj'] else 'pf'
 
     def _preencher_dados_empresa(self):
+        from selenium.webdriver.common.keys import Keys
+
         log.info('--- ETAPA 4: DADOS DA EMPRESA ---')
         self.wait.until(EC.presence_of_element_located((By.ID, 'info.companyName')))
         time.sleep(1)
 
-        # Razão social já vem pré-preenchida pelo PagBank via CNPJ
-        # Apenas dispara o evento de input para o React reconhecer o valor
+        # Razão social normalmente vem pré-preenchida pelo PagBank via CNPJ, mas
+        # às vezes o próprio Força de Vendas devolve o campo vazio ou com o texto
+        # literal "null". Nesses casos, preenchemos com a razão social que já está
+        # cadastrada na plataforma.
         campo = self.driver.find_element(By.ID, 'info.companyName')
+        valor_atual = self._valor_limpo(campo.get_attribute('value'))
+        razao_plataforma = self._valor_limpo(self.dados.get('razao_social'))
+        self.driver.execute_script('arguments[0].scrollIntoView(true);', campo)
         campo.click()
         time.sleep(0.3)
-        self._redigitar_ultimo_char(campo, self.dados['razao_social'])
+
+        if not valor_atual and razao_plataforma:
+            log.warning(
+                f'Razão social ausente/"null" no FV — preenchendo com a da plataforma: {razao_plataforma}'
+            )
+            campo.send_keys(Keys.CONTROL, 'a')
+            campo.send_keys(Keys.BACK_SPACE)
+            time.sleep(0.3)
+            campo.send_keys(razao_plataforma)
+            time.sleep(0.3)
+            self._redigitar_ultimo_char(campo, razao_plataforma)
+        else:
+            self._redigitar_ultimo_char(campo, razao_plataforma or valor_atual)
 
         # Nome fantasia: preenche e força revalidação do React com backspace+redigitar
         campo_fantasia = self.wait.until(EC.presence_of_element_located((By.ID, 'info.trademark')))

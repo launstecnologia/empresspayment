@@ -478,12 +478,24 @@ class CadastradorFV:
         detalhe = ', '.join(erros) if erros else 'Botão Continuar não encontrado ou desabilitado'
         raise Exception(f'Nao encontrou elemento para clicar: {descricao} — {detalhe}')
 
+    @staticmethod
+    def _valor_limpo(valor):
+        """Normaliza strings descartando lixo como 'null'/'NULL'/'N/A'."""
+        texto = (valor or '').strip()
+        if texto.lower() in ('null', 'nulo', 'n/a', 'na', '-'):
+            return ''
+        return texto
+
     def _preparar_dados_pj(self):
         """Normaliza payload PJ e falha cedo se faltar dado obrigatório."""
-        razao = (self.dados.get('razao_social') or '').strip()
-        fantasia = (self.dados.get('nome_fantasia') or '').strip()
+        razao = self._valor_limpo(self.dados.get('razao_social'))
+        fantasia = self._valor_limpo(self.dados.get('nome_fantasia'))
+        if not razao:
+            razao = fantasia
         if not fantasia:
             fantasia = razao
+        if not razao:
+            raise Exception('Razão social não informada no payload da automação.')
         self.dados['nome_fantasia'] = fantasia
         self.dados['razao_social'] = razao
 

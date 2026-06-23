@@ -458,7 +458,7 @@ class AutomacaoPagBankService
 
         if ($estab->pessoa_tipo === 'juridica') {
             $dados = array_merge($dados, [
-                'razao_social'  => $estab->razao_social ?? '',
+                'razao_social'  => $this->razaoSocialAutomacao($estab),
                 'nome_fantasia' => $this->nomeFantasiaAutomacao($estab),
                 'cpf_socio'     => $this->formatarCpf($estab->rep_cpf ?? $estab->cpf ?? ''),
                 'nascimento'    => $estab->rep_data_nascimento
@@ -533,11 +533,40 @@ class AutomacaoPagBankService
 
     private function nomeFantasiaAutomacao(Estabelecimento $estab): string
     {
-        if (filled($estab->nome_fantasia)) {
-            return trim((string) $estab->nome_fantasia);
+        $fantasia = $this->valorLimpo($estab->nome_fantasia);
+        if ($fantasia !== '') {
+            return $fantasia;
         }
 
-        return trim((string) ($estab->razao_social ?? $estab->nome_completo ?? ''));
+        return $this->valorLimpo($estab->razao_social)
+            ?: $this->valorLimpo($estab->nome_completo);
+    }
+
+    private function razaoSocialAutomacao(Estabelecimento $estab): string
+    {
+        $razao = $this->valorLimpo($estab->razao_social);
+        if ($razao !== '') {
+            return $razao;
+        }
+
+        // Sem razão social válida cai para nome fantasia / nome completo,
+        // evitando enviar valores inválidos como a string "null" ao PagBank.
+        return $this->valorLimpo($estab->nome_fantasia)
+            ?: $this->valorLimpo($estab->nome_completo);
+    }
+
+    /**
+     * Normaliza strings vindas do banco descartando lixo como "null"/"NULL".
+     */
+    private function valorLimpo(?string $valor): string
+    {
+        $valor = trim((string) ($valor ?? ''));
+
+        if ($valor === '' || in_array(strtolower($valor), ['null', 'nulo', 'n/a', 'na', '-'], true)) {
+            return '';
+        }
+
+        return $valor;
     }
 
     private function formatarTelefone(?string $numero): string

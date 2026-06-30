@@ -67,6 +67,43 @@ class EmailPlataformaService
     }
 
     /**
+     * Substitui a conta de e-mail da plataforma por uma nova.
+     * Provisiona o novo username e, em seguida, remove a conta/forwarder antigos
+     * no servidor (best-effort). A ordem garante que, se a criação do novo
+     * e-mail falhar, a conta atual permaneça intacta.
+     *
+     * @throws \RuntimeException se o username for inválido, já existir ou a criação falhar.
+     */
+    public function recriar(Estabelecimento $estabelecimento, string $novoUsername): void
+    {
+        $novoUsername = strtolower(trim($novoUsername));
+
+        $usernameAntigo = filled($estabelecimento->webmail_email)
+            ? strtolower(Str::before($estabelecimento->webmail_email, '@'))
+            : null;
+
+        if ($usernameAntigo !== null && $novoUsername === $usernameAntigo) {
+            throw new \RuntimeException('O novo nome de e-mail deve ser diferente do atual.');
+        }
+
+        // Cria a nova conta e atualiza o banco. Se falhar, lança exceção e nada é removido.
+        $this->provisionar($estabelecimento, $novoUsername);
+
+        // Remove a conta e o forwarder antigos (ignora erros para não travar a troca).
+        if ($usernameAntigo !== null) {
+            try {
+                $this->da->excluirForwarderPlataforma($usernameAntigo);
+            } catch (\Throwable) {
+            }
+
+            try {
+                $this->da->excluirEmailPlataforma($usernameAntigo);
+            } catch (\Throwable) {
+            }
+        }
+    }
+
+    /**
      * Tenta provisionar automaticamente ao cadastrar.
      * Retorna null em caso de sucesso, ou o username sugerido caso esteja ocupado
      * (indicando que o admin precisa escolher manualmente).

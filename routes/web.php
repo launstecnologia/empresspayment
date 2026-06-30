@@ -102,6 +102,7 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
         Route::get('emails/{conta}/caixa/{mensagem}', [EstabelecimentoCaixaEmailController::class, 'show'])->name('emails.caixa.show');
         Route::post('emails/{conta}/caixa/enviar', [EstabelecimentoCaixaEmailController::class, 'enviar'])->name('emails.caixa.enviar');
         Route::post('webmail/criar', [EstabelecimentoWebmailController::class, 'criar'])->name('webmail.criar');
+        Route::post('webmail/recriar', [EstabelecimentoWebmailController::class, 'recriar'])->name('webmail.recriar');
         Route::post('webmail/sso', [EstabelecimentoWebmailController::class, 'sso'])->name('webmail.sso');
         Route::patch('webmail/senha', [EstabelecimentoWebmailController::class, 'trocarSenha'])->name('webmail.senha');
         Route::post('webmail/reconfigurar-forwarder', [EstabelecimentoWebmailController::class, 'reconfigurarForwarder'])->name('webmail.reconfigurar-forwarder');

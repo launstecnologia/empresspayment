@@ -741,6 +741,11 @@
                                 </button>
                             </form>
                         @endif
+                        @if (in_array(auth()->user()?->tipo, ['admin', 'marketplace'], true))
+                            <button type="button" data-modal-open="webmail-recriar" class="inline-flex items-center gap-2 rounded-lg border border-purple-300 bg-purple-50 px-4 py-2 text-sm font-semibold text-purple-700 shadow-sm hover:bg-purple-100">
+                                <i class="fa-solid fa-envelope-circle-check"></i> Criar outro e-mail
+                            </button>
+                        @endif
                     </div>
                     @error('senha_webmail')
                         <p class="mt-2 text-xs font-medium text-red-600">{{ $message }}</p>
@@ -1235,6 +1240,59 @@
     </div>
     @endif
 
+    {{-- ── Modal: Criar outro E-mail Plataforma (substituir o atual) ── --}}
+    @if ($estabelecimento->webmail_email && in_array(auth()->user()?->tipo, ['admin', 'marketplace'], true))
+    @php $dominioPlataforma = config('directadmin.dominio'); @endphp
+    <div data-modal="webmail-recriar" class="modal-overlay fixed inset-0 z-[100] items-center justify-center bg-black/40 px-4">
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div class="mb-5 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-800">Criar outro e-mail</h3>
+                    <p class="mt-0.5 text-xs text-gray-500">Substitui <strong>{{ $estabelecimento->webmail_email }}</strong></p>
+                </div>
+                <button type="button" data-modal-close="webmail-recriar" class="text-2xl text-gray-400 hover:text-gray-600">&times;</button>
+            </div>
+            <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <i class="fa-solid fa-triangle-exclamation mr-1"></i>
+                A caixa atual <strong>{{ $estabelecimento->webmail_email }}</strong> será removida do servidor (mensagens e senha incluídas) e substituída pela nova.
+            </div>
+            <form method="POST" action="{{ route('estabelecimentos.webmail.recriar', $estabelecimento) }}">
+                @csrf
+                <label class="block space-y-1">
+                    <span class="text-sm font-bold text-gray-700">Novo nome do e-mail</span>
+                    <div class="flex items-center overflow-hidden rounded-lg border border-gray-300 bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
+                        <input
+                            type="text"
+                            name="username_novo"
+                            value="{{ old('username_novo') }}"
+                            placeholder="nome.sobrenome"
+                            class="flex-1 border-0 bg-transparent px-3 py-2.5 text-sm text-gray-800 outline-none"
+                            pattern="[a-zA-Z0-9._-]+"
+                            title="Apenas letras, números, ponto, hífen ou sublinhado"
+                            required
+                        >
+                        <span class="select-none bg-gray-50 px-3 py-2.5 text-sm text-gray-500 border-l border-gray-200">&#64;{{ $dominioPlataforma }}</span>
+                    </div>
+                    @error('username_novo')
+                        <p class="text-xs font-medium text-red-600">{{ $message }}</p>
+                    @enderror
+                </label>
+                @if (filled($estabelecimento->email))
+                    <p class="mt-2 text-xs text-gray-400">
+                        O novo e-mail redirecionará automaticamente para <strong>{{ $estabelecimento->email }}</strong>.
+                    </p>
+                @endif
+                <div class="mt-5 flex justify-end gap-3">
+                    <button type="button" data-modal-close="webmail-recriar" class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100">Cancelar</button>
+                    <button type="submit" class="rounded-lg bg-purple-600 px-5 py-2 text-sm font-bold text-white hover:bg-purple-700">
+                        <i class="fa-solid fa-envelope-circle-check mr-1"></i> Criar e substituir
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endif
+
     {{-- ── Modal: Trocar Senha do E-mail Plataforma ── --}}
     @if ($estabelecimento->webmail_email)
     <div data-modal="webmail-senha" class="modal-overlay fixed inset-0 z-[100] items-center justify-center bg-black/40 px-4">
@@ -1437,6 +1495,10 @@
         // Reabrir modal de webmail se houver erros de validação
         @if ($errors->has('username'))
             document.querySelector('[data-modal="webmail-criar"]')?.classList.add('is-open');
+            showTab('email-plataforma');
+        @endif
+        @if ($errors->has('username_novo'))
+            document.querySelector('[data-modal="webmail-recriar"]')?.classList.add('is-open');
             showTab('email-plataforma');
         @endif
         @if ($errors->has('senha_webmail') || $errors->has('senha'))

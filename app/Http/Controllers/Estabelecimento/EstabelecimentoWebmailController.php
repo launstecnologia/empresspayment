@@ -40,6 +40,32 @@ class EstabelecimentoWebmailController extends Controller
     }
 
     /**
+     * Cria uma nova conta de e-mail da plataforma substituindo a atual.
+     * Útil quando há conflito de e-mail entre clientes ou para troca de endereço.
+     * Restrito a administradores.
+     */
+    public function recriar(Request $request, Estabelecimento $estabelecimento)
+    {
+        abort_unless(in_array($request->user()?->tipo, ['admin', 'marketplace'], true), 403);
+        abort_unless(filled($estabelecimento->webmail_email), 422, 'Este estabelecimento ainda não possui e-mail da plataforma.');
+
+        $dados = $request->validate([
+            'username_novo' => ['required', 'string', 'max:50', 'regex:/^[a-z0-9._-]+$/i'],
+        ]);
+
+        try {
+            $this->emailPlataforma->recriar($estabelecimento, $dados['username_novo']);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['username_novo' => $e->getMessage()])->withInput();
+        }
+
+        $email = $estabelecimento->fresh()->webmail_email;
+
+        return redirect()->route('estabelecimentos.show', $estabelecimento)
+            ->with('status', "Novo e-mail {$email} criado com sucesso. A caixa anterior foi removida.");
+    }
+
+    /**
      * Abre uma página intermediária que faz login automático (SSO) no Roundcube.
      * O servidor busca o token CSRF do Roundcube antes de passar ao browser.
      */

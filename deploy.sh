@@ -52,6 +52,21 @@ check_api_keys() {
 }
 
 # ----------------------------------------------------------------
+# Garante pastas e permissões de escrita no volume storage
+# ----------------------------------------------------------------
+ensure_storage_dirs() {
+    log "Verificando pastas e permissões do storage..."
+    $COMPOSE exec -T -u root $APP_CONTAINER sh -c '
+        mkdir -p storage/app/private/chamados storage/app/public \
+                 storage/framework/cache storage/framework/sessions \
+                 storage/framework/views storage/logs bootstrap/cache
+        chown -R www-data:www-data storage bootstrap/cache
+        chmod -R 775 storage bootstrap/cache
+    '
+    ok "Storage pronto para escrita"
+}
+
+# ----------------------------------------------------------------
 # Primeiro deploy (build + migrate + seed)
 # ----------------------------------------------------------------
 cmd_install() {
@@ -84,6 +99,7 @@ cmd_install() {
     fi
 
     log "Otimizando para produção..."
+    ensure_storage_dirs
     $COMPOSE exec -T $APP_CONTAINER php artisan config:cache
     $COMPOSE exec -T $APP_CONTAINER php artisan route:cache
     $COMPOSE exec -T $APP_CONTAINER php artisan view:cache
@@ -118,6 +134,7 @@ cmd_update() {
     $COMPOSE exec -T $APP_CONTAINER php artisan migrate --force
 
     log "Limpando e recriando caches..."
+    ensure_storage_dirs
     $COMPOSE exec -T $APP_CONTAINER php artisan optimize:clear
     $COMPOSE exec -T $APP_CONTAINER php artisan config:cache
     $COMPOSE exec -T $APP_CONTAINER php artisan route:cache

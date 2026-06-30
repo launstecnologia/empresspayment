@@ -8,6 +8,7 @@ use App\Models\ChamadoMensagem;
 use App\Models\SubUsuario;
 use App\Models\Usuario;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 class ChamadoService
@@ -117,7 +118,10 @@ class ChamadoService
             }
 
             $nomeArquivo = uniqid('chamado_', true).'.'.$extensao;
-            $caminho = $arquivo->storeAs("chamados/{$chamado->id}", $nomeArquivo);
+            $diretorio = "chamados/{$chamado->id}";
+
+            Storage::disk('local')->makeDirectory($diretorio);
+            $caminho = $arquivo->storeAs($diretorio, $nomeArquivo, 'local');
 
             ChamadoAnexo::create([
                 'mensagem_id' => $mensagem->id,

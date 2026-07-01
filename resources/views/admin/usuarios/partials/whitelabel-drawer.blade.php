@@ -185,6 +185,21 @@
                                         Aguardando verificação DNS
                                     @endif
                                 </p>
+                                @if ($branding->ssl_provisioned_at)
+                                    <p class="mt-1 text-xs text-emerald-600">
+                                        <i class="fa-solid fa-lock mr-1"></i> SSL ativo desde {{ $branding->ssl_provisioned_at->format('d/m/Y H:i') }}
+                                    </p>
+                                @elseif ($branding->ssl_last_error)
+                                    <p class="mt-1 text-xs text-red-600">{{ Str::limit($branding->ssl_last_error, 120) }}</p>
+                                @endif
+                                <form method="POST" action="{{ route('usuarios.whitelabel.provisionar-ssl', $usuario) }}" class="mt-3"
+                                      onsubmit="return confirm('Configurar SSL para {{ $branding->custom_domain }}?\n\nO DNS deve apontar para o IP do servidor (TENANT_SERVER_IP).');">
+                                    @csrf
+                                    <button type="submit" class="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200">
+                                        <i class="fa-solid fa-lock"></i> Configurar SSL automaticamente
+                                    </button>
+                                </form>
+                                <p class="mt-1 text-[11px] text-gray-400">Valida o DNS, gera o Nginx e emite certificado Let's Encrypt.</p>
                             @endif
                         </label>
 

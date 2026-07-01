@@ -227,6 +227,14 @@ cmd_backup() {
 }
 
 # ----------------------------------------------------------------
+# SSL de domínio personalizado (marketplace)
+# ----------------------------------------------------------------
+cmd_provision_ssl() {
+    DOMAIN="${2:?Informe o domínio, ex: bash deploy.sh provision-ssl julio.com.br}"
+    bash scripts/provision-tenant-ssl.sh "$DOMAIN"
+}
+
+# ----------------------------------------------------------------
 # Artisan helper
 # ----------------------------------------------------------------
 cmd_artisan() {
@@ -247,6 +255,7 @@ case "$COMMAND" in
     status)   cmd_status ;;
     down)     cmd_down ;;
     backup)   cmd_backup ;;
+    provision-ssl) cmd_provision_ssl "$@" ;;
     artisan)  cmd_artisan "$@" ;;
     *)
         echo ""
@@ -260,6 +269,7 @@ case "$COMMAND" in
         echo "  logs      — Acompanha logs (add nome do serviço para filtrar)"
         echo "  down      — Para todos os containers"
         echo "  backup    — Faz backup do banco de dados"
+        echo "  provision-ssl — Emite SSL Let's Encrypt para domínio de marketplace"
         echo "  artisan   — Executa php artisan no container app"
         echo ""
         echo "Exemplos:"

@@ -17,6 +17,8 @@ class MarketplaceBranding extends Model
         'favicon_path',
         'custom_domain',
         'custom_domain_verified_at',
+        'ssl_provisioned_at',
+        'ssl_last_error',
         'whitelabel_ativo',
         'subdominio_provisionado',
     ];
@@ -25,6 +27,7 @@ class MarketplaceBranding extends Model
     {
         return [
             'custom_domain_verified_at' => 'datetime',
+            'ssl_provisioned_at' => 'datetime',
             'whitelabel_ativo' => 'boolean',
             'subdominio_provisionado' => 'boolean',
         ];

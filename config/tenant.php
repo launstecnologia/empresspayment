@@ -12,4 +12,13 @@ return [
 
     /** Em local: query string para simular tenant em localhost (ex: ?tenant=meu-slug) */
     'local_query' => env('TENANT_LOCAL_QUERY', 'tenant'),
+
+    /** IP público do servidor (validação DNS de domínio próprio) */
+    'server_ip' => env('TENANT_SERVER_IP'),
+
+    /** E-mail para registro Let's Encrypt / Certbot */
+    'certbot_email' => env('TENANT_CERTBOT_EMAIL', env('MAIL_FROM_ADDRESS', 'admin@express.app.br')),
+
+    /** Habilita execução automática do script de SSL (requer Docker no host) */
+    'ssl_auto_provision' => (bool) env('TENANT_SSL_AUTO_PROVISION', false),
 ];

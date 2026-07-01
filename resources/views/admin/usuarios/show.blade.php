@@ -128,7 +128,14 @@
     @if (session('status'))
         <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
             {{ session('status') }}
+            @if (session('ssl_comando'))
+                <p class="mt-2 font-mono text-xs text-emerald-900">Próximo passo no servidor:</p>
+                <code class="mt-1 block rounded bg-white/80 px-2 py-1.5 text-xs text-gray-800">{{ session('ssl_comando') }}</code>
+            @endif
         </div>
+    @endif
+    @if ($errors->has('ssl'))
+        <div class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 whitespace-pre-wrap">{{ $errors->first('ssl') }}</div>
     @endif
 </section>
 

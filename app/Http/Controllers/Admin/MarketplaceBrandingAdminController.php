@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Usuario;
 use App\Services\MarketplaceBrandingService;
+use App\Services\TenantSslProvisionerService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -37,5 +38,34 @@ class MarketplaceBrandingAdminController extends Controller
         return redirect()
             ->route('usuarios.show', $usuario)
             ->with('status', 'Whitelabel do marketplace atualizado.');
+    }
+
+    public function provisionarSsl(Request $request, Usuario $usuario, TenantSslProvisionerService $ssl)
+    {
+        abort_unless($request->user()?->tipo === 'admin', 403);
+        abort_unless($usuario->tipo === 'marketplace', 404);
+
+        $branding = $usuario->marketplaceBranding;
+
+        abort_unless($branding && $ssl->podeProvisionar($branding), 422, 'Cadastre um domínio personalizado antes de configurar o SSL.');
+
+        try {
+            $resultado = $ssl->provisionar($branding);
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('usuarios.show', $usuario)
+                ->withErrors(['ssl' => $e->getMessage()]);
+        }
+
+        if ($resultado['modo'] === 'manual' && filled($resultado['comando'])) {
+            return redirect()
+                ->route('usuarios.show', $usuario)
+                ->with('status', $resultado['mensagem'])
+                ->with('ssl_comando', $resultado['comando']);
+        }
+
+        return redirect()
+            ->route('usuarios.show', $usuario)
+            ->with('status', $resultado['mensagem']);
     }
 }

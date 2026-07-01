@@ -194,4 +194,5 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
     });
 
     Route::put('/usuarios/{usuario}/whitelabel', [MarketplaceBrandingAdminController::class, 'update'])->name('usuarios.whitelabel.update');
+    Route::post('/usuarios/{usuario}/whitelabel/ssl', [MarketplaceBrandingAdminController::class, 'provisionarSsl'])->name('usuarios.whitelabel.provisionar-ssl');
 });

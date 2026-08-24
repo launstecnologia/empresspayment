@@ -94,7 +94,11 @@ exec_app() {
 }
 
 exec_artisan() {
-    exec_app php artisan "$@"
+    if $COMPOSE exec -T -u www-data "$APP_SERVICE" php artisan "$@"; then
+        return 0
+    fi
+
+    docker exec -u www-data "$APP_CONTAINER" php artisan "$@"
 }
 
 # ----------------------------------------------------------------
@@ -135,6 +139,7 @@ cmd_install() {
     exec_artisan config:cache
     exec_artisan route:cache
     exec_artisan view:cache
+    ensure_storage_dirs
 
     ok "Deploy concluído!"
     cmd_status
@@ -189,6 +194,7 @@ cmd_update() {
     exec_artisan config:cache
     exec_artisan route:cache
     exec_artisan view:cache
+    ensure_storage_dirs
 
     ok "Atualização concluída!"
     cmd_status

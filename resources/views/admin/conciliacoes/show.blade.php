@@ -238,10 +238,18 @@
     <div class="rounded-xl border border-sky-200 bg-sky-50 p-4">
         <div class="flex flex-wrap items-start justify-between gap-2">
             <p class="text-xs font-bold uppercase text-sky-700">No EDI, não na planilha</p>
-            <a href="{{ route('admin.conciliacoes.diferenca', $conciliacao) }}#so-edi"
-               class="inline-flex items-center gap-1 rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-100">
-                <i class="fa-solid fa-table"></i> Ver relatório
-            </a>
+            <div class="flex flex-wrap items-center gap-1">
+                @if (($soEdiCard['linhas'] ?? 0) > 0)
+                    <a href="{{ route('admin.conciliacoes.relatorio-so-edi-excel', array_merge(['conciliacao' => $conciliacao], array_filter($filtros ?? []))) }}"
+                       class="inline-flex items-center gap-1 rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-100">
+                        <i class="fa-solid fa-file-excel"></i> Excel
+                    </a>
+                @endif
+                <a href="{{ route('admin.conciliacoes.diferenca', $conciliacao) }}#so-edi"
+                   class="inline-flex items-center gap-1 rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-100">
+                    <i class="fa-solid fa-table"></i> Ver relatório
+                </a>
+            </div>
         </div>
         <div class="mt-3 grid gap-3 sm:grid-cols-2">
             <div>

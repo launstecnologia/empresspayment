@@ -566,6 +566,288 @@ class ConciliacaoConfrontoService
     }
 
     /**
+     * Transações EDI do mês cuja chave não casou com a planilha PagSeguro.
+     *
+     * @param  array<string, mixed>  $filtros
+     * @return array{cabecalhos: list<string>, linhas: list<list<string|int|float|null>>}
+     */
+    public function transacoesSoEdi(Conciliacao $conciliacao, array $filtros = []): array
+    {
+        @set_time_limit(900);
+
+        $cabecalhos = [
+            'EDI ID',
+            'NSU',
+            'Código autorização',
+            'Código transação',
+            'Código venda',
+            'TX ID',
+            'Data transação',
+            'Hora transação',
+            'Data venda/ajuste',
+            'Data prevista pagamento',
+            'ID cliente',
+            'Estabelecimento ID',
+            'Estabelecimento',
+            'Documento',
+            'Marketplace',
+            'Revenda',
+            'Meio',
+            'Parcelamento',
+            'Bandeira',
+            'Escrow',
+            'Solução',
+            'Tipo transação',
+            'Meio pagamento',
+            'Arranjo UR',
+            'Instituição financeira',
+            'Parcela',
+            'Quantidade parcelas',
+            'Plano',
+            'Pagamento prazo',
+            'Meio captura',
+            'Canal entrada',
+            'Leitor',
+            'Nº lógico',
+            'Nº série leitor',
+            'Status pagamento',
+            'Tipo evento',
+            'Cartão BIN',
+            'Cartão holder',
+            'Código CV',
+            'Valor total',
+            'Valor parcela',
+            'Valor original',
+            'Valor líquido',
+            'Taxa intermediação',
+            'Tarifa intermediação',
+            'Comissão % (grade)',
+            'Comissão valor (grade)',
+            'Código movimento API',
+            'Estabelecimento EDI',
+        ];
+
+        $vazio = ['cabecalhos' => $cabecalhos, 'linhas' => []];
+
+        if (! $conciliacao->referencia_mes) {
+            return $vazio;
+        }
+
+        $inicio = $conciliacao->referencia_mes->copy()->startOfMonth()->toDateString();
+        $fim = $conciliacao->referencia_mes->copy()->endOfMonth()->toDateString();
+        $chavesSoEdi = $this->chavesEdiNaoPareadas($conciliacao, $filtros);
+
+        if ($chavesSoEdi === []) {
+            return $vazio;
+        }
+
+        $idClientes = $this->escopoEdiDosFiltros($filtros);
+        $comissaoDoPlano = ComissaoAdminSql::lookupPercentualPorChave();
+        $linhas = [];
+
+        $query = DB::table('edi_movimentos as em')
+            ->leftJoin('estabelecimentos as e', 'e.id', '=', 'em.estabelecimento_id')
+            ->leftJoin('usuarios as mkt', 'mkt.id', '=', 'e.marketplace_id')
+            ->leftJoin('usuarios as rev', 'rev.id', '=', 'e.revenda_id')
+            ->leftJoinSub($comissaoDoPlano, 'pc', function ($join) {
+                $join->on('pc.plano_id', '=', 'e.plano_id')
+                    ->on('pc.arranjo_ur', '=', 'em.arranjo_ur')
+                    ->on('pc.parcelas', '=', DB::raw('COALESCE(NULLIF(em.quantidade_parcela, 0), 1)'));
+            })
+            ->whereBetween('em.data_inicial_transacao', [$inicio, $fim])
+            ->whereNotNull('em.estabelecimento_id')
+            ->when($idClientes !== [], function ($q) use ($idClientes) {
+                $q->where(function ($sub) use ($idClientes) {
+                    $sub->whereIn('e.token_pagseguro', $idClientes)
+                        ->orWhereIn('em.estabelecimento', $idClientes)
+                        ->orWhereIn('em.id_cliente', $idClientes)
+                        ->orWhereIn('e.id', array_filter($idClientes, 'ctype_digit'));
+                });
+            })
+            ->select([
+                'em.id',
+                'em.nsu',
+                'em.codigo_autorizacao',
+                'em.codigo_transacao',
+                'em.codigo_venda',
+                'em.tx_id',
+                'em.data_inicial_transacao',
+                'em.hora_inicial_transacao',
+                'em.data_venda_ajuste',
+                'em.data_prevista_pagamento',
+                'em.estabelecimento_id',
+                'em.tipo_transacao',
+                'em.meio_pagamento',
+                'em.arranjo_ur',
+                'em.instituicao_financeira',
+                'em.parcela',
+                'em.quantidade_parcela',
+                'em.plano',
+                'em.pagamento_prazo',
+                'em.meio_captura',
+                'em.canal_entrada',
+                'em.leitor',
+                'em.num_logico',
+                'em.numero_serie_leitor',
+                'em.status_pagamento',
+                'em.tipo_evento',
+                'em.cartao_bin',
+                'em.cartao_holder',
+                'em.codigo_cv',
+                'em.valor_total_transacao',
+                'em.valor_parcela',
+                'em.valor_original_transacao',
+                'em.valor_liquido_transacao',
+                'em.taxa_intermediacao',
+                'em.tarifa_intermediacao',
+                'em.movimento_api_codigo',
+                'em.estabelecimento',
+                'pc.comissao_percentual',
+                DB::raw('COALESCE(e.token_pagseguro, em.estabelecimento, em.id_cliente) as id_cliente'),
+                DB::raw('COALESCE(e.nome_fantasia, e.razao_social, e.nome_completo) as estabelecimento_nome'),
+                DB::raw('COALESCE(e.cnpj, e.cpf) as documento'),
+                DB::raw('COALESCE(mkt.nome_fantasia, mkt.razao_social, mkt.nome_completo, mkt.email) as marketplace_nome'),
+                DB::raw('COALESCE(rev.nome_fantasia, rev.razao_social, rev.nome_completo, rev.email) as revenda_nome'),
+            ]);
+
+        foreach ($query->orderBy('em.data_inicial_transacao')->orderBy('em.id')->cursor() as $mov) {
+            $idCliente = trim((string) $mov->id_cliente);
+
+            if ($idCliente === '') {
+                continue;
+            }
+
+            $meio = ConciliacaoDimensao::meioDoEdi(
+                $mov->tipo_transacao,
+                $mov->meio_pagamento,
+                $mov->arranjo_ur,
+                $mov->quantidade_parcela,
+            );
+            $parcelamento = ConciliacaoDimensao::parcelamentoDoEdi($mov->quantidade_parcela);
+            $bandeira = ConciliacaoDimensao::bandeiraDoEdi($mov->instituicao_financeira, $mov->tipo_transacao, $mov->arranjo_ur);
+            $escrow = ConciliacaoDimensao::escrowDoEdi($mov->pagamento_prazo, $mov->plano);
+            $solucao = ConciliacaoDimensao::solucaoDoEdi($mov->meio_captura, $mov->canal_entrada, $mov->leitor);
+            $chave = ConciliacaoDimensao::chaveConfrontoDaLinha(
+                $idCliente,
+                $meio,
+                $parcelamento,
+                $bandeira,
+                $escrow,
+                $solucao,
+            );
+
+            if (! isset($chavesSoEdi[$chave])) {
+                continue;
+            }
+
+            $valor = (float) $mov->valor_total_transacao;
+            $percentual = (float) ($mov->comissao_percentual ?? 0);
+
+            $linhas[] = [
+                (int) $mov->id,
+                (string) ($mov->nsu ?? ''),
+                (string) ($mov->codigo_autorizacao ?? ''),
+                (string) ($mov->codigo_transacao ?? ''),
+                (string) ($mov->codigo_venda ?? ''),
+                (string) ($mov->tx_id ?? ''),
+                $this->formatarDataExcel($mov->data_inicial_transacao),
+                (string) ($mov->hora_inicial_transacao ?? ''),
+                $this->formatarDataExcel($mov->data_venda_ajuste),
+                $this->formatarDataExcel($mov->data_prevista_pagamento),
+                $idCliente,
+                $mov->estabelecimento_id !== null ? (int) $mov->estabelecimento_id : '',
+                (string) ($mov->estabelecimento_nome ?? ''),
+                (string) ($mov->documento ?? ''),
+                (string) ($mov->marketplace_nome ?? ''),
+                (string) ($mov->revenda_nome ?? ''),
+                $meio,
+                $parcelamento,
+                $bandeira,
+                $escrow,
+                $solucao,
+                (string) ($mov->tipo_transacao ?? ''),
+                (string) ($mov->meio_pagamento ?? ''),
+                (string) ($mov->arranjo_ur ?? ''),
+                (string) ($mov->instituicao_financeira ?? ''),
+                (string) ($mov->parcela ?? ''),
+                (string) ($mov->quantidade_parcela ?? ''),
+                (string) ($mov->plano ?? ''),
+                (string) ($mov->pagamento_prazo ?? ''),
+                (string) ($mov->meio_captura ?? ''),
+                (string) ($mov->canal_entrada ?? ''),
+                (string) ($mov->leitor ?? ''),
+                (string) ($mov->num_logico ?? ''),
+                (string) ($mov->numero_serie_leitor ?? ''),
+                (string) ($mov->status_pagamento ?? ''),
+                (string) ($mov->tipo_evento ?? ''),
+                (string) ($mov->cartao_bin ?? ''),
+                (string) ($mov->cartao_holder ?? ''),
+                (string) ($mov->codigo_cv ?? ''),
+                round($valor, 2),
+                $mov->valor_parcela !== null ? round((float) $mov->valor_parcela, 2) : '',
+                $mov->valor_original_transacao !== null ? round((float) $mov->valor_original_transacao, 2) : '',
+                $mov->valor_liquido_transacao !== null ? round((float) $mov->valor_liquido_transacao, 2) : '',
+                $mov->taxa_intermediacao !== null ? round((float) $mov->taxa_intermediacao, 2) : '',
+                $mov->tarifa_intermediacao !== null ? round((float) $mov->tarifa_intermediacao, 2) : '',
+                round($percentual, 4),
+                round($valor * $percentual / 100, 4),
+                (string) ($mov->movimento_api_codigo ?? ''),
+                (string) ($mov->estabelecimento ?? ''),
+            ];
+        }
+
+        return ['cabecalhos' => $cabecalhos, 'linhas' => $linhas];
+    }
+
+    /**
+     * @param  array<string, mixed>  $filtros
+     * @return array<string, true>
+     */
+    private function chavesEdiNaoPareadas(Conciliacao $conciliacao, array $filtros = []): array
+    {
+        if (! $conciliacao->referencia_mes) {
+            return [];
+        }
+
+        $inicio = $conciliacao->referencia_mes->copy()->startOfMonth()->toDateString();
+        $fim = $conciliacao->referencia_mes->copy()->endOfMonth()->toDateString();
+        $agregados = $this->agregarEdi($inicio, $fim, $this->escopoEdiDosFiltros($filtros));
+
+        $planilha = [];
+        $filtrosPlanilha = $filtros;
+        unset($filtrosPlanilha['status']);
+
+        foreach ($this->queryLinhas($conciliacao, $filtrosPlanilha)->orderBy('conciliacao_linhas.id')->cursor() as $linha) {
+            $chave = $this->chaveDaLinha($linha);
+            $planilha[$chave] = ($planilha[$chave] ?? 0.0) + (float) $linha->tpv;
+        }
+
+        $pareadas = $this->chavesPareadas($planilha, $agregados);
+        $naoPareadas = [];
+
+        foreach ($agregados as $chave => $edi) {
+            if (! isset($pareadas[$chave])) {
+                $naoPareadas[$chave] = true;
+            }
+        }
+
+        return $naoPareadas;
+    }
+
+    private function formatarDataExcel(mixed $valor): string
+    {
+        if ($valor === null || $valor === '') {
+            return '';
+        }
+
+        try {
+            return now()->parse((string) $valor)->format('d/m/Y');
+        } catch (\Throwable) {
+            return (string) $valor;
+        }
+    }
+
+    /**
      * Relatório completo de um EC: OK, divergente, só planilha e só EDI.
      *
      * @return array{linhas: Collection, totais: array<string, array{linhas: int, tpv_ps: float, tpv_edi: float, comissao_ps: float, comissao_edi: float}>, estabelecimento: ?Estabelecimento}

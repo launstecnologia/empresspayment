@@ -9,7 +9,9 @@ use App\Models\ConciliacaoLinha;
 use App\Models\Usuario;
 use App\Services\ConciliacaoConfrontoService;
 use App\Services\ConciliacaoImportService;
+use App\Support\SimpleXlsxWriter;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ConciliacaoController extends Controller
@@ -81,16 +83,7 @@ class ConciliacaoController extends Controller
 
     public function show(Request $request, Conciliacao $conciliacao, ConciliacaoConfrontoService $confronto)
     {
-        $filtros = $request->only(['status', 'nome', 'estabelecimento_id', 'marketplace_id', 'revenda_id', 'id_cliente']);
-
-        if (blank($filtros['estabelecimento_id'] ?? null) && filled($filtros['id_cliente'] ?? null)) {
-            $filtros['estabelecimento_id'] = $filtros['id_cliente'];
-        }
-        unset($filtros['id_cliente']);
-
-        if (blank($filtros['estabelecimento_id'] ?? null) && blank($filtros['nome'] ?? null) && filled($request->input('busca'))) {
-            $filtros['nome'] = trim((string) $request->input('busca'));
-        }
+        $filtros = $this->filtrosShow($request);
 
         $identificadorEc = $confronto->identificadorEcUnico($filtros);
         $detalheCliente = null;
@@ -250,6 +243,22 @@ class ConciliacaoController extends Controller
         ]);
     }
 
+    public function relatorioSoEdiExcel(Request $request, Conciliacao $conciliacao, ConciliacaoConfrontoService $confronto): Response
+    {
+        $filtros = $this->filtrosShow($request);
+        unset($filtros['status']);
+
+        $planilha = $confronto->transacoesSoEdi($conciliacao, $filtros);
+        $mes = $conciliacao->referencia_mes?->format('Y-m') ?? 'conciliacao';
+        $nomeArquivo = "transacoes-edi-nao-na-planilha-{$mes}.xlsx";
+        $binario = SimpleXlsxWriter::binary($planilha['cabecalhos'], $planilha['linhas'], 'Só no EDI');
+
+        return response($binario, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$nomeArquivo.'"',
+        ]);
+    }
+
     public function confrontar(Conciliacao $conciliacao)
     {
         if (in_array($conciliacao->confronto_status, ['na_fila', 'processando'], true)) {
@@ -298,6 +307,25 @@ class ConciliacaoController extends Controller
         ]);
 
         ConfrontarConciliacaoJob::dispatch($conciliacao->id)->onQueue('conciliacao');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function filtrosShow(Request $request): array
+    {
+        $filtros = $request->only(['status', 'nome', 'estabelecimento_id', 'marketplace_id', 'revenda_id', 'id_cliente']);
+
+        if (blank($filtros['estabelecimento_id'] ?? null) && filled($filtros['id_cliente'] ?? null)) {
+            $filtros['estabelecimento_id'] = $filtros['id_cliente'];
+        }
+        unset($filtros['id_cliente']);
+
+        if (blank($filtros['estabelecimento_id'] ?? null) && blank($filtros['nome'] ?? null) && filled($request->input('busca'))) {
+            $filtros['nome'] = trim((string) $request->input('busca'));
+        }
+
+        return $filtros;
     }
 
     private function usuariosPorTipo(string $tipo)

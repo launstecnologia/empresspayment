@@ -219,6 +219,7 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
             Route::get('/{conciliacao}/relatorio-sem-estabelecimento', [ConciliacaoController::class, 'relatorioSemEstabelecimento'])->name('relatorio-sem-estabelecimento');
             Route::get('/{conciliacao}/relatorio-sem-edi', [ConciliacaoController::class, 'relatorioSemEdi'])->name('relatorio-sem-edi');
             Route::get('/{conciliacao}/relatorio-so-edi', [ConciliacaoController::class, 'relatorioSoEdi'])->name('relatorio-so-edi');
+            Route::get('/{conciliacao}/relatorio-so-edi-excel', [ConciliacaoController::class, 'relatorioSoEdiExcel'])->name('relatorio-so-edi-excel');
             Route::post('/{conciliacao}/confrontar', [ConciliacaoController::class, 'confrontar'])->name('confrontar');
             Route::delete('/{conciliacao}', [ConciliacaoController::class, 'destroy'])->name('destroy');
         });

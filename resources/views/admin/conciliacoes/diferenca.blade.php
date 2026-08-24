@@ -149,10 +149,16 @@
     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 class="text-base font-bold text-gray-800">No EDI, não encontrados na planilha</h3>
         @if ($soEdi->isNotEmpty())
-            <a href="{{ route('admin.conciliacoes.relatorio-so-edi', $conciliacao) }}"
-               class="inline-flex items-center gap-1 rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-100">
-                <i class="fa-solid fa-download"></i> CSV
-            </a>
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{{ route('admin.conciliacoes.relatorio-so-edi-excel', $conciliacao) }}"
+                   class="inline-flex items-center gap-1 rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-100">
+                    <i class="fa-solid fa-file-excel"></i> Excel das transações
+                </a>
+                <a href="{{ route('admin.conciliacoes.relatorio-so-edi', $conciliacao) }}"
+                   class="inline-flex items-center gap-1 rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-100">
+                    <i class="fa-solid fa-download"></i> CSV
+                </a>
+            </div>
         @endif
     </div>
     <p class="mb-3 text-sm text-gray-500">Vendas do EDI do mês cuja chave (cliente, meio, parcelas, bandeira, canal) não existe no relatório PagSeguro.</p>

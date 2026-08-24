@@ -569,13 +569,38 @@ class ConciliacaoConfrontoService
      * Transações EDI do mês cuja chave não casou com a planilha PagSeguro.
      *
      * @param  array<string, mixed>  $filtros
-     * @return array{cabecalhos: list<string>, linhas: list<list<string|int|float|null>>}
+     * @return array{cabecalhos: list<string>, linhas: iterable<int, list<string|int|float|null>>}
      */
     public function transacoesSoEdi(Conciliacao $conciliacao, array $filtros = []): array
     {
         @set_time_limit(900);
 
-        $cabecalhos = [
+        $cabecalhos = $this->cabecalhosExcelSoEdi();
+
+        if (! $conciliacao->referencia_mes) {
+            return ['cabecalhos' => $cabecalhos, 'linhas' => []];
+        }
+
+        $inicio = $conciliacao->referencia_mes->copy()->startOfMonth()->toDateString();
+        $fim = $conciliacao->referencia_mes->copy()->endOfMonth()->toDateString();
+        $chavesSoEdi = $this->chavesEdiNaoPareadas($conciliacao, $filtros);
+
+        if ($chavesSoEdi === []) {
+            return ['cabecalhos' => $cabecalhos, 'linhas' => []];
+        }
+
+        return [
+            'cabecalhos' => $cabecalhos,
+            'linhas' => $this->iterarTransacoesSoEdi($inicio, $fim, $filtros, $chavesSoEdi),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function cabecalhosExcelSoEdi(): array
+    {
+        return [
             'EDI ID',
             'NSU',
             'Código autorização',
@@ -626,24 +651,17 @@ class ConciliacaoConfrontoService
             'Código movimento API',
             'Estabelecimento EDI',
         ];
+    }
 
-        $vazio = ['cabecalhos' => $cabecalhos, 'linhas' => []];
-
-        if (! $conciliacao->referencia_mes) {
-            return $vazio;
-        }
-
-        $inicio = $conciliacao->referencia_mes->copy()->startOfMonth()->toDateString();
-        $fim = $conciliacao->referencia_mes->copy()->endOfMonth()->toDateString();
-        $chavesSoEdi = $this->chavesEdiNaoPareadas($conciliacao, $filtros);
-
-        if ($chavesSoEdi === []) {
-            return $vazio;
-        }
-
+    /**
+     * @param  array<string, mixed>  $filtros
+     * @param  array<string, true>  $chavesSoEdi
+     * @return \Generator<int, list<string|int|float|null>>
+     */
+    private function iterarTransacoesSoEdi(string $inicio, string $fim, array $filtros, array $chavesSoEdi): \Generator
+    {
         $idClientes = $this->escopoEdiDosFiltros($filtros);
         $comissaoDoPlano = ComissaoAdminSql::lookupPercentualPorChave();
-        $linhas = [];
 
         $query = DB::table('edi_movimentos as em')
             ->leftJoin('estabelecimentos as e', 'e.id', '=', 'em.estabelecimento_id')
@@ -743,7 +761,7 @@ class ConciliacaoConfrontoService
             $valor = (float) $mov->valor_total_transacao;
             $percentual = (float) ($mov->comissao_percentual ?? 0);
 
-            $linhas[] = [
+            yield [
                 (int) $mov->id,
                 (string) ($mov->nsu ?? ''),
                 (string) ($mov->codigo_autorizacao ?? ''),
@@ -795,8 +813,6 @@ class ConciliacaoConfrontoService
                 (string) ($mov->estabelecimento ?? ''),
             ];
         }
-
-        return ['cabecalhos' => $cabecalhos, 'linhas' => $linhas];
     }
 
     /**

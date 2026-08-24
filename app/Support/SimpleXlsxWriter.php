@@ -12,30 +12,13 @@ class SimpleXlsxWriter
 {
     /**
      * @param  list<string>  $cabecalhos
-     * @param  list<list<string|int|float|null>>  $linhas
+     * @param  iterable<int, list<string|int|float|null>>  $linhas
      */
-    public static function binary(array $cabecalhos, array $linhas, string $nomePlanilha = 'Planilha'): string
+    public static function binary(array $cabecalhos, iterable $linhas, string $nomePlanilha = 'Planilha'): string
     {
-        $tmp = tempnam(sys_get_temp_dir(), 'xlsx');
-        if ($tmp === false) {
-            throw new RuntimeException('Não foi possível criar arquivo temporário para o Excel.');
-        }
-
-        $zip = new ZipArchive;
-        if ($zip->open($tmp, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-            @unlink($tmp);
-            throw new RuntimeException('Não foi possível criar o arquivo Excel.');
-        }
-
-        $zip->addFromString('[Content_Types].xml', self::contentTypes());
-        $zip->addFromString('_rels/.rels', self::rels());
-        $zip->addFromString('xl/workbook.xml', self::workbook($nomePlanilha));
-        $zip->addFromString('xl/_rels/workbook.xml.rels', self::workbookRels());
-        $zip->addFromString('xl/worksheets/sheet1.xml', self::sheet($cabecalhos, $linhas));
-        $zip->close();
-
-        $conteudo = file_get_contents($tmp);
-        @unlink($tmp);
+        $caminho = self::file($cabecalhos, $linhas, $nomePlanilha);
+        $conteudo = file_get_contents($caminho);
+        @unlink($caminho);
 
         if ($conteudo === false) {
             throw new RuntimeException('Não foi possível ler o Excel gerado.');
@@ -45,27 +28,63 @@ class SimpleXlsxWriter
     }
 
     /**
+     * Gera o .xlsx em arquivo temporário (não carrega a planilha inteira na memória).
+     *
      * @param  list<string>  $cabecalhos
-     * @param  list<list<string|int|float|null>>  $linhas
+     * @param  iterable<int, list<string|int|float|null>>  $linhas
      */
-    private static function sheet(array $cabecalhos, array $linhas): string
+    public static function file(array $cabecalhos, iterable $linhas, string $nomePlanilha = 'Planilha'): string
     {
-        $totalCols = max(1, count($cabecalhos));
-        $totalRows = 1 + count($linhas);
-        $ultimaCol = self::coluna($totalCols);
-        $xml = [];
-        $xml[] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
-        $xml[] = '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
-        $xml[] = '<dimension ref="A1:'.$ultimaCol.$totalRows.'"/>';
-        $xml[] = '<sheetData>';
-        $xml[] = self::xmlLinha(1, $cabecalhos);
-        foreach ($linhas as $i => $linha) {
-            $xml[] = self::xmlLinha($i + 2, $linha);
-        }
-        $xml[] = '</sheetData>';
-        $xml[] = '</worksheet>';
+        $zipTmp = tempnam(sys_get_temp_dir(), 'xlsx');
+        $sheetTmp = tempnam(sys_get_temp_dir(), 'xlsx-sheet');
 
-        return implode('', $xml);
+        if ($zipTmp === false || $sheetTmp === false) {
+            throw new RuntimeException('Não foi possível criar arquivo temporário para o Excel.');
+        }
+
+        self::escreverSheet($sheetTmp, $cabecalhos, $linhas);
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipTmp, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            @unlink($zipTmp);
+            @unlink($sheetTmp);
+            throw new RuntimeException('Não foi possível criar o arquivo Excel.');
+        }
+
+        $zip->addFromString('[Content_Types].xml', self::contentTypes());
+        $zip->addFromString('_rels/.rels', self::rels());
+        $zip->addFromString('xl/workbook.xml', self::workbook($nomePlanilha));
+        $zip->addFromString('xl/_rels/workbook.xml.rels', self::workbookRels());
+        $zip->addFile($sheetTmp, 'xl/worksheets/sheet1.xml');
+        $zip->close();
+        @unlink($sheetTmp);
+
+        return $zipTmp;
+    }
+
+    /**
+     * @param  list<string>  $cabecalhos
+     * @param  iterable<int, list<string|int|float|null>>  $linhas
+     */
+    private static function escreverSheet(string $caminho, array $cabecalhos, iterable $linhas): void
+    {
+        $handle = fopen($caminho, 'wb');
+        if ($handle === false) {
+            throw new RuntimeException('Não foi possível gravar a planilha Excel.');
+        }
+
+        fwrite($handle, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>');
+        fwrite($handle, '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>');
+        fwrite($handle, self::xmlLinha(1, $cabecalhos));
+
+        $numero = 1;
+        foreach ($linhas as $linha) {
+            $numero++;
+            fwrite($handle, self::xmlLinha($numero, $linha));
+        }
+
+        fwrite($handle, '</sheetData></worksheet>');
+        fclose($handle);
     }
 
     /**

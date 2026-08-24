@@ -245,18 +245,19 @@ class ConciliacaoController extends Controller
 
     public function relatorioSoEdiExcel(Request $request, Conciliacao $conciliacao, ConciliacaoConfrontoService $confronto): Response
     {
+        @set_time_limit(900);
+
         $filtros = $this->filtrosShow($request);
         unset($filtros['status']);
 
         $planilha = $confronto->transacoesSoEdi($conciliacao, $filtros);
         $mes = $conciliacao->referencia_mes?->format('Y-m') ?? 'conciliacao';
         $nomeArquivo = "transacoes-edi-nao-na-planilha-{$mes}.xlsx";
-        $binario = SimpleXlsxWriter::binary($planilha['cabecalhos'], $planilha['linhas'], 'Só no EDI');
+        $caminho = SimpleXlsxWriter::file($planilha['cabecalhos'], $planilha['linhas'], 'So no EDI');
 
-        return response($binario, 200, [
+        return response()->download($caminho, $nomeArquivo, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Disposition' => 'attachment; filename="'.$nomeArquivo.'"',
-        ]);
+        ])->deleteFileAfterSend(true);
     }
 
     public function confrontar(Conciliacao $conciliacao)

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureAcessoAdminMaster;
+use App\Http\Middleware\EnsureFinanceiroVisivel;
 use App\Http\Middleware\ChecarTrocaSenha;
 use App\Http\Middleware\EnsureMarketplaceTenantAccess;
 use App\Http\Middleware\EnsureNivel;
@@ -53,6 +54,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'trocar.senha' => ChecarTrocaSenha::class,
             'planos.marketplace' => RedirectMarketplacePlanos::class,
             'acesso.admin-master' => EnsureAcessoAdminMaster::class,
+            'financeiro.visivel' => EnsureFinanceiroVisivel::class,
         ]);
 
         $middleware->redirectGuestsTo(function (Request $request) {

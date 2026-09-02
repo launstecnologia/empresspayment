@@ -65,8 +65,10 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
     Route::get('/perfil', [PerfilController::class, 'edit'])->name('perfil.edit');
     Route::put('/perfil', [PerfilController::class, 'update'])->name('perfil.update');
     Route::get('/dashboard', [AdminDashboardController::class, '__invoke'])->name('dashboard');
-    Route::get('/dashboard/comissao', [AdminDashboardController::class, 'comissao'])->name('dashboard.comissao');
-    Route::get('/dashboard/apuracao', [AdminDashboardController::class, 'apuracao'])->name('dashboard.apuracao');
+    Route::middleware('financeiro.visivel')->group(function () {
+        Route::get('/dashboard/comissao', [AdminDashboardController::class, 'comissao'])->name('dashboard.comissao');
+        Route::get('/dashboard/apuracao', [AdminDashboardController::class, 'apuracao'])->name('dashboard.apuracao');
+    });
     Route::prefix('admin/chamados')->name('admin.chamados.')->group(function () {
         Route::get('/', [AdminChamadoController::class, 'index'])->name('index');
         Route::get('/{numero}', [AdminChamadoController::class, 'show'])->name('show');
@@ -149,15 +151,17 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
 
         Route::get('planos/{plano}', [PlanoController::class, 'show'])->name('planos.show');
     });
-    Route::get('/comissoes', [RoyaltyController::class, 'index'])->name('comissoes.index');
-    Route::redirect('/royalties', '/comissoes');
     Route::get('/comissoes/meu-plano', [ComissaoMeuPlanoController::class, 'index'])->name('comissoes.meu-plano');
-    Route::resource('comissoes/configuracoes', ComissaoConfiguracaoController::class)
-        ->middleware('acesso.admin-master')
-        ->parameters(['configuracoes' => 'configuracao'])
-        ->names('comissoes.configuracoes');
-    Route::get('/relatorios/faturamento', [RelatorioController::class, 'faturamento'])->name('relatorios.faturamento');
-    Route::get('/relatorios/faturamento/{linha}/detalhe', [RelatorioController::class, 'faturamentoDetalhe'])->name('relatorios.faturamento.detalhe');
+    Route::middleware('financeiro.visivel')->group(function () {
+        Route::get('/comissoes', [RoyaltyController::class, 'index'])->name('comissoes.index');
+        Route::redirect('/royalties', '/comissoes');
+        Route::resource('comissoes/configuracoes', ComissaoConfiguracaoController::class)
+            ->middleware('acesso.admin-master')
+            ->parameters(['configuracoes' => 'configuracao'])
+            ->names('comissoes.configuracoes');
+        Route::get('/relatorios/faturamento', [RelatorioController::class, 'faturamento'])->name('relatorios.faturamento');
+        Route::get('/relatorios/faturamento/{linha}/detalhe', [RelatorioController::class, 'faturamentoDetalhe'])->name('relatorios.faturamento.detalhe');
+    });
 
     Route::post('estabelecimentos/{estabelecimento}/automacao/iniciar', [EstabelecimentoAutomacaoController::class, 'iniciar'])
         ->name('admin.estabelecimentos.automacao.iniciar');
@@ -206,7 +210,7 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
                 ->name('screenshot');
             Route::get('/{solicitacao}', [EdiPipefyController::class, 'show'])->name('show');
         });
-        Route::prefix('admin/relatorios')->name('admin.relatorios.')->group(function () {
+        Route::prefix('admin/relatorios')->name('admin.relatorios.')->middleware('financeiro.visivel')->group(function () {
             Route::get('/estabelecimentos-transacoes', [EstabelecimentoTransacaoRelatorioController::class, 'index'])->name('estabelecimentos-transacoes');
             Route::get('/estabelecimentos-transacoes/excel', [EstabelecimentoTransacaoRelatorioController::class, 'excel'])->name('estabelecimentos-transacoes.excel');
         });

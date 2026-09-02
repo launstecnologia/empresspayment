@@ -21,4 +21,10 @@ return [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
+
+    /*
+    | Faturamento, comissões/repasses e transações no menu e no dashboard.
+    | false = oculto (padrão temporário). Religue com FINANCEIRO_VISIVEL=true.
+    */
+    'financeiro_visivel' => (bool) env('FINANCEIRO_VISIVEL', false),
 ];

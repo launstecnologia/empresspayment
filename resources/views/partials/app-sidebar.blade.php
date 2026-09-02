@@ -21,19 +21,21 @@
             <i class="fa-solid fa-gauge-high w-5 text-center text-[15px]"></i>
             <span>Dashboard</span>
         </a>
-        <a href="{{ route('relatorios.faturamento') }}" class="{{ $navClass('relatorios.*') }}">
-            <i class="fa-solid fa-chart-line w-5 text-center text-[15px]"></i>
-            <span>Faturamento</span>
-        </a>
-        <a href="{{ route('comissoes.index') }}" class="{{ $navClass('comissoes.index') }}">
-            <i class="fa-solid fa-hand-holding-dollar w-5 text-center text-[15px]"></i>
-            <span>Comissão</span>
-        </a>
-        @if (\App\Support\UsuarioComercial::ehAdmin() || $ehMaster)
-            <a href="{{ route('comissoes.configuracoes.index') }}" class="{{ $navClass('comissoes.configuracoes.*') }}">
-                <i class="fa-solid fa-sliders w-5 text-center text-[15px]"></i>
-                <span>Config. Comissão</span>
+        @if (\App\Support\FinanceiroUi::visivel())
+            <a href="{{ route('relatorios.faturamento') }}" class="{{ $navClass('relatorios.*') }}">
+                <i class="fa-solid fa-chart-line w-5 text-center text-[15px]"></i>
+                <span>Faturamento</span>
             </a>
+            <a href="{{ route('comissoes.index') }}" class="{{ $navClass('comissoes.index') }}">
+                <i class="fa-solid fa-hand-holding-dollar w-5 text-center text-[15px]"></i>
+                <span>Comissão</span>
+            </a>
+            @if (\App\Support\UsuarioComercial::ehAdmin() || $ehMaster)
+                <a href="{{ route('comissoes.configuracoes.index') }}" class="{{ $navClass('comissoes.configuracoes.*') }}">
+                    <i class="fa-solid fa-sliders w-5 text-center text-[15px]"></i>
+                    <span>Config. Comissão</span>
+                </a>
+            @endif
         @endif
         <a href="{{ route($ehAdmin ? 'admin.chamados.index' : 'chamados.index') }}" class="{{ request()->routeIs('admin.chamados.*') || request()->routeIs('chamados.*') ? 'flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-blue-600 bg-blue-50 rounded-lg mx-2 dark:bg-blue-950/50 dark:text-blue-400' : 'flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 rounded-lg mx-2 hover:bg-gray-100 hover:text-gray-900 transition-colors dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100' }}">
             <i class="fa-solid fa-ticket w-5 text-center text-[15px]"></i>
@@ -129,7 +131,7 @@
                     <i class="fa-solid fa-scale-balanced w-5 text-center text-[15px]"></i>
                     <span>Conciliação</span>
                 </a>
-                @if (Route::has('admin.relatorios.estabelecimentos-transacoes'))
+                @if (\App\Support\FinanceiroUi::visivel() && Route::has('admin.relatorios.estabelecimentos-transacoes'))
                     <a href="{{ route('admin.relatorios.estabelecimentos-transacoes') }}" class="{{ $navClass('admin.relatorios.*') }}">
                         <i class="fa-solid fa-file-excel w-5 text-center text-[15px]"></i>
                         <span>Transações MKT</span>

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Estabelecimento;
 use App\Services\DashboardService;
+use App\Support\FinanceiroUi;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
@@ -11,8 +13,21 @@ class DashboardController extends Controller
     public function __invoke(Request $request, DashboardService $dashboardService)
     {
         $periodo = $this->resolverPeriodo($request);
-        $usuario = $request->user();
 
+        if (! FinanceiroUi::visivel()) {
+            return view('admin.dashboard', [
+                'periodo' => $periodo,
+                'totalEstabelecimentos' => Estabelecimento::count(),
+                'faturamentoMes' => 0,
+                'royaltiesMes' => 0,
+                'planosResumo' => [],
+                'resumoPlanos' => [],
+                'transacoesStatus' => [],
+                'faturamentoBandeiras' => [],
+            ]);
+        }
+
+        $usuario = $request->user();
         $resumo = $dashboardService->resumoRapido($usuario, $periodo);
         $comissao = $dashboardService->comissaoMes($usuario, $periodo);
         $apuracao = $dashboardService->apuracao($periodo, $usuario);

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\EdiTransacaoCategoria;
+use App\Support\EdiStatusPagamento;
 use App\Support\ComissaoAdminSql;
 use App\Support\InstituicaoFinanceira;
 use App\Models\Estabelecimento;
@@ -252,10 +253,14 @@ class DashboardApuracaoService
      */
     private function faturamentoPorBandeira(string $inicio, string $fim): array
     {
-        $linhas = DB::table('edi_movimentos as em')
+        $query = DB::table('edi_movimentos as em')
             ->whereBetween('em.data_inicial_transacao', [$inicio, $fim])
             ->whereIn('em.estabelecimento_id', $this->estabelecimentosVisiveisSubquery())
-            ->whereNotNull('em.instituicao_financeira')
+            ->whereNotNull('em.instituicao_financeira');
+
+        EdiStatusPagamento::aplicarSomenteFaturaveis($query, 'em.status_pagamento');
+
+        $linhas = $query
             ->selectRaw('em.instituicao_financeira as instituicao, SUM(em.valor_total_transacao) as valor')
             ->groupBy('em.instituicao_financeira')
             ->orderByDesc('valor')
@@ -304,11 +309,15 @@ class DashboardApuracaoService
     {
         $categoriaSql = EdiTransacaoCategoria::sqlCategoria('em');
 
-        return DB::table('edi_movimentos as em')
+        $query = DB::table('edi_movimentos as em')
             ->join('estabelecimentos as e', 'e.id', '=', 'em.estabelecimento_id')
             ->whereBetween('em.data_inicial_transacao', [$inicio, $fim])
             ->whereIn('em.estabelecimento_id', $this->estabelecimentosVisiveisSubquery())
-            ->whereNotNull('e.plano_id')
+            ->whereNotNull('e.plano_id');
+
+        EdiStatusPagamento::aplicarSomenteFaturaveis($query, 'em.status_pagamento');
+
+        return $query
             ->selectRaw("e.plano_id, {$categoriaSql} as categoria, SUM(em.valor_total_transacao) as total")
             ->groupBy('e.plano_id', DB::raw($categoriaSql))
             ->get()

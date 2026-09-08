@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Usuario;
+use App\Support\EdiStatusPagamento;
 use App\Support\EstabelecimentoEtapaListagem;
 use App\Support\SimpleXlsxWriter;
 use Illuminate\Support\Collection;
@@ -21,6 +22,7 @@ class EstabelecimentoTransacaoRelatorioService
             ])
             ->whereNotNull('estabelecimento_id')
             ->groupBy('estabelecimento_id');
+        EdiStatusPagamento::aplicarSomenteFaturaveis($historico);
 
         $porToken = DB::table('edi_movimentos')
             ->select([
@@ -32,11 +34,13 @@ class EstabelecimentoTransacaoRelatorioService
             ->whereNotNull('estabelecimento')
             ->where('estabelecimento', '!=', '')
             ->groupBy('estabelecimento');
+        EdiStatusPagamento::aplicarSomenteFaturaveis($porToken);
 
         return DB::table('estabelecimentos as e')
             ->leftJoin('edi_movimentos as em', function ($join) use ($de, $ate) {
                 $join->on('em.estabelecimento_id', '=', 'e.id')
                     ->whereBetween('em.data_inicial_transacao', [$de, $ate]);
+                EdiStatusPagamento::aplicarSomenteFaturaveis($join, 'em.status_pagamento');
             })
             ->leftJoinSub($historico, 'hist', 'hist.estabelecimento_id', '=', 'e.id')
             ->leftJoinSub($porToken, 'tok', 'tok.token', '=', 'e.token_pagseguro')

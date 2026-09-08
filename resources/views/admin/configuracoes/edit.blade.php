@@ -4,7 +4,7 @@
 
 @section('content')
 <div
-    x-data="{ aba: '{{ in_array(request('aba'), ['marca', 'seo', 'empresa', 'email', 'kyc', 'pagbank'], true) ? request('aba') : 'marca' }}' }"
+    x-data="{ aba: '{{ in_array(request('aba'), ['marca', 'seo', 'empresa', 'email', 'kyc', 'pagbank', 'edi'], true) ? request('aba') : 'marca' }}' }"
     class="mx-auto max-w-4xl space-y-6"
 >
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -23,6 +23,7 @@
                 'email' => ['E-mail', 'fa-envelope'],
                 'kyc' => ['KYC / PPID', 'fa-shield-halved'],
                 'pagbank' => ['PagBank', 'fa-building-columns'],
+                'edi' => ['EDI', 'fa-arrows-rotate'],
             ] as $key => [$label, $icon])
                 <button
                     type="button"
@@ -35,7 +36,7 @@
             @endforeach
         </div>
 
-        <form method="POST" action="{{ route('admin.configuracoes.update') }}" enctype="multipart/form-data" class="space-y-6 px-6 py-6">
+        <form method="POST" action="{{ route('admin.configuracoes.update') }}" enctype="multipart/form-data" class="space-y-6 px-6 py-6" x-show="aba !== 'edi'" x-cloak>
             @csrf
             @method('PUT')
             <input type="hidden" name="_aba" x-bind:value="aba">
@@ -294,6 +295,8 @@
                 </button>
             </div>
         </form>
+
+        @include('admin.configuracoes.partials.edi', ['reprocessamentos' => $ediReprocessamentos])
     </div>
 </div>
 @endsection
@@ -421,6 +424,17 @@
 
     form.querySelector('[data-action="buscar-cep"]')?.addEventListener('click', () => buscarCep(true));
     form.querySelector('[data-action="buscar-cnpj"]')?.addEventListener('click', () => buscarCnpj(true));
+})();
+
+(() => {
+    const monitor = document.querySelector('[data-edi-monitor="1"]');
+    if (!monitor) return;
+
+    setTimeout(() => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('aba', 'edi');
+        window.location.href = url.toString();
+    }, 15000);
 })();
 </script>
 @endsection

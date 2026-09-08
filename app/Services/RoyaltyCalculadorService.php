@@ -8,6 +8,7 @@ use App\Models\EstabelecimentoRoyalty;
 use App\Models\PlanoTaxa;
 use App\Models\TransacaoRoyalty;
 use App\Models\Usuario;
+use App\Support\EdiStatusPagamento;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
@@ -117,6 +118,23 @@ class RoyaltyCalculadorService
             ->keyBy('id');
 
         foreach ($movimentos as $movimento) {
+            if (EdiStatusPagamento::cancelado($movimento->status_pagamento)) {
+                TransacaoRoyalty::query()
+                    ->where('edi_movimento_id', $movimento->id)
+                    ->delete();
+
+                $updates = ['processado' => true];
+
+                if (EdiMovimento::temColunaComissao()) {
+                    $updates['comissao_percentual'] = null;
+                    $updates['comissao_valor'] = null;
+                }
+
+                $movimento->update($updates);
+
+                continue;
+            }
+
             $planoTaxa = $this->resolverPlanoTaxa($movimento, $estabelecimentos, $taxasPorPlano);
 
             $comissao = $this->comissaoAdminDaTransacao($movimento, $planoTaxa);

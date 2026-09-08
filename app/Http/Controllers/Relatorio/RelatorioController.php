@@ -9,6 +9,7 @@ use App\Models\SubUsuario;
 use App\Models\Usuario;
 use App\Support\ComissaoAdminSql;
 use App\Support\EdiMovimentoDetalhe;
+use App\Support\EdiStatusPagamento;
 use App\Support\InstituicaoFinanceira;
 use App\Services\RoyaltyCalculadorService;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
@@ -179,6 +180,8 @@ class RelatorioController extends Controller
 
         if ($request->filled('status_pagamento')) {
             $query->where('status_pagamento', $request->string('status_pagamento'));
+        } else {
+            EdiStatusPagamento::aplicarSomenteFaturaveis($query);
         }
 
         if ($request->filled('data_inicio')) {
@@ -292,6 +295,8 @@ class RelatorioController extends Controller
 
         if ($request->filled('status_pagamento')) {
             $query->where('em.status_pagamento', $request->string('status_pagamento'));
+        } else {
+            EdiStatusPagamento::aplicarSomenteFaturaveis($query, 'em.status_pagamento');
         }
 
         if ($request->filled('data_inicio')) {

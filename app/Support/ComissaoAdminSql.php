@@ -70,6 +70,8 @@ class ComissaoAdminSql
                 self::joinPlanoTaxa($join);
             });
 
+        EdiStatusPagamento::aplicarSomenteFaturaveis($query, 'em.status_pagamento');
+
         if ($antes) {
             $antes($query);
         }

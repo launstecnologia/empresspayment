@@ -9,6 +9,8 @@ use App\Jobs\SincronizarEdiDataJob;
 use App\Jobs\SincronizarEdiPeriodoJob;
 use App\Models\EdiMovimento;
 use App\Models\Estabelecimento;
+use App\Models\TransacaoRoyalty;
+use App\Support\EdiStatusPagamento;
 use App\Support\EdiTransacaoCategoria;
 use App\Support\PlatformSettings;
 use Carbon\CarbonInterface;
@@ -124,15 +126,17 @@ class EdiProcessadorService
     /**
      * Importa todas as páginas de um dia de forma sequencial (sem enfileirar por página).
      *
-     * @return array{validado: bool, importados: int, paginas: int, motivo?: string}
+     * @return array{validado: bool, importados: int, cancelamentos: int, paginas: int, motivo?: string}
      */
     public function importarDiaCompleto(
         string $data,
         string $tipoMovimento = 'transactional',
         ?int $estabelecimentoIdFiltro = null,
+        bool $atualizarExistentes = true,
+        bool $atualizarCanceladasExistentes = false,
     ): array {
         if (! PlatformSettings::ediConfigurado()) {
-            return ['validado' => false, 'importados' => 0, 'paginas' => 0, 'motivo' => 'credenciais'];
+            return ['validado' => false, 'importados' => 0, 'cancelamentos' => 0, 'paginas' => 0, 'motivo' => 'credenciais'];
         }
 
         try {
@@ -141,24 +145,26 @@ class EdiProcessadorService
         } catch (\Throwable $e) {
             Log::error('EDI PagBank: erro ao importar dia', ['data' => $data, 'erro' => $e->getMessage()]);
 
-            return ['validado' => false, 'importados' => 0, 'paginas' => 0, 'motivo' => $e->getMessage()];
+            return ['validado' => false, 'importados' => 0, 'cancelamentos' => 0, 'paginas' => 0, 'motivo' => $e->getMessage()];
         }
 
         if ($response->failed()) {
             return [
                 'validado' => false,
                 'importados' => 0,
+                'cancelamentos' => 0,
                 'paginas' => 0,
                 'motivo' => 'http_'.$response->status(),
             ];
         }
 
         if (! $this->ediValidado($response)) {
-            return ['validado' => false, 'importados' => 0, 'paginas' => 0, 'motivo' => 'nao_validado'];
+            return ['validado' => false, 'importados' => 0, 'cancelamentos' => 0, 'paginas' => 0, 'motivo' => 'nao_validado'];
         }
 
         $pagina = 1;
         $total = 0;
+        $cancelamentos = 0;
         $payload = $response->json() ?? [];
 
         while (true) {
@@ -167,14 +173,18 @@ class EdiProcessadorService
             }
 
             $registros = $this->extrairRegistros($payload);
-            $total += $this->processarPagina(
+            $detalhes = $this->processarPaginaComDetalhes(
                 $data,
                 $tipoMovimento,
                 $pagina,
                 $payload,
                 $estabelecimentoIdFiltro,
                 encadear: false,
+                atualizarExistentes: $atualizarExistentes,
+                atualizarCanceladasExistentes: $atualizarCanceladasExistentes,
             );
+            $total += $detalhes['importados'];
+            $cancelamentos += $detalhes['cancelamentos'];
 
             if (! $this->temProximaPagina($payload, $pagina, count($registros))) {
                 break;
@@ -191,10 +201,11 @@ class EdiProcessadorService
         Log::info('EDI PagBank: dia importado', [
             'data' => $data,
             'importados' => $total,
+            'cancelamentos' => $cancelamentos,
             'paginas' => $pagina,
         ]);
 
-        return ['validado' => true, 'importados' => $total, 'paginas' => $pagina];
+        return ['validado' => true, 'importados' => $total, 'cancelamentos' => $cancelamentos, 'paginas' => $pagina];
     }
 
     public function processarPagina(
@@ -204,17 +215,49 @@ class EdiProcessadorService
         ?array $payload = null,
         ?int $estabelecimentoIdFiltro = null,
         bool $encadear = true,
+        bool $atualizarExistentes = true,
     ): int {
+        return $this->processarPaginaComDetalhes(
+            $data,
+            $tipoMovimento,
+            $pagina,
+            $payload,
+            $estabelecimentoIdFiltro,
+            $encadear,
+            $atualizarExistentes,
+        )['importados'];
+    }
+
+    /**
+     * @return array{importados: int, cancelamentos: int}
+     */
+    private function processarPaginaComDetalhes(
+        string $data,
+        string $tipoMovimento = 'transactional',
+        int $pagina = 1,
+        ?array $payload = null,
+        ?int $estabelecimentoIdFiltro = null,
+        bool $encadear = true,
+        bool $atualizarExistentes = true,
+        bool $atualizarCanceladasExistentes = false,
+    ): array {
         $payload ??= $this->baixarPagina($data, $tipoMovimento, $pagina);
         $registros = $this->extrairRegistros($payload);
         $estabelecimentosPorToken = $this->mapaEstabelecimentosPorToken();
-        $total = $this->gravarRegistros($registros, $estabelecimentosPorToken, $estabelecimentoIdFiltro);
+        $detalhes = $this->gravarRegistros(
+            $registros,
+            $estabelecimentosPorToken,
+            $estabelecimentoIdFiltro,
+            $atualizarExistentes,
+            $atualizarCanceladasExistentes,
+        );
 
         Log::info('EDI PagBank: página processada', [
             'data' => $data,
             'pagina' => $pagina,
             'registros' => count($registros),
-            'importados' => $total,
+            'importados' => $detalhes['importados'],
+            'cancelamentos' => $detalhes['cancelamentos'],
         ]);
 
         if ($encadear) {
@@ -225,15 +268,22 @@ class EdiProcessadorService
             }
         }
 
-        return $total;
+        return $detalhes;
     }
 
     /**
      * @param  array<string, int>  $estabelecimentosPorToken
+     * @return array{importados: int, cancelamentos: int}
      */
-    private function gravarRegistros(array $registros, array $estabelecimentosPorToken, ?int $estabelecimentoIdFiltro): int
-    {
+    private function gravarRegistros(
+        array $registros,
+        array $estabelecimentosPorToken,
+        ?int $estabelecimentoIdFiltro,
+        bool $atualizarExistentes = true,
+        bool $atualizarCanceladasExistentes = false,
+    ): array {
         $lote = [];
+        $canceladas = [];
         $agora = now();
 
         foreach ($registros as $registro) {
@@ -253,28 +303,85 @@ class EdiProcessadorService
                 continue;
             }
 
-            $lote[] = array_merge($mapeado, [
+            $linha = array_merge($mapeado, [
                 'movimento_api_codigo' => $codigo,
                 'created_at' => $agora,
                 'updated_at' => $agora,
             ]);
+
+            $lote[] = $linha;
+
+            if ($atualizarCanceladasExistentes && EdiStatusPagamento::cancelado($mapeado['status_pagamento'] ?? null)) {
+                $canceladas[$codigo] = $linha;
+            }
         }
 
         if ($lote === []) {
-            return 0;
+            return ['importados' => 0, 'cancelamentos' => 0];
         }
 
         $colunas = array_keys($lote[0]);
+        $total = 0;
 
         foreach (array_chunk($lote, 250) as $chunk) {
+            if (! $atualizarExistentes) {
+                $total += EdiMovimento::withoutGlobalScopes()->insertOrIgnore($chunk);
+                continue;
+            }
+
             EdiMovimento::withoutGlobalScopes()->upsert(
                 $chunk,
                 ['movimento_api_codigo'],
                 array_values(array_diff($colunas, ['movimento_api_codigo', 'created_at'])),
             );
+            $total += count($chunk);
         }
 
-        return count($lote);
+        return [
+            'importados' => $total,
+            'cancelamentos' => $this->atualizarCanceladasExistentes($canceladas),
+        ];
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $canceladas
+     */
+    private function atualizarCanceladasExistentes(array $canceladas): int
+    {
+        if ($canceladas === []) {
+            return 0;
+        }
+
+        $total = 0;
+
+        foreach ($canceladas as $codigo => $dados) {
+            $movimento = EdiMovimento::withoutGlobalScopes()
+                ->where('movimento_api_codigo', $codigo)
+                ->first(['id', 'status_pagamento']);
+
+            if (! $movimento || EdiStatusPagamento::cancelado($movimento->status_pagamento)) {
+                continue;
+            }
+
+            TransacaoRoyalty::query()
+                ->where('edi_movimento_id', $movimento->id)
+                ->delete();
+
+            $movimento->update([
+                'status_pagamento' => $dados['status_pagamento'] ?? null,
+                'tipo_evento' => $dados['tipo_evento'] ?? null,
+                'valor_total_transacao' => $dados['valor_total_transacao'] ?? null,
+                'valor_parcela' => $dados['valor_parcela'] ?? null,
+                'valor_original_transacao' => $dados['valor_original_transacao'] ?? null,
+                'valor_liquido_transacao' => $dados['valor_liquido_transacao'] ?? null,
+                'data_importacao' => now(),
+                'processado' => true,
+            ]);
+
+            $total++;
+        }
+
+        return $total;
     }
 
     /**

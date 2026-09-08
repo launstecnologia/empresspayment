@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AggregatedRevenue;
 use App\Models\EdiMovimento;
 use App\Models\Estabelecimento;
+use App\Support\EdiStatusPagamento;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,12 @@ class FaturamentoAgregadorService
 {
     public function agregar(?string $data = null): int
     {
+        if ($data) {
+            AggregatedRevenue::withoutGlobalScopes()
+                ->whereDate('data', $data)
+                ->delete();
+        }
+
         $query = EdiMovimento::withoutGlobalScopes()
             ->selectRaw('
                 DATE(data_inicial_transacao) as data,
@@ -26,8 +33,11 @@ class FaturamentoAgregadorService
                 COUNT(*) as total_transacoes
             ')
             ->whereNotNull('data_inicial_transacao')
-            ->whereNotNull('estabelecimento_id')
-            ->groupBy('data', 'ano', 'mes', 'estabelecimento_id', 'instituicao', 'tipo_transacao', 'status_pagamento');
+            ->whereNotNull('estabelecimento_id');
+
+        EdiStatusPagamento::aplicarSomenteFaturaveis($query);
+
+        $query->groupBy('data', 'ano', 'mes', 'estabelecimento_id', 'instituicao', 'tipo_transacao', 'status_pagamento');
 
         if ($data) {
             $query->whereDate('data_inicial_transacao', $data);
@@ -103,8 +113,11 @@ class FaturamentoAgregadorService
 
         $edi = (float) EdiMovimento::withoutGlobalScopes()
             ->whereNotNull('estabelecimento_id')
-            ->whereBetween('data_inicial_transacao', [$inicio, $fim])
-            ->sum('valor_total_transacao');
+            ->whereBetween('data_inicial_transacao', [$inicio, $fim]);
+
+        EdiStatusPagamento::aplicarSomenteFaturaveis($edi);
+
+        $edi = (float) $edi->sum('valor_total_transacao');
 
         $removidos = $this->limparPeriodo($inicio, $fim);
 
@@ -163,6 +176,8 @@ class FaturamentoAgregadorService
             ->join('edi_movimentos', 'edi_movimentos.id', '=', 'transacao_royalties.edi_movimento_id')
             ->whereNotNull('edi_movimentos.data_inicial_transacao')
             ->whereNotNull('edi_movimentos.estabelecimento_id');
+
+        EdiStatusPagamento::aplicarSomenteFaturaveis($query, 'edi_movimentos.status_pagamento');
 
         if ($data) {
             $query->whereDate('edi_movimentos.data_inicial_transacao', $data);

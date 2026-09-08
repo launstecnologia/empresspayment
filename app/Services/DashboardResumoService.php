@@ -6,6 +6,7 @@ use App\Models\Estabelecimento;
 use App\Models\SubUsuario;
 use App\Models\Usuario;
 use App\Support\ComissaoAdminSql;
+use App\Support\EdiStatusPagamento;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\DB;
 
@@ -59,10 +60,13 @@ class DashboardResumoService
     {
         [$inicio, $fim] = $this->intervalo($periodo);
 
-        return (float) DB::table('edi_movimentos as em')
+        $query = DB::table('edi_movimentos as em')
             ->whereBetween('em.data_inicial_transacao', [$inicio, $fim])
-            ->whereIn('em.estabelecimento_id', Estabelecimento::query()->select('id'))
-            ->sum('em.valor_total_transacao');
+            ->whereIn('em.estabelecimento_id', Estabelecimento::query()->select('id'));
+
+        EdiStatusPagamento::aplicarSomenteFaturaveis($query, 'em.status_pagamento');
+
+        return (float) $query->sum('em.valor_total_transacao');
     }
 
     /**

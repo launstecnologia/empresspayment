@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\EdiMovimento;
 use App\Services\FaturamentoAgregadorService;
+use App\Support\EdiStatusPagamento;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 
@@ -39,10 +40,13 @@ class EdiReagregarCommand extends Command
         $this->newLine();
 
         $resumo = $agregador->resumoAgregadoPeriodo($inicio, $fim);
-        $edi = (float) EdiMovimento::withoutGlobalScopes()
+        $ediQuery = EdiMovimento::withoutGlobalScopes()
             ->whereNotNull('estabelecimento_id')
-            ->whereBetween('data_inicial_transacao', [$inicio, $fim])
-            ->sum('valor_total_transacao');
+            ->whereBetween('data_inicial_transacao', [$inicio, $fim]);
+
+        EdiStatusPagamento::aplicarSomenteFaturaveis($ediQuery);
+
+        $edi = (float) $ediQuery->sum('valor_total_transacao');
 
         $this->comment('── Antes ──');
         $this->table(

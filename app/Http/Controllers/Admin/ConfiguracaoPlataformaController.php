@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ReprocessarEdiEstabelecimentosJob;
+use App\Models\EdiReprocessamento;
 use App\Models\PlatformSetting;
 use App\Support\PlatformSettings;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -22,6 +25,10 @@ class ConfiguracaoPlataformaController extends Controller
             'faviconUrl' => PlatformSettings::logoUrl('favicon'),
             'ppidConfigurado' => PlatformSettings::ppidConfigurado(),
             'pagbankConfigurado' => PlatformSettings::pagbankConfigurado(),
+            'ediReprocessamentos' => EdiReprocessamento::query()
+                ->latest()
+                ->limit(10)
+                ->get(),
         ]);
     }
 
@@ -272,6 +279,61 @@ class ConfiguracaoPlataformaController extends Controller
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'erro' => $e->getMessage()], 500);
         }
+    }
+
+    public function reprocessarEdi(Request $request)
+    {
+        $this->authorizeAdmin($request);
+
+        $dados = $request->validate([
+            'periodo_de' => ['required', 'date'],
+            'periodo_ate' => ['required', 'date'],
+            'entrada_tipo' => ['required', 'in:id,token'],
+            'entradas' => ['required', 'string', 'max:20000'],
+        ], [
+            'periodo_de.required' => 'Informe a data inicial.',
+            'periodo_ate.required' => 'Informe a data final.',
+            'entradas.required' => 'Informe ao menos um estabelecimento.',
+        ]);
+
+        $de = Carbon::parse($dados['periodo_de'])->startOfDay();
+        $ate = Carbon::parse($dados['periodo_ate'])->startOfDay();
+
+        if ($de->gt($ate)) {
+            [$de, $ate] = [$ate, $de];
+        }
+
+        $entradas = collect(preg_split('/[\s,;]+/', $dados['entradas']) ?: [])
+            ->map(fn ($valor) => trim((string) $valor))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($entradas->isEmpty()) {
+            return redirect()
+                ->route('admin.configuracoes.edit', ['aba' => 'edi'])
+                ->withErrors(['entradas' => 'Informe ao menos um estabelecimento válido.']);
+        }
+
+        $lote = EdiReprocessamento::create([
+            'status' => 'pendente',
+            'periodo_de' => $de->toDateString(),
+            'periodo_ate' => $ate->toDateString(),
+            'entrada_tipo' => $dados['entrada_tipo'],
+            'total_itens' => $entradas->count(),
+            'total_dias' => $de->diffInDays($ate) + 1,
+            'iniciado_por_id' => $request->user()->id,
+            'iniciado_por_nome' => $request->user()->nomeExibicao(),
+            'entradas' => $entradas->all(),
+            'resultado' => [],
+        ]);
+
+        ReprocessarEdiEstabelecimentosJob::dispatch($lote->id)
+            ->onQueue('default');
+
+        return redirect()
+            ->route('admin.configuracoes.edit', ['aba' => 'edi'])
+            ->with('status', "Reprocessamento EDI #{$lote->id} enfileirado.");
     }
 
     private function authorizeAdmin(Request $request): void

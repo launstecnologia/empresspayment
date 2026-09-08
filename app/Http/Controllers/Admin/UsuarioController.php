@@ -8,6 +8,7 @@ use App\Models\Segmento;
 use App\Models\Usuario;
 use App\Rules\EmailUnicoAutenticacao;
 use App\Services\HierarquiaService;
+use App\Services\InativacaoComercialService;
 use App\Services\MarketplaceBrandingService;
 use App\Services\MarketplacePlanoService;
 use App\Services\NotificacaoEmailService;
@@ -16,6 +17,7 @@ use App\Support\NotificacaoVars;
 use App\Support\UsuarioComercial;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 class UsuarioController extends Controller
@@ -233,6 +235,44 @@ class UsuarioController extends Controller
             ->with('status', $usuario->tipo === 'admin'
                 ? 'Senha resetada para 123456. O usuário deverá criar uma nova senha no próximo acesso.'
                 : 'Senha comercial resetada para 123456. O usuário deverá criar uma nova senha no próximo acesso.');
+    }
+
+    public function desativar(Request $request, Usuario $usuario, InativacaoComercialService $inativacao)
+    {
+        abort_unless($request->user()?->tipo === 'admin', 403);
+
+        if ((int) $request->user()->id === (int) $usuario->id) {
+            return redirect()
+                ->route('usuarios.show', $usuario)
+                ->withErrors(['desativar_usuario' => 'Você não pode desativar o próprio usuário logado.']);
+        }
+
+        if (! $usuario->ativo) {
+            return redirect()
+                ->route('usuarios.show', $usuario)
+                ->with('aviso', 'Este usuário já está inativo.');
+        }
+
+        $dados = $request->validate([
+            'senha_admin_desativar_usuario' => ['required', 'string'],
+            'confirmacao_desativar_usuario' => ['accepted'],
+        ], [
+            'senha_admin_desativar_usuario.required' => 'Informe sua senha de administrador.',
+            'confirmacao_desativar_usuario.accepted' => 'Confirme que deseja desativar este usuário.',
+        ]);
+
+        if (! Hash::check($dados['senha_admin_desativar_usuario'], $request->user()->password)) {
+            return redirect()
+                ->route('usuarios.show', $usuario)
+                ->withErrors(['senha_admin_desativar_usuario' => 'Senha de administrador incorreta.'])
+                ->with('abrir_modal_desativar_usuario', true);
+        }
+
+        $totais = $inativacao->desativarUsuarioECascata($usuario);
+
+        return redirect()
+            ->route('usuarios.index', in_array($usuario->tipo, ['master', 'marketplace', 'revenda'], true) ? ['tipo' => $usuario->tipo, 'ativo' => '0'] : ['ativo' => '0'])
+            ->with('status', "Usuário desativado. Cascata: {$totais['usuarios']} usuário(s), {$totais['sub_usuarios']} acesso(s) operacional(is) e {$totais['estabelecimentos']} estabelecimento(s).");
     }
 
     public function update(Request $request, Usuario $usuario, HierarquiaService $hierarquia, MarketplacePlanoService $marketplacePlano)

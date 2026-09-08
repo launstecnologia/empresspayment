@@ -56,12 +56,12 @@ Route::post('/password/reset', [PasswordResetController::class, 'update'])->name
 
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'usuario.ativo'])->group(function () {
     Route::get('/senha/criar', [TrocaSenhaObrigatoriaController::class, 'create'])->name('senha.trocar');
     Route::post('/senha/criar', [TrocaSenhaObrigatoriaController::class, 'store'])->name('senha.trocar.salvar');
 });
 
-Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () {
+Route::middleware(['auth', 'usuario.ativo', 'trocar.senha', 'tenant.access'])->group(function () {
     Route::get('/perfil', [PerfilController::class, 'edit'])->name('perfil.edit');
     Route::put('/perfil', [PerfilController::class, 'update'])->name('perfil.update');
     Route::get('/dashboard', [AdminDashboardController::class, '__invoke'])->name('dashboard');
@@ -93,9 +93,11 @@ Route::middleware(['auth', 'trocar.senha', 'tenant.access'])->group(function () 
     Route::put('usuarios/{usuario}/subusuarios/{subUsuario}/senha', [SubUsuarioController::class, 'updatePassword'])->name('usuarios.subusuarios.password.update');
     Route::post('usuarios/{usuario}/subusuarios/{subUsuario}/acessar', [SubUsuarioController::class, 'acessar'])->name('usuarios.subusuarios.acessar');
     Route::post('usuarios/{usuario}/subusuarios/{subUsuario}/resetar-senha', [SubUsuarioController::class, 'resetarSenha'])->name('usuarios.subusuarios.resetar-senha');
+    Route::post('usuarios/{usuario}/subusuarios/{subUsuario}/desativar', [SubUsuarioController::class, 'desativar'])->name('usuarios.subusuarios.desativar');
     Route::post('usuarios/{usuario}/subusuarios/{subUsuario}/excluir', [SubUsuarioController::class, 'destroy'])->name('usuarios.subusuarios.destroy');
     Route::get('usuarios/{usuario}/subusuarios/{subUsuario}', [SubUsuarioController::class, 'redirectShow'])->name('usuarios.subusuarios.show');
     Route::post('usuarios/{usuario}/resetar-senha', [UsuarioController::class, 'resetarSenha'])->name('usuarios.resetar-senha');
+    Route::post('usuarios/{usuario}/desativar', [UsuarioController::class, 'desativar'])->name('usuarios.desativar');
     Route::resource('usuarios', UsuarioController::class)->except(['destroy']);
     Route::resource('segmentos', SegmentoController::class)->except(['show'])->middleware('nivel:admin');
     Route::patch('estabelecimentos/{estabelecimento}/status', [EstabelecimentoController::class, 'updateStatus'])->name('estabelecimentos.status.update');

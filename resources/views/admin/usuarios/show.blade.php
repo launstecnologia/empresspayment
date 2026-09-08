@@ -26,7 +26,12 @@
 <section class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-            <h2 class="text-xl font-bold uppercase text-gray-800">{{ $usuario->nomeExibicao() }}</h2>
+            <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-xl font-bold uppercase text-gray-800">{{ $usuario->nomeExibicao() }}</h2>
+                <span class="rounded-full px-2.5 py-1 text-xs font-bold {{ $usuario->ativo ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700' }}">
+                    {{ $usuario->ativo ? 'Ativo' : 'Inativo' }}
+                </span>
+            </div>
             <p class="mt-1 text-sm text-gray-400">
                 @if ($usuario->tipo === 'admin')
                     Administrador da plataforma.
@@ -155,6 +160,13 @@
                 @include('admin.usuarios.partials.whitelabel-drawer')
             @endif
         @endif
+        @if (auth()->user()?->tipo === 'admin' && $usuario->ativo && (int) auth()->id() !== (int) $usuario->id)
+            <button type="button"
+                    data-modal-open="desativar-usuario"
+                    class="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-100">
+                <i class="fa-solid fa-ban mr-1"></i> Desativar
+            </button>
+        @endif
     </div>
 
     @if (session('status'))
@@ -166,13 +178,83 @@
             @endif
         </div>
     @endif
+    @if (session('aviso'))
+        <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {{ session('aviso') }}
+        </div>
+    @endif
     @if ($errors->has('ssl'))
         <div class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 whitespace-pre-wrap">{{ $errors->first('ssl') }}</div>
     @endif
     @if ($errors->has('acesso'))
         <div class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $errors->first('acesso') }}</div>
     @endif
+    @if ($errors->has('desativar_usuario'))
+        <div class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $errors->first('desativar_usuario') }}</div>
+    @endif
 </section>
+
+@if (auth()->user()?->tipo === 'admin' && $usuario->ativo && (int) auth()->id() !== (int) $usuario->id)
+<div data-modal="desativar-usuario" class="modal-overlay fixed inset-0 z-[100] items-center justify-center bg-black/40 px-4">
+    <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+        <div class="mb-4 flex items-start justify-between gap-3">
+            <div>
+                <h3 class="text-lg font-bold text-red-700">Desativar {{ strtolower($tipoLabel[$usuario->tipo]) }}</h3>
+                <p class="mt-1 text-sm text-gray-500">O registro será preservado, mas o acesso será bloqueado.</p>
+            </div>
+            <button type="button" data-modal-close="desativar-usuario" class="text-2xl leading-none text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+
+        <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <p class="font-semibold">O que acontece:</p>
+            <ul class="mt-2 list-inside list-disc space-y-1">
+                <li>Este usuário não poderá mais acessar a plataforma</li>
+                <li>Usuários operacionais vinculados serão desativados</li>
+                @if (in_array($usuario->tipo, ['master', 'marketplace'], true))
+                    <li>Usuários comerciais abaixo dele também serão desativados</li>
+                @endif
+                <li>Estabelecimentos vinculados ficarão inativos no sistema</li>
+            </ul>
+        </div>
+
+        <form method="POST" action="{{ route('usuarios.desativar', $usuario) }}" class="space-y-4">
+            @csrf
+            <label class="block space-y-1">
+                <span class="text-sm font-medium text-gray-700">Sua senha de administrador</span>
+                <div class="relative">
+                    <input type="password" name="senha_admin_desativar_usuario" id="senha-admin-desativar-usuario" autocomplete="current-password" required
+                           class="w-full rounded-lg border border-gray-300 py-2 pl-3 pr-10 text-sm @error('senha_admin_desativar_usuario') border-red-500 @enderror">
+                    <button type="button" id="toggle-senha-admin-desativar-usuario"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        <i class="fa-regular fa-eye" id="toggle-senha-admin-desativar-usuario-icon"></i>
+                    </button>
+                </div>
+                @error('senha_admin_desativar_usuario')
+                    <p class="text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </label>
+
+            <label class="flex items-start gap-2 text-sm text-gray-700">
+                <input type="hidden" name="confirmacao_desativar_usuario" value="0">
+                <input type="checkbox" name="confirmacao_desativar_usuario" value="1" required class="mt-0.5 h-4 w-4 rounded accent-red-600">
+                <span>Confirmo que desejo desativar <strong>{{ $usuario->nomeExibicao() }}</strong>.</span>
+            </label>
+            @error('confirmacao_desativar_usuario')
+                <p class="text-xs text-red-600">{{ $message }}</p>
+            @enderror
+
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" data-modal-close="desativar-usuario" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                    Cancelar
+                </button>
+                <button type="submit" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
+                    Desativar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
 
 @if (in_array($usuario->tipo, ['master', 'marketplace']))
 <section class="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -284,18 +366,19 @@
                     <td class="px-5 py-4 text-gray-600">{{ $subUsuario->ativo ? 'Ativo' : 'Inativo' }}</td>
                     <td class="px-5 py-4 text-right">
                         <div class="flex flex-wrap justify-end gap-2">
-                            @if (auth()->user()?->tipo === 'admin' && in_array($usuario->tipo, ['marketplace', 'revenda'], true))
+                            @if ($subUsuario->ativo && auth()->user()?->tipo === 'admin' && in_array($usuario->tipo, ['marketplace', 'revenda'], true))
                                 <form method="POST" action="{{ route('usuarios.subusuarios.acessar', [$usuario, $subUsuario]) }}" target="_blank">
                                     @csrf
                                     <button type="submit" class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100">
                                         <i class="fa-solid fa-right-to-bracket mr-1"></i> Acessar
                                     </button>
                                 </form>
-                            @elseif ($urlAcessoOperacional ?? null)
+                            @elseif ($subUsuario->ativo && ($urlAcessoOperacional ?? null))
                                 <a href="{{ $urlAcessoOperacional }}" target="_blank" rel="noopener" class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100">
                                     <i class="fa-solid fa-right-to-bracket mr-1"></i> Abrir painel
                                 </a>
                             @endif
+                            @if ($subUsuario->ativo)
                             <form method="POST" action="{{ route('usuarios.subusuarios.resetar-senha', [$usuario, $subUsuario]) }}" onsubmit="return confirm('Resetar a senha de {{ $subUsuario->nome }} para 123456? No próximo acesso será obrigatório criar uma nova senha.')">
                                 @csrf
                                 <button type="submit" class="rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-bold text-orange-700 hover:bg-orange-100">
@@ -303,12 +386,15 @@
                                 </button>
                             </form>
                             <button type="button"
-                                    data-modal-open="excluir-subusuario"
-                                    data-action="{{ route('usuarios.subusuarios.destroy', [$usuario, $subUsuario]) }}"
+                                    data-modal-open="desativar-subusuario"
+                                    data-action="{{ route('usuarios.subusuarios.desativar', [$usuario, $subUsuario]) }}"
                                     data-subusuario-nome="{{ $subUsuario->nome }}"
                                     class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100">
-                                <i class="fa-solid fa-trash mr-1"></i> Excluir
+                                <i class="fa-solid fa-ban mr-1"></i> Desativar
                             </button>
+                            @else
+                                <span class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-400">Sem acesso</span>
+                            @endif
                         </div>
                     </td>
                 </tr>
@@ -331,20 +417,20 @@
     </table>
 </section>
 
-<div data-modal="excluir-subusuario" class="modal-overlay fixed inset-0 z-[100] items-center justify-center bg-black/40 px-4">
+<div data-modal="desativar-subusuario" class="modal-overlay fixed inset-0 z-[100] items-center justify-center bg-black/40 px-4">
     <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
         <div class="mb-4 flex items-start justify-between gap-3">
             <div>
-                <h3 class="text-lg font-bold text-gray-900">Excluir usuário operacional</h3>
-                <p class="mt-1 text-sm text-gray-500">Esta ação não pode ser desfeita.</p>
+                <h3 class="text-lg font-bold text-red-700">Desativar usuário operacional</h3>
+                <p class="mt-1 text-sm text-gray-500">O usuário não poderá mais acessar, mas o registro será preservado.</p>
             </div>
-            <button type="button" data-modal-close="excluir-subusuario" class="text-2xl leading-none text-gray-400 hover:text-gray-600">&times;</button>
+            <button type="button" data-modal-close="desativar-subusuario" class="text-2xl leading-none text-gray-400 hover:text-gray-600">&times;</button>
         </div>
 
-        <form id="form-excluir-subusuario" method="POST" action="" class="space-y-4">
+        <form id="form-desativar-subusuario" method="POST" action="" class="space-y-4">
             @csrf
             <p class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
-                Usuário: <strong id="excluir-subusuario-nome">—</strong>
+                Usuário: <strong id="desativar-subusuario-nome">—</strong>
             </p>
 
             <label class="block space-y-1">
@@ -365,18 +451,18 @@
             <label class="flex items-start gap-2 text-sm text-gray-700">
                 <input type="hidden" name="confirmacao" value="0">
                 <input type="checkbox" name="confirmacao" value="1" required class="mt-0.5 h-4 w-4 rounded accent-red-600">
-                <span>Confirmo que desejo excluir este usuário operacional.</span>
+                <span>Confirmo que desejo desativar este usuário operacional.</span>
             </label>
             @error('confirmacao')
                 <p class="text-xs text-red-600">{{ $message }}</p>
             @enderror
 
             <div class="flex justify-end gap-3 pt-2">
-                <button type="button" data-modal-close="excluir-subusuario" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                <button type="button" data-modal-close="desativar-subusuario" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">
                     Cancelar
                 </button>
                 <button type="submit" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
-                    Excluir usuário
+                    Desativar usuário
                 </button>
             </div>
         </form>
@@ -386,12 +472,11 @@
 @endsection
 
 @section('scripts')
-@if (in_array($usuario->tipo, ['master', 'marketplace', 'revenda']))
 <script>
     (() => {
-        const modal = document.querySelector('[data-modal="excluir-subusuario"]');
-        const form = document.getElementById('form-excluir-subusuario');
-        const nomeEl = document.getElementById('excluir-subusuario-nome');
+        const modal = document.querySelector('[data-modal="desativar-subusuario"]');
+        const form = document.getElementById('form-desativar-subusuario');
+        const nomeEl = document.getElementById('desativar-subusuario-nome');
 
         const abrirModal = (action, nome) => {
             if (!modal || !form) return;
@@ -400,13 +485,13 @@
             modal.classList.add('is-open');
         };
 
-        document.querySelectorAll('[data-modal-open="excluir-subusuario"]').forEach((button) => {
+        document.querySelectorAll('[data-modal-open="desativar-subusuario"]').forEach((button) => {
             button.addEventListener('click', () => {
                 abrirModal(button.dataset.action, button.dataset.subusuarioNome);
             });
         });
 
-        document.querySelectorAll('[data-modal-close="excluir-subusuario"]').forEach((button) => {
+        document.querySelectorAll('[data-modal-close="desativar-subusuario"]').forEach((button) => {
             button.addEventListener('click', () => modal?.classList.remove('is-open'));
         });
 
@@ -424,15 +509,40 @@
             icon.classList.toggle('fa-eye-slash', oculta);
         });
 
-        @if (session('abrir_modal_excluir_subusuario'))
-            @php $subReabrir = $usuario->subUsuarios->firstWhere('id', (int) session('abrir_modal_excluir_subusuario')); @endphp
+        @if (session('abrir_modal_desativar_subusuario'))
+            @php $subReabrir = $usuario->subUsuarios->firstWhere('id', (int) session('abrir_modal_desativar_subusuario')); @endphp
             @if ($subReabrir)
-                abrirModal(@json(route('usuarios.subusuarios.destroy', [$usuario, $subReabrir])), @json($subReabrir->nome));
+                abrirModal(@json(route('usuarios.subusuarios.desativar', [$usuario, $subReabrir])), @json($subReabrir->nome));
             @endif
         @elseif ($errors->has('senha_admin') || $errors->has('confirmacao'))
             modal?.classList.add('is-open');
         @endif
+
+        @if (session('abrir_modal_desativar_usuario') || $errors->has('senha_admin_desativar_usuario') || $errors->has('confirmacao_desativar_usuario'))
+            document.querySelector('[data-modal="desativar-usuario"]')?.classList.add('is-open');
+        @endif
+
+        document.querySelectorAll('[data-modal-open="desativar-usuario"]').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.querySelector('[data-modal="desativar-usuario"]')?.classList.add('is-open');
+            });
+        });
+
+        document.querySelectorAll('[data-modal-close="desativar-usuario"]').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.querySelector('[data-modal="desativar-usuario"]')?.classList.remove('is-open');
+            });
+        });
+
+        document.getElementById('toggle-senha-admin-desativar-usuario')?.addEventListener('click', () => {
+            const input = document.getElementById('senha-admin-desativar-usuario');
+            const icon = document.getElementById('toggle-senha-admin-desativar-usuario-icon');
+            if (!input || !icon) return;
+            const oculta = input.type === 'password';
+            input.type = oculta ? 'text' : 'password';
+            icon.classList.toggle('fa-eye', !oculta);
+            icon.classList.toggle('fa-eye-slash', oculta);
+        });
     })();
 </script>
-@endif
 @endsection

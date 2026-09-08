@@ -130,32 +130,44 @@ class SubUsuarioController extends Controller
         return redirect()->route('usuarios.show', $usuario);
     }
 
-    public function destroy(Request $request, Usuario $usuario, SubUsuario $subUsuario)
+    public function desativar(Request $request, Usuario $usuario, SubUsuario $subUsuario)
     {
+        abort_unless($request->user()?->tipo === 'admin', 403);
         abort_unless(UsuarioComercial::podeGerenciar($usuario), 403);
         $this->validarDono($usuario, $subUsuario);
+
+        if (! $subUsuario->ativo) {
+            return redirect()
+                ->route('usuarios.show', $usuario)
+                ->with('aviso', 'Este usuário operacional já está inativo.');
+        }
 
         $dados = $request->validate([
             'senha_admin' => ['required', 'string'],
             'confirmacao' => ['accepted'],
         ], [
             'senha_admin.required' => 'Informe sua senha de administrador.',
-            'confirmacao.accepted' => 'Confirme que deseja excluir este usuário.',
+            'confirmacao.accepted' => 'Confirme que deseja desativar este usuário.',
         ]);
 
         if (! Hash::check($dados['senha_admin'], $request->user()->password)) {
             return redirect()
                 ->route('usuarios.show', $usuario)
                 ->withErrors(['senha_admin' => 'Senha de administrador incorreta.'])
-                ->with('abrir_modal_excluir_subusuario', $subUsuario->id);
+                ->with('abrir_modal_desativar_subusuario', $subUsuario->id);
         }
 
         $nome = $subUsuario->nome;
-        $subUsuario->delete();
+        $subUsuario->update(['ativo' => false]);
 
         return redirect()
             ->route('usuarios.show', $usuario)
-            ->with('status', "Usuário operacional {$nome} excluído.");
+            ->with('status', "Usuário operacional {$nome} desativado.");
+    }
+
+    public function destroy(Request $request, Usuario $usuario, SubUsuario $subUsuario)
+    {
+        return $this->desativar($request, $usuario, $subUsuario);
     }
 
     private function validarDono(Usuario $usuario, SubUsuario $subUsuario): void

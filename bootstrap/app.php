@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureAcessoAdminMaster;
 use App\Http\Middleware\EnsureFinanceiroVisivel;
+use App\Http\Middleware\EnsureUsuarioAtivo;
 use App\Http\Middleware\ChecarTrocaSenha;
 use App\Http\Middleware\EnsureMarketplaceTenantAccess;
 use App\Http\Middleware\EnsureNivel;
@@ -51,6 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'nivel' => EnsureNivel::class,
             'permissao' => EnsurePermissao::class,
             'tenant.access' => EnsureMarketplaceTenantAccess::class,
+            'usuario.ativo' => EnsureUsuarioAtivo::class,
             'trocar.senha' => ChecarTrocaSenha::class,
             'planos.marketplace' => RedirectMarketplacePlanos::class,
             'acesso.admin-master' => EnsureAcessoAdminMaster::class,

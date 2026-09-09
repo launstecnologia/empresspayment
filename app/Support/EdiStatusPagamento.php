@@ -50,4 +50,15 @@ class EdiStatusPagamento
                 });
         });
     }
+
+    public static function aplicarSomenteCanceladas(mixed $query, string $coluna = 'status_pagamento'): mixed
+    {
+        return $query->where(function ($query) use ($coluna) {
+            $query->whereIn($coluna, self::CODIGOS_CANCELADOS);
+
+            foreach (self::TERMOS_CANCELAMENTO as $termo) {
+                $query->orWhereRaw("LOWER(COALESCE({$coluna}, '')) LIKE ?", ["%{$termo}%"]);
+            }
+        });
+    }
 }

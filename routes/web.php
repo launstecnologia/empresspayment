@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\ChamadoController as AdminChamadoController;
 use App\Http\Controllers\Admin\AdminKycController;
 use App\Http\Controllers\Admin\ConciliacaoController;
 use App\Http\Controllers\Admin\ConfiguracaoPlataformaController;
+use App\Http\Controllers\Admin\EdiTransacaoRelatorioController;
 use App\Http\Controllers\Admin\EstabelecimentoTransacaoRelatorioController;
 use App\Http\Controllers\Admin\EdiPipefyController;
 use App\Http\Controllers\Admin\EstabelecimentoAutomacaoController;
@@ -214,6 +215,7 @@ Route::middleware(['auth', 'usuario.ativo', 'trocar.senha', 'tenant.access'])->g
             Route::get('/{solicitacao}', [EdiPipefyController::class, 'show'])->name('show');
         });
         Route::prefix('admin/relatorios')->name('admin.relatorios.')->middleware('financeiro.visivel')->group(function () {
+            Route::get('/edi-transacoes', [EdiTransacaoRelatorioController::class, 'index'])->name('edi-transacoes');
             Route::get('/estabelecimentos-transacoes', [EstabelecimentoTransacaoRelatorioController::class, 'index'])->name('estabelecimentos-transacoes');
             Route::get('/estabelecimentos-transacoes/excel', [EstabelecimentoTransacaoRelatorioController::class, 'excel'])->name('estabelecimentos-transacoes.excel');
         });

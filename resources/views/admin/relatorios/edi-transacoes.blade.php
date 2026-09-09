@@ -69,8 +69,8 @@
             </select>
         </label>
         <label class="block space-y-1 xl:col-span-4">
-            <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Busca</span>
-            <input type="search" name="busca" value="{{ $filtros['busca'] }}" placeholder="Token, NSU, tx_id, nome..." class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+            <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Estabelecimento / EDI</span>
+            <input type="search" name="busca" value="{{ $filtros['busca'] }}" placeholder="ID interno, nome, documento, token EDI, NSU..." class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
         </label>
         <label class="block space-y-1">
             <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Por página</span>
@@ -171,7 +171,7 @@
                 <tr>
                     <th class="px-4 py-3">Quando</th>
                     <th class="px-4 py-3">Estabelecimento</th>
-                    <th class="px-4 py-3">Token</th>
+                    <th class="px-4 py-3">EDI</th>
                     <th class="px-4 py-3">Status</th>
                     <th class="px-4 py-3">Pagamento</th>
                     <th class="px-4 py-3 text-right">Valores</th>
@@ -206,9 +206,12 @@
                         </td>
                         <td class="px-4 py-3">
                             <div class="max-w-80 truncate font-semibold text-gray-900 dark:text-gray-100" title="{{ $nome }}">{{ $nome }}</div>
-                            <div class="mt-0.5 text-xs text-gray-500">{{ $tx->cnpj ?: $tx->cpf ?: 'sem documento' }}</div>
+                            <div class="mt-0.5 text-xs text-gray-500">ID {{ $tx->estabelecimento_id ?: '—' }} · {{ $tx->cnpj ?: $tx->cpf ?: 'sem documento' }}</div>
                         </td>
-                        <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-600">{{ $tx->estabelecimento ?: '—' }}</td>
+                        <td class="whitespace-nowrap px-4 py-3">
+                            <div class="font-mono text-xs font-semibold text-gray-700 dark:text-gray-200">{{ $tx->estabelecimento ?: $tx->token_pagseguro ?: '—' }}</div>
+                            <div class="mt-0.5 text-xs text-gray-400">token_pagseguro</div>
+                        </td>
                         <td class="whitespace-nowrap px-4 py-3">
                             <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1 {{ $statusClass }}">{{ $statusLabel }}</span>
                             <div class="mt-1 font-mono text-xs text-gray-400">{{ $tx->status_pagamento ?: 'sem código' }}</div>

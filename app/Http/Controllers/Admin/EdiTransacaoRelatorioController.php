@@ -61,6 +61,8 @@ class EdiTransacaoRelatorioController extends Controller
                 'em.codigo_autorizacao',
                 'em.num_logico',
                 'em.numero_serie_leitor',
+                'em.estabelecimento_id',
+                'e.token_pagseguro',
                 'e.nome_fantasia',
                 'e.razao_social',
                 'e.nome_completo',
@@ -160,11 +162,17 @@ class EdiTransacaoRelatorioController extends Controller
                     ->orWhere('em.nsu', $busca)
                     ->orWhere('em.estabelecimento', $busca)
                     ->orWhere('em.codigo_autorizacao', $busca)
+                    ->orWhere('e.token_pagseguro', $busca)
                     ->orWhere('e.cnpj', $busca)
                     ->orWhere('e.cpf', $busca)
                     ->orWhere('e.nome_fantasia', 'like', $like)
                     ->orWhere('e.razao_social', 'like', $like)
                     ->orWhere('e.nome_completo', 'like', $like);
+
+                if (ctype_digit($busca)) {
+                    $query->orWhere('em.estabelecimento_id', (int) $busca)
+                        ->orWhere('e.id', (int) $busca);
+                }
             });
         }
 

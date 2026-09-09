@@ -16,6 +16,8 @@ class EdiTransacaoRelatorioController extends Controller
     {
         $request->validate([
             'mes' => ['nullable', 'date_format:Y-m'],
+            'mes_numero' => ['nullable', 'integer', 'between:1,12'],
+            'ano' => ['nullable', 'integer', 'between:2020,2100'],
             'status' => ['nullable', 'in:todos,faturaveis,canceladas,01,02,03,04'],
             'tipo_transacao' => ['nullable', 'in:debito,credito,pix'],
             'instituicao' => ['nullable', 'string', 'max:32'],
@@ -84,9 +86,7 @@ class EdiTransacaoRelatorioController extends Controller
 
     private function filtros(Request $request): array
     {
-        $mes = filled($request->input('mes'))
-            ? Carbon::parse($request->input('mes').'-01')
-            : now()->startOfMonth();
+        $mes = $this->mesSelecionado($request);
 
         $inicio = $mes->copy()->startOfMonth()->toDateString();
         $fim = $mes->copy()->endOfMonth()->toDateString();
@@ -94,6 +94,8 @@ class EdiTransacaoRelatorioController extends Controller
 
         return [
             'mes' => $mes->format('Y-m'),
+            'mes_numero' => (int) $mes->format('n'),
+            'ano' => (int) $mes->format('Y'),
             'inicio' => $inicio,
             'fim' => $fim,
             'status' => in_array($request->input('status'), ['todos', 'faturaveis', 'canceladas', '01', '02', '03', '04'], true)
@@ -106,6 +108,22 @@ class EdiTransacaoRelatorioController extends Controller
             'busca' => trim((string) $request->input('busca')),
             'por_pagina' => in_array($porPagina, [50, 100, 200], true) ? $porPagina : 100,
         ];
+    }
+
+    private function mesSelecionado(Request $request): Carbon
+    {
+        if (filled($request->input('mes_numero')) || filled($request->input('ano'))) {
+            $ano = filled($request->input('ano')) ? (int) $request->input('ano') : (int) now()->format('Y');
+            $mes = filled($request->input('mes_numero')) ? (int) $request->input('mes_numero') : (int) now()->format('n');
+
+            return Carbon::create($ano, $mes, 1)->startOfMonth();
+        }
+
+        if (filled($request->input('mes'))) {
+            return Carbon::parse($request->input('mes').'-01')->startOfMonth();
+        }
+
+        return now()->startOfMonth();
     }
 
     private function baseQuery(array $filtros): Builder

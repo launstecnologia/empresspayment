@@ -31,10 +31,17 @@
 
 <form method="GET" action="{{ route('admin.relatorios.edi-transacoes') }}" class="mb-5 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
     <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-12">
-        <label class="block space-y-1">
-            <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Mês</span>
-            <input type="month" name="mes" value="{{ $filtros['mes'] }}" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-        </label>
+        <div class="space-y-1 xl:col-span-2">
+            <span class="block text-xs font-semibold uppercase tracking-wide text-gray-500">Competência</span>
+            <div class="grid grid-cols-[1fr_88px] gap-2">
+                <select name="mes_numero" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                    @foreach ([1 => 'Jan', 2 => 'Fev', 3 => 'Mar', 4 => 'Abr', 5 => 'Mai', 6 => 'Jun', 7 => 'Jul', 8 => 'Ago', 9 => 'Set', 10 => 'Out', 11 => 'Nov', 12 => 'Dez'] as $numero => $nomeMes)
+                        <option value="{{ $numero }}" @selected((int) $filtros['mes_numero'] === $numero)>{{ $nomeMes }}</option>
+                    @endforeach
+                </select>
+                <input type="number" name="ano" value="{{ $filtros['ano'] }}" min="2020" max="2100" inputmode="numeric" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm tabular-nums dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+            </div>
+        </div>
         <label class="block space-y-1 xl:col-span-2">
             <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Status</span>
             <select name="status" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">

@@ -214,8 +214,10 @@ Route::middleware(['auth', 'usuario.ativo', 'trocar.senha', 'tenant.access'])->g
                 ->name('screenshot');
             Route::get('/{solicitacao}', [EdiPipefyController::class, 'show'])->name('show');
         });
-        Route::prefix('admin/relatorios')->name('admin.relatorios.')->middleware('financeiro.visivel')->group(function () {
+        Route::prefix('admin/relatorios')->name('admin.relatorios.')->group(function () {
             Route::get('/edi-transacoes', [EdiTransacaoRelatorioController::class, 'index'])->name('edi-transacoes');
+        });
+        Route::prefix('admin/relatorios')->name('admin.relatorios.')->middleware('financeiro.visivel')->group(function () {
             Route::get('/estabelecimentos-transacoes', [EstabelecimentoTransacaoRelatorioController::class, 'index'])->name('estabelecimentos-transacoes');
             Route::get('/estabelecimentos-transacoes/excel', [EstabelecimentoTransacaoRelatorioController::class, 'excel'])->name('estabelecimentos-transacoes.excel');
         });
